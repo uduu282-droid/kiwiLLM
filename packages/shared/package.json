@@ -24,7 +24,7 @@
 		"dist/"
 	],
 	"scripts": {
-		"build": "rm -rf dist tsconfig.tsbuildinfo && tsc && resolve-tspaths",
+		"build": "node -e \"for (const p of [\\\"dist\\\", \\\"tsconfig.tsbuildinfo\\\"]) require(\\\"node:fs\\\").rmSync(p, { recursive: true, force: true });\" && tsc && resolve-tspaths",
 		"dev": "tsc-watch --onSuccess 'resolve-tspaths'",
 		"format": "eslint --fix . && prettier --write .",
 		"lint": "eslint . && prettier --check ."
@@ -69,3 +69,4 @@
 		"@types/react-dom": "^19.2.3"
 	}
 }
+

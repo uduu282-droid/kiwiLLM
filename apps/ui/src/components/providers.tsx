@@ -7,6 +7,7 @@ import { PostHogProvider } from "posthog-js/react";
 import { Suspense, useMemo, useEffect } from "react";
 import { Toaster as SonnerToaster } from "sonner";
 
+import { SupabaseAuthProvider } from "@/components/providers/supabase-auth-provider";
 import { ReferralHandler } from "@/components/referral-handler";
 import { Toaster } from "@/lib/components/toaster";
 import { toast } from "@/lib/components/use-toast";
@@ -70,9 +71,10 @@ export function Providers({ children, config }: ProvidersProps) {
 	// Set up Crisp if configured
 	useEffect(() => {
 		if (config.crispId) {
+			const crispId = config.crispId;
 			// Dynamically import Crisp to avoid SSR issues
 			void import("crisp-sdk-web").then(({ Crisp }) => {
-				Crisp.configure(config.crispId!);
+				Crisp.configure(crispId);
 			});
 		}
 	}, [config.crispId]);
@@ -85,21 +87,23 @@ export function Providers({ children, config }: ProvidersProps) {
 				enableSystem
 				storageKey="theme"
 			>
-				<QueryClientProvider client={queryClient}>
-					{config.posthogKey ? (
-						<PostHogProvider
-							apiKey={config.posthogKey}
-							options={posthogOptions}
-						>
-							{children}
-						</PostHogProvider>
-					) : (
-						children
-					)}
-					{process.env.NODE_ENV === "development" && (
-						<ReactQueryDevtools buttonPosition="bottom-right" />
-					)}
-				</QueryClientProvider>
+				<SupabaseAuthProvider>
+					<QueryClientProvider client={queryClient}>
+						{config.posthogKey ? (
+							<PostHogProvider
+								apiKey={config.posthogKey}
+								options={posthogOptions}
+							>
+								{children}
+							</PostHogProvider>
+						) : (
+							children
+						)}
+						{process.env.NODE_ENV === "development" && (
+							<ReactQueryDevtools buttonPosition="bottom-right" />
+						)}
+					</QueryClientProvider>
+				</SupabaseAuthProvider>
 				<Toaster />
 				<SonnerToaster richColors position="bottom-right" />
 				<Suspense>

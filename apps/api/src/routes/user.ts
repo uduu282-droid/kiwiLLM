@@ -3,9 +3,16 @@ import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 
 import { apiAuth as auth, updateResendContact } from "@/auth/config.js";
+import {
+	deleteSupabaseUser,
+	syncSupabaseUserProfile,
+	updateSupabasePassword,
+	verifySupabasePassword,
+} from "@/auth/supabase.js";
 
 import { and, db, eq, tables } from "@llmgateway/db";
 
+import type { AuthenticatedUser } from "@/auth/types.js";
 import type { ServerTypes } from "@/vars.js";
 
 export const user = new OpenAPIHono<ServerTypes>();
@@ -25,13 +32,23 @@ const publicUserSchema = z.object({
 	hasPasskeys: z.boolean(),
 });
 
-async function getUserAuthInfo(userId: string) {
+async function getUserAuthInfo(authUser: AuthenticatedUser) {
+	if (authUser.authSource === "supabase") {
+		return {
+			accounts: authUser.accounts,
+			hasPasskeys: authUser.hasPasskeys,
+			hasCredentialAccount: authUser.accounts.some(
+				(account) => account.providerId === "credential",
+			),
+		};
+	}
+
 	const [accounts, passkeys] = await Promise.all([
 		db.query.account.findMany({
-			where: { userId },
+			where: { userId: authUser.id },
 		}),
 		db.query.passkey.findMany({
-			where: { userId },
+			where: { userId: authUser.id },
 		}),
 	]);
 	return {
@@ -93,7 +110,7 @@ user.openapi(get, async (c) => {
 		});
 	}
 
-	const authInfo = await getUserAuthInfo(authUser.id);
+	const authInfo = await getUserAuthInfo(authUser);
 	const isAdmin = isAdminEmail(user.email);
 
 	return c.json({
@@ -246,7 +263,7 @@ user.openapi(updateUser, async (c) => {
 		});
 	}
 
-	const authInfo = await getUserAuthInfo(authUser.id);
+	const authInfo = await getUserAuthInfo(authUser);
 
 	// Block email changes for users without password authentication
 	if (updateData.email && !authInfo.hasCredentialAccount) {
@@ -267,6 +284,13 @@ user.openapi(updateUser, async (c) => {
 	// Sync name to Resend if email is verified (contact exists in Resend)
 	if (updatedUser.emailVerified && updateData.name !== undefined) {
 		await updateResendContact(updatedUser.email, { name: updateData.name });
+	}
+
+	if (authUser.supabaseUserId) {
+		await syncSupabaseUserProfile(authUser.supabaseUserId, {
+			name: updatedUser.name,
+			email: updatedUser.email,
+		});
 	}
 
 	const isAdmin = isAdminEmail(updatedUser.email);
@@ -343,6 +367,27 @@ user.openapi(updatePassword, async (c) => {
 
 	const { currentPassword, newPassword } = c.req.valid("json");
 
+	if (authUser.authSource === "supabase") {
+		const authInfo = await getUserAuthInfo(authUser);
+
+		if (!authInfo.hasCredentialAccount) {
+			throw new HTTPException(400, {
+				message:
+					"Password cannot be changed for accounts without password authentication",
+			});
+		}
+
+		await verifySupabasePassword(authUser.email, currentPassword);
+		await updateSupabasePassword(
+			authUser.supabaseUserId ?? authUser.id,
+			newPassword,
+		);
+
+		return c.json({
+			message: "Password updated successfully",
+		});
+	}
+
 	await auth.api.changePassword({
 		body: {
 			currentPassword,
@@ -415,11 +460,17 @@ user.openapi(deleteUser, async (c) => {
 		});
 	}
 
+	if (authUser.supabaseUserId) {
+		await deleteSupabaseUser(authUser.supabaseUserId);
+	}
+
 	await db.delete(tables.user).where(eq(tables.user.id, authUser.id));
 
-	await auth.api.signOut({
-		headers: c.req.raw.headers,
-	});
+	if (authUser.authSource !== "supabase") {
+		await auth.api.signOut({
+			headers: c.req.raw.headers,
+		});
+	}
 
 	return c.json({
 		message: "Account deleted successfully",
@@ -502,7 +553,13 @@ user.openapi(completeOnboarding, async (c) => {
 		.where(eq(tables.user.id, authUser.id))
 		.returning();
 
-	const authInfo = await getUserAuthInfo(authUser.id);
+	if (authUser.supabaseUserId) {
+		await syncSupabaseUserProfile(authUser.supabaseUserId, {
+			onboardingCompleted: true,
+		});
+	}
+
+	const authInfo = await getUserAuthInfo(authUser);
 
 	// Update Resend contact if email is verified (contact exists in Resend)
 	if (updatedUser.emailVerified) {

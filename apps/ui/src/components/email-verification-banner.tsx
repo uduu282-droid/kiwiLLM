@@ -3,13 +3,13 @@
 import { useState } from "react";
 
 import { useUser } from "@/hooks/useUser";
+import { useAuthClient } from "@/lib/auth-client";
 import { Button } from "@/lib/components/button";
 import { toast } from "@/lib/components/use-toast";
-import { useAppConfig } from "@/lib/config";
 
 export function EmailVerificationBanner() {
 	const { user } = useUser();
-	const config = useAppConfig();
+	const authClient = useAuthClient();
 	const [isResending, setIsResending] = useState(false);
 
 	if (!user || user.emailVerified) {
@@ -20,22 +20,20 @@ export function EmailVerificationBanner() {
 		setIsResending(true);
 
 		try {
-			const response = await fetch(
-				`${config.apiUrl}/auth/send-verification-email`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({
-						email: user.email,
-						callbackURL: `${window.location.origin}/dashboard?emailVerified=true`,
-					}),
-				},
-			);
+			if (!authClient.currentUser?.email) {
+				throw new Error("You must be signed in to resend verification email.");
+			}
 
-			if (!response.ok) {
-				throw new Error("Failed to send verification email");
+			const { error } = await authClient.auth.auth.resend({
+				type: "signup",
+				email: authClient.currentUser.email,
+				options: {
+					emailRedirectTo: `${window.location.origin}/login?emailVerified=true`,
+				},
+			});
+
+			if (error) {
+				throw error;
 			}
 
 			toast({

@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join, resolve } from "path";
 
 import { withContentCollections } from "@content-collections/next";
 
@@ -16,6 +16,19 @@ const nextConfig: NextConfig = {
 		if (isServer) {
 			config.devtool = "source-map";
 		}
+
+		config.resolve.alias = {
+			...(config.resolve.alias || {}),
+			"@llmgateway/shared$": resolve(
+				__dirname,
+				"../../packages/shared/src/index.ts",
+			),
+			"@llmgateway/shared/components$": resolve(
+				__dirname,
+				"../../packages/shared/src/components/index.tsx",
+			),
+		};
+
 		return config;
 	},
 	async redirects() {

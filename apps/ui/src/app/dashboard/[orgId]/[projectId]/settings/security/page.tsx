@@ -2,10 +2,7 @@
 
 import { useState } from "react";
 
-import { createAddPasskeyFunction } from "@/components/passkeys/add-passkey";
-import { PasskeyList } from "@/components/passkeys/passkey-list";
-import { useUpdatePassword } from "@/hooks/useUser";
-import { useAuthClient } from "@/lib/auth-client";
+import { useUser, useUpdatePassword } from "@/hooks/useUser";
 import { Button } from "@/lib/components/button";
 import {
 	Card,
@@ -20,14 +17,31 @@ import { Label } from "@/lib/components/label";
 import { Separator } from "@/lib/components/separator";
 import { toast } from "@/lib/components/use-toast";
 
+function formatProviderName(providerId: string) {
+	switch (providerId) {
+		case "credential":
+			return "Email & Password";
+		case "github":
+			return "GitHub";
+		case "google":
+			return "Google";
+		default:
+			return providerId;
+	}
+}
+
 export default function SecurityPage() {
 	const [currentPassword, setCurrentPassword] = useState("");
 	const [newPassword, setNewPassword] = useState("");
 	const [confirmPassword, setConfirmPassword] = useState("");
-	const authClient = useAuthClient();
-	const addPasskey = createAddPasskeyFunction(authClient);
-
+	const { user } = useUser();
 	const updatePasswordMutation = useUpdatePassword();
+	const hasCredentialAccount =
+		user?.accounts?.some((account) => account.providerId === "credential") ??
+		false;
+	const socialProviders =
+		user?.accounts?.filter((account) => account.providerId !== "credential") ??
+		[];
 
 	const handleUpdatePassword = async () => {
 		if (newPassword !== confirmPassword) {
@@ -74,70 +88,77 @@ export default function SecurityPage() {
 				<div className="space-y-4">
 					<Card>
 						<CardHeader>
-							<CardTitle>Change Password</CardTitle>
-							<CardDescription>Update your password</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="space-y-2">
-								<Label htmlFor="current-password">Current Password</Label>
-								<Input
-									id="current-password"
-									type="password"
-									value={currentPassword}
-									onChange={(e) => setCurrentPassword(e.target.value)}
-								/>
-							</div>
-							<Separator />
-							<div className="space-y-2">
-								<Label htmlFor="new-password">New Password</Label>
-								<Input
-									id="new-password"
-									type="password"
-									value={newPassword}
-									onChange={(e) => setNewPassword(e.target.value)}
-								/>
-							</div>
-							<div className="space-y-2">
-								<Label htmlFor="confirm-password">Confirm New Password</Label>
-								<Input
-									id="confirm-password"
-									type="password"
-									value={confirmPassword}
-									onChange={(e) => setConfirmPassword(e.target.value)}
-								/>
-							</div>
-						</CardContent>
-						<CardFooter>
-							<Button
-								onClick={handleUpdatePassword}
-								disabled={updatePasswordMutation.isPending}
-							>
-								{updatePasswordMutation.isPending
-									? "Updating..."
-									: "Update Password"}
-							</Button>
-						</CardFooter>
-					</Card>
-
-					<Card>
-						<CardHeader>
-							<CardTitle>Passkeys</CardTitle>
+							<CardTitle>Password</CardTitle>
 							<CardDescription>
-								Manage your passkeys for passwordless login
+								{hasCredentialAccount
+									? "Update your password"
+									: "Password changes are only available for email/password accounts"}
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							<PasskeyList />
+							{hasCredentialAccount ? (
+								<>
+									<div className="space-y-2">
+										<Label htmlFor="current-password">Current Password</Label>
+										<Input
+											id="current-password"
+											type="password"
+											value={currentPassword}
+											onChange={(e) => setCurrentPassword(e.target.value)}
+										/>
+									</div>
+									<Separator />
+									<div className="space-y-2">
+										<Label htmlFor="new-password">New Password</Label>
+										<Input
+											id="new-password"
+											type="password"
+											value={newPassword}
+											onChange={(e) => setNewPassword(e.target.value)}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="confirm-password">
+											Confirm New Password
+										</Label>
+										<Input
+											id="confirm-password"
+											type="password"
+											value={confirmPassword}
+											onChange={(e) => setConfirmPassword(e.target.value)}
+										/>
+									</div>
+								</>
+							) : (
+								<div className="space-y-2 text-sm text-muted-foreground">
+									<p>
+										This account signs in with{" "}
+										{socialProviders
+											.map((provider) =>
+												formatProviderName(provider.providerId),
+											)
+											.join(", ")}
+										.
+									</p>
+									<p>
+										If you want password-based login here, we can add a
+										dedicated linking flow next.
+									</p>
+								</div>
+							)}
 						</CardContent>
-						<CardFooter>
-							<Button
-								onClick={async () => {
-									await addPasskey();
-								}}
-							>
-								Add Passkey
-							</Button>
-						</CardFooter>
+						{hasCredentialAccount && (
+							<CardFooter>
+								<Button
+									onClick={handleUpdatePassword}
+									disabled={updatePasswordMutation.isPending}
+								>
+									{updatePasswordMutation.isPending
+										? "Updating..."
+										: "Update Password"}
+								</Button>
+							</CardFooter>
+						)}
 					</Card>
 				</div>
 			</div>

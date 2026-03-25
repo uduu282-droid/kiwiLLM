@@ -1,6 +1,6 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 
-import { apiAuth as auth } from "@/auth/config.js";
+import { getRequestAuthContext } from "@/auth/supabase.js";
 
 import { activity } from "./activity.js";
 import admin from "./admin.js";
@@ -26,7 +26,7 @@ export const routes = new OpenAPIHono<ServerTypes>();
 
 // Middleware to verify authentication
 routes.use("/*", async (c, next) => {
-	const session = await auth.api.getSession({ headers: c.req.raw.headers });
+	const session = await getRequestAuthContext(c.req.raw.headers);
 
 	if (!session?.user) {
 		return c.json({ message: "Unauthorized" }, 401);

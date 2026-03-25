@@ -1,0 +1,13 @@
+{
+	"name": "aihubmix-worker",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"secret:aihubmix": "wrangler secret put AIHUBMIX_API_KEY"
+	},
+	"devDependencies": {
+		"wrangler": "^4.9.0"
+	}
+}
