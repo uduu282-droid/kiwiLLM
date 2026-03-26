@@ -41,7 +41,31 @@ export default function Login() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const { signIn } = useAuth();
-	const { githubAuth } = useAppConfig();
+	const { githubAuth, googleAuth } = useAppConfig();
+
+	const signInWithSocial = async (provider: "github" | "google") => {
+		setIsLoading(true);
+		try {
+			const res = await signIn.social({
+				provider,
+				callbackURL:
+					location.protocol +
+					"//" +
+					location.host +
+					"/auth/callback?next=/dashboard",
+			});
+			if (res?.error) {
+				toast({
+					title:
+						res.error.message ??
+						`Failed to sign in with ${provider === "github" ? "GitHub" : "Google"}`,
+					variant: "destructive",
+				});
+			}
+		} finally {
+			setIsLoading(false);
+		}
+	};
 
 	// Redirect to dashboard if already authenticated
 	useUser({
@@ -192,29 +216,27 @@ export default function Login() {
 					</div>
 				</div>
 				<div className="grid grid-cols-1 gap-3">
+					{googleAuth && (
+						<Button
+							onClick={async () => {
+								await signInWithSocial("google");
+							}}
+							variant="outline"
+							className="w-full"
+							disabled={isLoading}
+						>
+							{isLoading ? (
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							) : (
+								<GoogleIcon className="mr-2 h-4 w-4" />
+							)}
+							Sign in with Google
+						</Button>
+					)}
 					{githubAuth && (
 						<Button
 							onClick={async () => {
-								setIsLoading(true);
-								try {
-									const res = await signIn.social({
-										provider: "github",
-										callbackURL:
-											location.protocol +
-											"//" +
-											location.host +
-											"/auth/callback?next=/dashboard",
-									});
-									if (res?.error) {
-										toast({
-											title:
-												res.error.message ?? "Failed to sign in with GitHub",
-											variant: "destructive",
-										});
-									}
-								} finally {
-									setIsLoading(false);
-								}
+								await signInWithSocial("github");
 							}}
 							variant="outline"
 							className="w-full"
@@ -239,5 +261,33 @@ export default function Login() {
 				</p>
 			</div>
 		</div>
+	);
+}
+
+function GoogleIcon({ className }: { className?: string }) {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={className}
+			fill="none"
+		>
+			<path
+				d="M21.805 12.23c0-.68-.061-1.334-.174-1.963H12v3.714h5.498a4.703 4.703 0 0 1-2.04 3.086v2.565h3.304c1.934-1.781 3.043-4.406 3.043-7.402Z"
+				fill="#4285F4"
+			/>
+			<path
+				d="M12 22c2.76 0 5.073-.914 6.763-2.468l-3.304-2.565c-.914.612-2.083.974-3.459.974-2.659 0-4.912-1.795-5.717-4.209H2.867v2.645A10.215 10.215 0 0 0 12 22Z"
+				fill="#34A853"
+			/>
+			<path
+				d="M6.283 13.732A6.14 6.14 0 0 1 5.963 12c0-.602.109-1.186.32-1.732V7.623H2.867A10.215 10.215 0 0 0 1.8 12c0 1.64.393 3.192 1.067 4.377l3.416-2.645Z"
+				fill="#FBBC05"
+			/>
+			<path
+				d="M12 6.06c1.5 0 2.848.517 3.908 1.53l2.93-2.93C17.068 3.012 14.755 2 12 2a10.215 10.215 0 0 0-9.133 5.623l3.416 2.645C7.088 7.855 9.341 6.06 12 6.06Z"
+				fill="#EA4335"
+			/>
+		</svg>
 	);
 }

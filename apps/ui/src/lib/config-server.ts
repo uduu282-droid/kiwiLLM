@@ -14,6 +14,7 @@ export interface AppConfig {
 	posthogHost?: string;
 	crispId?: string;
 	githubAuth: boolean;
+	googleAuth: boolean;
 	supabaseUrl?: string;
 	supabaseAnonKey?: string;
 }
@@ -31,6 +32,8 @@ export function getConfig(): AppConfig {
 		process.env.SUPABASE_GITHUB_AUTH === "false"
 			? false
 			: !!process.env.GITHUB_CLIENT_ID || supabaseConfigured;
+	const googleAuthEnabled =
+		process.env.SUPABASE_GOOGLE_AUTH === "false" ? false : supabaseConfigured;
 	return {
 		hosted: process.env.HOSTED === "true",
 		appUrl: process.env.APP_URL ?? "http://localhost:3002",
@@ -48,6 +51,7 @@ export function getConfig(): AppConfig {
 		posthogHost: process.env.POSTHOG_HOST,
 		crispId: process.env.CRISP_ID,
 		githubAuth: githubAuthEnabled,
+		googleAuth: googleAuthEnabled,
 		supabaseUrl,
 		supabaseAnonKey,
 	};

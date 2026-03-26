@@ -188,7 +188,7 @@ export function useAuth() {
 					}
 				},
 				social: async (input: {
-					provider: "github";
+					provider: "github" | "google";
 					callbackURL?: string;
 				}): Promise<SocialAuthResult> => {
 					try {
