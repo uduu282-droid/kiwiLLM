@@ -2,7 +2,7 @@
 
 import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { useAuthClient } from "@/lib/auth-client";
 
@@ -12,35 +12,46 @@ export default function AuthCallbackPage() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const authClient = useAuthClient();
+	const hasHandledCallbackRef = useRef(false);
 
 	useEffect(() => {
-		if (!authClient.isReady) {
+		if (hasHandledCallbackRef.current) {
 			return;
 		}
 
 		const next = searchParams.get("next") ?? "/dashboard";
+		const code = searchParams.get("code");
 
-		if (!authClient.currentUser) {
-			router.replace("/login");
-			return;
-		}
+		void (async () => {
+			try {
+				if (code && !authClient.currentSession) {
+					const { error } =
+						await authClient.auth.auth.exchangeCodeForSession(code);
 
-		void authClient
-			.syncServerSession(authClient.currentSession)
-			.then(() => {
+					if (error) {
+						throw error;
+					}
+				}
+
+				const {
+					data: { session },
+				} = await authClient.auth.auth.getSession();
+
+				if (!session?.user) {
+					throw new Error(
+						"No authenticated session found after OAuth callback.",
+					);
+				}
+
+				hasHandledCallbackRef.current = true;
+				await authClient.syncServerSession(session);
 				router.replace(next as Route);
-			})
-			.catch(() => {
+			} catch {
+				hasHandledCallbackRef.current = true;
 				router.replace("/login");
-			});
-	}, [
-		authClient,
-		authClient.currentSession,
-		authClient.currentUser,
-		authClient.isReady,
-		router,
-		searchParams,
-	]);
+			}
+		})();
+	}, [authClient, router, searchParams]);
 
 	return (
 		<div className="flex min-h-screen items-center justify-center">
