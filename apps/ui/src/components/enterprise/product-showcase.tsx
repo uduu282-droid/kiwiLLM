@@ -4,10 +4,13 @@ import Image from "next/image";
 const screenshots = [
 	{
 		slug: "dashboard",
+		src: "/screenshots/dashboard-kiwillm.png",
 		alt: "KiwiLLM Dashboard",
 		title: "Analytics Dashboard",
 		description:
 			"Real-time usage metrics, cost breakdowns, and performance monitoring across all your LLM operations.",
+		width: 1351,
+		height: 768,
 	},
 	{
 		slug: "playground",
@@ -15,6 +18,8 @@ const screenshots = [
 		title: "Chat Playground",
 		description:
 			"Interactive testing environment with model comparison, prompt engineering, and conversation management.",
+		width: 1440,
+		height: 900,
 	},
 	{
 		slug: "image-studio",
@@ -22,6 +27,8 @@ const screenshots = [
 		title: "Image Studio",
 		description:
 			"Generate images with multiple providers and models. Compare outputs side-by-side with adjustable settings.",
+		width: 1440,
+		height: 900,
 	},
 	{
 		slug: "admin",
@@ -29,6 +36,8 @@ const screenshots = [
 		title: "Admin Dashboard",
 		description:
 			"Full visibility into signups, revenue, provider health, and model performance across your deployment.",
+		width: 1440,
+		height: 900,
 	},
 	{
 		slug: "docs",
@@ -36,6 +45,8 @@ const screenshots = [
 		title: "Developer Documentation",
 		description:
 			"Comprehensive API reference, integration guides, and self-hosting documentation for your team.",
+		width: 1440,
+		height: 900,
 	},
 ];
 
@@ -70,17 +81,22 @@ export function ProductShowcase() {
 							</div>
 							<div className="mx-auto max-w-5xl overflow-hidden rounded-xl border-2 border-border/80 bg-card p-1 shadow-[0_0_60px_-12px_rgba(59,130,246,0.15)]">
 								<Image
-									src={`/screenshots/${screenshot.slug}-dark.png`}
+									src={
+										screenshot.src ?? `/screenshots/${screenshot.slug}-dark.png`
+									}
 									alt={screenshot.alt}
-									width={1440}
-									height={900}
+									width={screenshot.width}
+									height={screenshot.height}
 									className="hidden dark:block w-full h-auto rounded-lg"
 								/>
 								<Image
-									src={`/screenshots/${screenshot.slug}-light.png`}
+									src={
+										screenshot.src ??
+										`/screenshots/${screenshot.slug}-light.png`
+									}
 									alt={screenshot.alt}
-									width={1440}
-									height={900}
+									width={screenshot.width}
+									height={screenshot.height}
 									className="block dark:hidden w-full h-auto rounded-lg"
 								/>
 							</div>
@@ -103,4 +119,3 @@ export function ProductShowcase() {
 		</section>
 	);
 }
-

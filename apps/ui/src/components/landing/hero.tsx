@@ -344,18 +344,18 @@ export function Hero({
 									<div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative mx-auto max-w-6xl overflow-hidden rounded-2xl border p-4 shadow-lg shadow-zinc-950/15 ring-1">
 										<Image
 											className="bg-background aspect-15/8 relative hidden rounded-2xl dark:block"
-											src="/new-hero.png"
+											src="/screenshots/dashboard-kiwillm.png"
 											alt="KiwiLLM dashboard showing analytics and API usage"
-											width={2696}
-											height={1386}
+											width={1351}
+											height={768}
 											priority
 										/>
 										<Image
 											className="z-2 border-border/25 aspect-15/8 relative rounded-2xl border dark:hidden"
-											src="/new-hero-light.png"
+											src="/screenshots/dashboard-kiwillm.png"
 											alt="KiwiLLM dashboard showing analytics and API usage"
-											width={2696}
-											height={1386}
+											width={1351}
+											height={768}
 											priority
 										/>
 									</div>
@@ -395,4 +395,3 @@ export function Hero({
 		</>
 	);
 }
-
