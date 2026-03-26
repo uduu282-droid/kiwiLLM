@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 
 import Footer from "@/components/landing/footer";
-import { GitHubStars } from "@/components/landing/github-stars";
 import { Navbar } from "@/components/landing/navbar";
 import { AuthLink } from "@/components/shared/auth-link";
 import { Button } from "@/lib/components/button";
@@ -389,9 +388,7 @@ export default async function VideoGeneratorPage({
 
 	return (
 		<>
-			<Navbar sticky={true}>
-				<GitHubStars />
-			</Navbar>
+			<Navbar sticky={true} />
 			<main className="overflow-hidden bg-[linear-gradient(180deg,rgba(252,251,247,1)_0%,rgba(246,246,244,1)_40%,rgba(255,255,255,1)_100%)] dark:bg-[linear-gradient(180deg,rgba(9,9,11,1)_0%,rgba(12,12,14,1)_45%,rgba(7,7,8,1)_100%)]">
 				<section className="relative px-6 pb-18 pt-28 md:pt-36">
 					<div className="absolute inset-0 -z-10 overflow-hidden">
@@ -689,4 +686,3 @@ export default async function VideoGeneratorPage({
 		</>
 	);
 }
-

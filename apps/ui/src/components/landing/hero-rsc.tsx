@@ -1,4 +1,3 @@
-import { GitHubStars } from "./github-stars";
 import { Hero } from "./hero";
 
 export const HeroRSC = async ({
@@ -18,8 +17,6 @@ export const HeroRSC = async ({
 			}));
 
 	return (
-		<Hero navbarOnly={navbarOnly} sticky={sticky} migrations={migrations}>
-			<GitHubStars />
-		</Hero>
+		<Hero navbarOnly={navbarOnly} sticky={sticky} migrations={migrations} />
 	);
 };

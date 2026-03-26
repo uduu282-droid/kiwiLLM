@@ -103,19 +103,17 @@ const providerIcons: Record<string, React.ReactNode> = {
 export function Hero({
 	navbarOnly,
 	sticky = true,
-	children,
 	migrations = [],
 }: {
 	navbarOnly?: boolean;
 	sticky?: boolean;
-	children: React.ReactNode;
 	migrations?: MigrationData[];
 }) {
 	const config = useAppConfig();
 
 	return (
 		<>
-			<Navbar sticky={sticky}>{children}</Navbar>
+			<Navbar sticky={sticky} />
 			{!navbarOnly && (
 				<main className="overflow-hidden">
 					<div

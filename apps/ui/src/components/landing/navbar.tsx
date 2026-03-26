@@ -5,7 +5,6 @@ import {
 	BookOpen,
 	Bot,
 	ChevronDown,
-	Github,
 	Menu,
 	MessagesSquare,
 	Network,
@@ -83,13 +82,7 @@ function ListItem({
 	);
 }
 
-export const Navbar = ({
-	children,
-	sticky = true,
-}: {
-	children?: React.ReactNode;
-	sticky?: boolean;
-}) => {
+export const Navbar = ({ sticky = true }: { sticky?: boolean }) => {
 	const config = useAppConfig();
 
 	const featuresLinks: Array<{
@@ -662,15 +655,6 @@ export const Navbar = ({
 
 									<li className="flex items-center gap-4 pt-4 border-t border-border">
 										<a
-											href={config.githubUrl}
-											target="_blank"
-											rel="noopener noreferrer"
-											className="text-muted-foreground hover:text-accent-foreground p-2 rounded-md transition-colors"
-											aria-label="GitHub"
-										>
-											<Github className="h-5 w-5" />
-										</a>
-										<a
 											href={config.discordUrl}
 											target="_blank"
 											rel="noopener noreferrer"
@@ -690,9 +674,8 @@ export const Navbar = ({
 							</div>
 
 							<div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit items-center">
-								{/* GitHub stars (compact) + Discord */}
+								{/* Discord */}
 								<div className="hidden nav:flex items-center gap-1">
-									{children}
 									<a
 										href={config.discordUrl}
 										target="_blank"
@@ -734,5 +717,3 @@ export const Navbar = ({
 		</header>
 	);
 };
-
-
