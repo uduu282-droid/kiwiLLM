@@ -7,11 +7,11 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
 	title: "LLM Providers",
 	description:
-		"Browse 30+ LLM providers available through LLM Gateway — OpenAI, Anthropic, Google, Groq, Mistral, DeepSeek, xAI, and more. One API for all of them.",
+		"Browse 30+ LLM providers available through KiwiLLM — OpenAI, Anthropic, Google, Groq, Mistral, DeepSeek, xAI, and more. One API for all of them.",
 	openGraph: {
-		title: "LLM Providers - LLM Gateway",
+		title: "LLM Providers - KiwiLLM",
 		description:
-			"Browse 30+ LLM providers available through LLM Gateway — OpenAI, Anthropic, Google, Groq, Mistral, DeepSeek, xAI, and more.",
+			"Browse 30+ LLM providers available through KiwiLLM — OpenAI, Anthropic, Google, Groq, Mistral, DeepSeek, xAI, and more.",
 	},
 };
 
@@ -26,3 +26,4 @@ export default function ProvidersPage() {
 		</div>
 	);
 }
+

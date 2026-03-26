@@ -40,7 +40,7 @@ export function ProviderKeysClient({
 					<div>
 						<h2 className="text-3xl font-bold tracking-tight">Provider Keys</h2>
 						<p className="text-muted-foreground">
-							Provider keys allow you to use your own API keys with LLM Gateway
+							Provider keys allow you to use your own API keys with KiwiLLM
 							without additional fees.
 						</p>
 					</div>
@@ -71,3 +71,4 @@ export function ProviderKeysClient({
 		</div>
 	);
 }
+

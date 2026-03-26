@@ -445,8 +445,8 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 									<CardTitle>Get Started</CardTitle>
 									<CardDescription>
 										{totalRequests > 0
-											? `You made ${totalRequests === 1 ? "your first call" : `${totalRequests} calls`} during setup! Now integrate LLM Gateway in your own code.`
-											: "Integrate LLM Gateway in 1 line — just change your base URL."}
+											? `You made ${totalRequests === 1 ? "your first call" : `${totalRequests} calls`} during setup! Now integrate KiwiLLM in your own code.`
+											: "Integrate KiwiLLM in 1 line — just change your base URL."}
 									</CardDescription>
 								</CardHeader>
 								<CardContent className="space-y-4">
@@ -608,3 +608,4 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 		</div>
 	);
 }
+

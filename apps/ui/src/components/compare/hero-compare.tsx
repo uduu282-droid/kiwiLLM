@@ -53,7 +53,7 @@ interface HeroCompareProps {
 }
 
 const defaultContent: HeroContent = {
-	heading: "Why Choose LLM Gateway Over OpenRouter?",
+	heading: "Why Choose KiwiLLM Over OpenRouter?",
 	description:
 		"Compare our unified API gateway with advanced routing, analytics, and cost optimization against OpenRouter's basic proxy service.",
 	badges: [
@@ -199,3 +199,4 @@ export function HeroCompare({ content }: HeroCompareProps) {
 		</>
 	);
 }
+

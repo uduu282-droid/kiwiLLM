@@ -345,7 +345,7 @@ export function Hero({
 										<Image
 											className="bg-background aspect-15/8 relative hidden rounded-2xl dark:block"
 											src="/new-hero.png"
-											alt="LLM Gateway dashboard showing analytics and API usage"
+											alt="KiwiLLM dashboard showing analytics and API usage"
 											width={2696}
 											height={1386}
 											priority
@@ -353,7 +353,7 @@ export function Hero({
 										<Image
 											className="z-2 border-border/25 aspect-15/8 relative rounded-2xl border dark:hidden"
 											src="/new-hero-light.png"
-											alt="LLM Gateway dashboard showing analytics and API usage"
+											alt="KiwiLLM dashboard showing analytics and API usage"
 											width={2696}
 											height={1386}
 											priority
@@ -395,3 +395,4 @@ export function Hero({
 		</>
 	);
 }
+

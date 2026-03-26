@@ -5,7 +5,7 @@ import { AllModels } from "@/components/models/all-models";
 import { fetchModels, fetchProviders } from "@/lib/fetch-models";
 
 export const metadata = {
-	title: "Vision Models - AI Models with Image Understanding | LLM Gateway",
+	title: "Vision Models - AI Models with Image Understanding | KiwiLLM",
 	description:
 		"Browse and compare AI models with vision capabilities. Analyze images, extract text, describe visuals, and more with multimodal LLMs.",
 	openGraph: {
@@ -36,3 +36,4 @@ export default async function VisionModelsPage() {
 		</Suspense>
 	);
 }
+

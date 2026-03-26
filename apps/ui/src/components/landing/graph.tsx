@@ -11,7 +11,7 @@ import {
 	TooltipTrigger,
 	TooltipContent,
 } from "@/lib/components/tooltip";
-import Logo from "@/lib/icons/Logo";
+import { BrandMark } from "@/components/shared/brand-mark";
 import { cn } from "@/lib/utils";
 
 import { ProviderIcons } from "@llmgateway/shared/components";
@@ -129,7 +129,7 @@ export function Graph() {
 
 						<div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
 							<Circle ref={centerRef}>
-								<Logo />
+								<BrandMark className="h-10 w-10" />
 							</Circle>
 						</div>
 

@@ -5,7 +5,7 @@ import { AllModels } from "@/components/models/all-models";
 import { fetchModels, fetchProviders } from "@/lib/fetch-models";
 
 export const metadata = {
-	title: "Text-to-Image Models - AI Image Generation | LLM Gateway",
+	title: "Text-to-Image Models - AI Image Generation | KiwiLLM",
 	description:
 		"Browse and compare AI image generation models like DALL-E, Flux, and more. Generate images from text prompts with multiple providers.",
 	openGraph: {
@@ -36,3 +36,4 @@ export default async function TextToImageModelsPage() {
 		</Suspense>
 	);
 }
+

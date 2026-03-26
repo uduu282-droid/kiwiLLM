@@ -160,7 +160,7 @@ export default async function GuidesOgImage() {
 						}}
 					>
 						<span style={{ color: "#ffffff", fontWeight: 600 }}>
-							LLM Gateway
+							KiwiLLM
 						</span>
 						<span style={{ opacity: 0.6 }}>•</span>
 						<span>Guides</span>
@@ -322,3 +322,4 @@ export default async function GuidesOgImage() {
 		size,
 	);
 }
+

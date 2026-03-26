@@ -6,13 +6,13 @@ import { HeroRSC } from "@/components/landing/hero-rsc";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-	title: "Ship an AI App in 10 Minutes | LLM Gateway",
+	title: "Ship an AI App in 10 Minutes | KiwiLLM",
 	description:
-		"Clone a production-ready AI template, connect to 300+ models, and deploy. Ship your AI app in minutes with LLM Gateway.",
+		"Clone a production-ready AI template, connect to 300+ models, and deploy. Ship your AI app in minutes with KiwiLLM.",
 	openGraph: {
-		title: "Ship an AI App in 10 Minutes | LLM Gateway",
+		title: "Ship an AI App in 10 Minutes | KiwiLLM",
 		description:
-			"Clone a production-ready AI template, connect to 300+ models, and deploy. Ship your AI app in minutes with LLM Gateway.",
+			"Clone a production-ready AI template, connect to 300+ models, and deploy. Ship your AI app in minutes with KiwiLLM.",
 	},
 };
 
@@ -65,7 +65,7 @@ const steps = [
 	{
 		number: "1",
 		title: "Install the CLI",
-		description: "One command to get the LLM Gateway CLI.",
+		description: "One command to get the KiwiLLM CLI.",
 		code: "npm i -g @llmgateway/cli",
 	},
 	{
@@ -77,7 +77,7 @@ const steps = [
 	{
 		number: "3",
 		title: "Add Your API Key & Deploy",
-		description: "Set your LLM Gateway API key and ship it.",
+		description: "Set your KiwiLLM API key and ship it.",
 		code: 'echo "LLMGATEWAY_API_KEY=your_key" > .env.local && npm run dev',
 	},
 ];
@@ -95,7 +95,7 @@ export default function ShipPage() {
 							Ship an AI App in 10 Minutes
 						</h1>
 						<p className="text-lg text-muted-foreground leading-relaxed">
-							Production-ready templates powered by LLM Gateway. Clone,
+							Production-ready templates powered by KiwiLLM. Clone,
 							configure, and deploy — with access to 300+ models from every
 							major provider.
 						</p>
@@ -195,7 +195,7 @@ export default function ShipPage() {
 							Ready to Ship?
 						</h2>
 						<p className="text-lg text-muted-foreground">
-							Create a free LLM Gateway account, grab an API key, and start
+							Create a free KiwiLLM account, grab an API key, and start
 							building with any of our 300+ supported models.
 						</p>
 						<div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -220,3 +220,4 @@ export default function ShipPage() {
 		</div>
 	);
 }
+

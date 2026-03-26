@@ -51,7 +51,7 @@ export default function CallToAction() {
 							asChild
 						>
 							<a href={config.githubUrl ?? ""} target="_blank">
-								Self-host LLM Gateway
+								Self-host KiwiLLM
 							</a>
 						</Button>
 					</AnimatedGroup>
@@ -60,3 +60,4 @@ export default function CallToAction() {
 		</section>
 	);
 }
+

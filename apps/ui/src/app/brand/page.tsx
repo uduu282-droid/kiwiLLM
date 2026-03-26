@@ -1,46 +1,32 @@
 "use client";
 
 import { Download } from "lucide-react";
+import Image from "next/image";
 
 import { Card } from "@/lib/components/card";
-import Logo from "@/lib/icons/Logo";
 
 interface BrandAsset {
 	name: string;
 	description: string;
-	svgPath: string;
+	downloadPath: string;
 	preview: "logo" | "logo-with-name";
-	variant: "black" | "white";
+	variant: "light" | "dark";
 }
 
 const brandAssets: BrandAsset[] = [
 	{
-		name: "Logo (Black)",
-		description: "Logo mark only, black version for light backgrounds",
-		svgPath: "/brand/logo-black.svg",
+		name: "Kiwi Mark (PNG)",
+		description: "Primary KiwiLLM logo mark for product UI and social use",
+		downloadPath: "/brand/kiwillm-logo.png",
 		preview: "logo",
-		variant: "black",
+		variant: "light",
 	},
 	{
-		name: "Logo (White)",
-		description: "Logo mark only, white version for dark backgrounds",
-		svgPath: "/brand/logo-white.svg",
-		preview: "logo",
-		variant: "white",
-	},
-	{
-		name: "Full Logo (Black)",
-		description: "Logo with LLM Gateway text, black version",
-		svgPath: "/brand/logo-with-name-black.svg",
+		name: "KiwiLLM Lockup (PNG)",
+		description: "Primary KiwiLLM logo with wordmark for branding surfaces",
+		downloadPath: "/brand/kiwillm-logo.png",
 		preview: "logo-with-name",
-		variant: "black",
-	},
-	{
-		name: "Full Logo (White)",
-		description: "Logo with LLM Gateway text, white version",
-		svgPath: "/brand/logo-with-name-white.svg",
-		preview: "logo-with-name",
-		variant: "white",
+		variant: "dark",
 	},
 ];
 
@@ -49,19 +35,31 @@ function LogoPreview({
 	variant,
 }: {
 	type: "logo" | "logo-with-name";
-	variant: "black" | "white";
+	variant: "light" | "dark";
 }) {
-	const color = variant === "black" ? "#000000" : "#ffffff";
-
 	if (type === "logo") {
-		return <Logo className="h-16 w-16" style={{ color }} />;
+		return (
+			<Image
+				src="/brand/kiwillm-logo.png"
+				alt="KiwiLLM logo"
+				width={96}
+				height={96}
+				className="h-16 w-16 object-contain"
+			/>
+		);
 	}
 
 	return (
 		<div className="flex items-center gap-3">
-			<Logo className="h-12 w-12" style={{ color }} />
-			<span className="text-2xl font-bold tracking-tight" style={{ color }}>
-				LLM Gateway
+			<Image
+				src="/brand/kiwillm-logo.png"
+				alt="KiwiLLM logo"
+				width={80}
+				height={80}
+				className="h-12 w-12 object-contain"
+			/>
+			<span className="text-2xl font-bold tracking-tight text-white">
+				KiwiLLM
 			</span>
 		</div>
 	);
@@ -69,9 +67,8 @@ function LogoPreview({
 
 function BrandAssetCard({ asset }: { asset: BrandAsset }) {
 	const bgColor =
-		asset.variant === "white" ? "bg-zinc-900" : "bg-zinc-100 dark:bg-zinc-100";
-
-	const svgFilename = asset.svgPath.split("/").pop() ?? "logo.svg";
+		asset.variant === "dark" ? "bg-zinc-900" : "bg-zinc-100 dark:bg-zinc-100";
+	const filename = asset.downloadPath.split("/").pop() ?? "kiwillm-logo.png";
 
 	return (
 		<Card className="overflow-hidden">
@@ -87,12 +84,12 @@ function BrandAssetCard({ asset }: { asset: BrandAsset }) {
 				</p>
 				<div className="flex gap-2">
 					<a
-						href={asset.svgPath}
-						download={svgFilename}
+						href={asset.downloadPath}
+						download={filename}
 						className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
 					>
 						<Download className="h-4 w-4" />
-						SVG
+						PNG
 					</a>
 				</div>
 			</div>
@@ -109,7 +106,7 @@ export default function BrandPage() {
 						Brand Assets
 					</h1>
 					<p className="text-lg text-muted-foreground leading-relaxed">
-						Download official LLM Gateway logos and brand assets for your
+						Download official KiwiLLM logos and brand assets for your
 						projects, presentations, and integrations.
 					</p>
 				</div>
@@ -126,8 +123,8 @@ export default function BrandPage() {
 						<ul className="space-y-3 text-muted-foreground">
 							<li className="flex items-start gap-2">
 								<span className="text-primary font-bold">•</span>
-								Use the black logo on light backgrounds and white logo on dark
-								backgrounds
+								Use the kiwi mark on light or dark backgrounds with enough
+								contrast around the fruit outline
 							</li>
 							<li className="flex items-start gap-2">
 								<span className="text-primary font-bold">•</span>
@@ -145,12 +142,14 @@ export default function BrandPage() {
 							</li>
 							<li className="flex items-start gap-2">
 								<span className="text-primary font-bold">•</span>
-								For questions about brand usage, contact us at{" "}
+								For questions about brand usage, open an issue on{" "}
 								<a
-									href="mailto:contact@llmgateway.io"
+									href="https://github.com/uduu282-droid/kiwiLLM"
 									className="text-primary hover:underline"
+									target="_blank"
+									rel="noreferrer noopener"
 								>
-									contact@llmgateway.io
+									GitHub
 								</a>
 							</li>
 						</ul>

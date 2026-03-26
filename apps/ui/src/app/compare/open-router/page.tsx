@@ -16,20 +16,21 @@ export default function CompareOpenRouterPage() {
 
 export async function generateMetadata() {
 	return {
-		title: "LLM Gateway vs OpenRouter - Feature Comparison | LLM Gateway",
+		title: "KiwiLLM vs OpenRouter - Feature Comparison | KiwiLLM",
 		description:
-			"Compare LLM Gateway's advanced routing, analytics, and cost optimization features against OpenRouter's basic proxy service. See why developers choose our unified API gateway for production LLM applications.",
+			"Compare KiwiLLM's advanced routing, analytics, and cost optimization features against OpenRouter's basic proxy service. See why developers choose our unified API gateway for production LLM applications.",
 		openGraph: {
-			title: "LLM Gateway vs OpenRouter - Feature Comparison",
+			title: "KiwiLLM vs OpenRouter - Feature Comparison",
 			description:
-				"Compare LLM Gateway's advanced routing, analytics, and cost optimization features against OpenRouter's basic proxy service. See why developers choose our unified API gateway for production LLM applications.",
+				"Compare KiwiLLM's advanced routing, analytics, and cost optimization features against OpenRouter's basic proxy service. See why developers choose our unified API gateway for production LLM applications.",
 			type: "website",
 		},
 		twitter: {
 			card: "summary_large_image",
-			title: "LLM Gateway vs OpenRouter - Feature Comparison",
+			title: "KiwiLLM vs OpenRouter - Feature Comparison",
 			description:
-				"Compare LLM Gateway's advanced routing, analytics, and cost optimization features against OpenRouter's basic proxy service.",
+				"Compare KiwiLLM's advanced routing, analytics, and cost optimization features against OpenRouter's basic proxy service.",
 		},
 	};
 }
+

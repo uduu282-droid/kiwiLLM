@@ -6,9 +6,9 @@ import { PricingTable } from "@/components/pricing/pricing-table";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-	title: "Pricing - LLM Gateway",
+	title: "Pricing - KiwiLLM",
 	description:
-		"Simple, transparent pricing for LLM Gateway. Start free, scale with low fees.",
+		"Simple, transparent pricing for KiwiLLM. Start free, scale with low fees.",
 };
 
 export default function PricingPage() {
@@ -21,3 +21,4 @@ export default function PricingPage() {
 		</>
 	);
 }
+

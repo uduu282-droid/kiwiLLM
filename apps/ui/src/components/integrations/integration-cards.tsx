@@ -31,7 +31,7 @@ const integrations: Integration[] = [
 	{
 		name: "Claude Code",
 		description:
-			"Use LLM Gateway with Claude Code for AI-powered terminal assistance and coding.",
+			"Use KiwiLLM with Claude Code for AI-powered terminal assistance and coding.",
 		href: "/guides/claude-code",
 		icon: AnthropicIcon,
 		comingSoon: false,
@@ -39,7 +39,7 @@ const integrations: Integration[] = [
 	{
 		name: "Cursor",
 		description:
-			"Use LLM Gateway with Cursor IDE for AI-powered code editing and chat.",
+			"Use KiwiLLM with Cursor IDE for AI-powered code editing and chat.",
 		href: "https://docs.llmgateway.io/guides/cursor",
 		icon: CursorIcon,
 		comingSoon: false,
@@ -48,7 +48,7 @@ const integrations: Integration[] = [
 	{
 		name: "Cline",
 		description:
-			"Use LLM Gateway with Cline for AI-powered coding assistance in VS Code.",
+			"Use KiwiLLM with Cline for AI-powered coding assistance in VS Code.",
 		href: "https://docs.llmgateway.io/guides/cline",
 		icon: ClineIcon,
 		comingSoon: false,
@@ -56,7 +56,7 @@ const integrations: Integration[] = [
 	{
 		name: "n8n",
 		description:
-			"Connect n8n workflow automation to LLM Gateway for AI-powered workflows.",
+			"Connect n8n workflow automation to KiwiLLM for AI-powered workflows.",
 		href: "https://docs.llmgateway.io/guides/n8n",
 		icon: N8nIcon,
 		comingSoon: false,
@@ -64,7 +64,7 @@ const integrations: Integration[] = [
 	{
 		name: "OpenCode",
 		description:
-			"Use LLM Gateway with OpenCode for AI-powered development workflows.",
+			"Use KiwiLLM with OpenCode for AI-powered development workflows.",
 		href: "/guides/opencode",
 		icon: OpenCodeIcon,
 		comingSoon: false,
@@ -72,7 +72,7 @@ const integrations: Integration[] = [
 	{
 		name: "OpenClaw",
 		description:
-			"Use LLM Gateway with OpenClaw for AI-powered chat across Discord, WhatsApp, Telegram, and more.",
+			"Use KiwiLLM with OpenClaw for AI-powered chat across Discord, WhatsApp, Telegram, and more.",
 		href: "/guides/openclaw",
 		icon: OpenClawIcon,
 		comingSoon: false,
@@ -164,3 +164,4 @@ export function IntegrationCards() {
 		</div>
 	);
 }
+

@@ -49,10 +49,10 @@ console.log(response.choices[0].message.content);`,
 	nextjs: {
 		label: "Next.js",
 		language: "typescript",
-		code: `import { createLLMGateway } from "@llmgateway/ai-sdk-provider";
+		code: `import { createKiwiLLM } from "@llmgateway/ai-sdk-provider";
 import { generateText } from 'ai';
 
-const llmgateway = createLLMGateway({ apiKey });
+const llmgateway = createKiwiLLM({ apiKey });
 
 const { text } = await generateText({
   model: llmgateway('openai/gpt-4o'),
@@ -400,3 +400,4 @@ export function CodeExample() {
 		</section>
 	);
 }
+

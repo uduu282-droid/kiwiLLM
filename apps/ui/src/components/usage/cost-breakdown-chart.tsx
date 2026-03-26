@@ -150,7 +150,7 @@ export function CostBreakdownChart({
 		if (storageCost > 0) {
 			sorted.push({
 				model: "storage",
-				provider: "LLM Gateway",
+				provider: "KiwiLLM",
 				cost: storageCost,
 			});
 		}
@@ -390,3 +390,4 @@ export function CostBreakdownChart({
 		</div>
 	);
 }
+

@@ -18,7 +18,7 @@ async function fetchGitHubStars(repo: string): Promise<number | null> {
 			next: { revalidate: 600 }, // Revalidate every 10 minutes
 			headers: {
 				Accept: "application/vnd.github.v3+json",
-				"User-Agent": "LLM Gateway",
+				"User-Agent": "KiwiLLM",
 			},
 		});
 
@@ -47,7 +47,7 @@ async function fetchGitHubContributors(
 				next: { revalidate: 600 }, // Revalidate every 10 minutes
 				headers: {
 					Accept: "application/vnd.github.v3+json",
-					"User-Agent": "LLM Gateway",
+					"User-Agent": "KiwiLLM",
 				},
 			},
 		);
@@ -204,3 +204,4 @@ export async function OpenSourceEnterprise() {
 		</section>
 	);
 }
+

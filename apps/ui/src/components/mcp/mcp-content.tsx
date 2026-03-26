@@ -137,7 +137,7 @@ bearer_token_env_var = "LLM_GATEWAY_API_KEY"`,
 };
 
 // Plain markdown content for AI agents
-const aiAgentMarkdown = `# LLM Gateway MCP Server
+const aiAgentMarkdown = `# KiwiLLM MCP Server
 
 ## Endpoint
 \`https://api.llmgateway.io/mcp\`
@@ -586,7 +586,7 @@ export function McpContent() {
 				<div className="text-center space-y-6">
 					<h2 className="text-2xl font-bold">Ready to get started?</h2>
 					<p className="text-muted-foreground max-w-lg mx-auto">
-						Get your API key and start using LLM Gateway with your favorite AI
+						Get your API key and start using KiwiLLM with your favorite AI
 						assistant.
 					</p>
 					<div className="flex gap-4 justify-center flex-wrap">
@@ -646,3 +646,4 @@ export function McpContent() {
 		</Tabs>
 	);
 }
+

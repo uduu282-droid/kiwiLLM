@@ -1,6 +1,6 @@
 import { AuthLink } from "@/components/shared/auth-link";
+import { BrandMark } from "@/components/shared/brand-mark";
 import { Button } from "@/lib/components/button";
-import Logo from "@/lib/icons/Logo";
 
 import {
 	providers as providerDefinitions,
@@ -21,7 +21,7 @@ export function Hero({ providerId }: HeroProps) {
 			return <LogoComponent className="h-24 w-24 object-contain" />;
 		}
 
-		return <Logo className="h-24 w-24" />;
+		return <BrandMark className="h-24 w-24" />;
 	};
 
 	return (
@@ -59,7 +59,7 @@ export function Hero({ providerId }: HeroProps) {
 				</div>
 				<div className="flex items-center justify-center gap-8 relative mt-20 lg:mt-0">
 					<div className="h-24 w-24 relative -top-12">
-						<Logo className="h-full w-full" />
+						<BrandMark className="h-full w-full" />
 					</div>
 					<div className="flex items-center h-32">
 						<div className="w-0.5 h-52 bg-muted-foreground opacity-50 rounded rotate-[30deg]" />

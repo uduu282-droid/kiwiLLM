@@ -322,7 +322,7 @@ function TextSimulator() {
 		const baseMonthly = basePerRequest * monthlyRequests;
 		const competitorMonthly = baseMonthly * 1.055;
 
-		// LLM Gateway: same base cost, but with provider discount if available
+		// KiwiLLM: same base cost, but with provider discount if available
 		const gatewayPerRequest =
 			discount > 0 ? basePerRequest * (1 - discount) : basePerRequest;
 		const gatewayMonthly = gatewayPerRequest * monthlyRequests;
@@ -529,7 +529,7 @@ function TextSimulator() {
 
 						<Card className="p-5 border-2 border-green-500/50 bg-green-500/5 shadow-sm shadow-green-500/10">
 							<p className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">
-								LLM Gateway
+								KiwiLLM
 							</p>
 							<p className="text-2xl font-bold text-green-600 dark:text-green-400">
 								{formatCurrency(costs.gatewayMonthly)}
@@ -798,7 +798,7 @@ function ImageSimulator() {
 
 						<Card className="p-5 border-2 border-green-500/50 bg-green-500/5 shadow-sm shadow-green-500/10">
 							<p className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">
-								LLM Gateway
+								KiwiLLM
 							</p>
 							<p className="text-2xl font-bold text-green-600 dark:text-green-400">
 								{formatCurrency(costs.monthlyCost)}
@@ -962,3 +962,4 @@ export function CostSimulatorClient() {
 		</div>
 	);
 }
+

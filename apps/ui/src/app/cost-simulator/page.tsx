@@ -5,11 +5,11 @@ import { HeroRSC } from "@/components/landing/hero-rsc";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-	title: "LLM Cost Simulator | LLM Gateway",
+	title: "LLM Cost Simulator | KiwiLLM",
 	description:
 		"Calculate exactly how much your team can save on LLM costs. Compare models, providers, and use cases with our interactive cost simulator.",
 	openGraph: {
-		title: "LLM Cost Simulator | LLM Gateway",
+		title: "LLM Cost Simulator | KiwiLLM",
 		description:
 			"Calculate exactly how much your team can save on LLM costs. Compare models, providers, and use cases with our interactive cost simulator.",
 	},
@@ -24,3 +24,4 @@ export default function CostSimulatorPage() {
 		</div>
 	);
 }
+

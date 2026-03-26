@@ -76,7 +76,7 @@ import {
 	SidebarRail,
 	useSidebar,
 } from "@/lib/components/sidebar";
-import Logo from "@/lib/icons/Logo";
+import { BrandMark } from "@/components/shared/brand-mark";
 import { buildUrlWithParams } from "@/lib/navigation-utils";
 
 import { OrganizationSwitcher } from "./organization-switcher";
@@ -205,13 +205,13 @@ function DashboardSidebarHeader({
 		<SidebarHeader>
 			<SidebarMenu>
 				<SidebarMenuItem>
-					<SidebarMenuButton size="lg" asChild tooltip="LLM Gateway">
+					<SidebarMenuButton size="lg" asChild tooltip="KiwiLLM">
 						<Link href={buildUrl()} prefetch={true}>
 							<div className="flex aspect-square size-8 items-center justify-center">
-								<Logo className="size-6 text-black dark:text-white" />
+								<BrandMark className="size-6" />
 							</div>
 							<span className="text-lg font-bold tracking-tight">
-								LLM Gateway
+								KiwiLLM
 							</span>
 						</Link>
 					</SidebarMenuButton>

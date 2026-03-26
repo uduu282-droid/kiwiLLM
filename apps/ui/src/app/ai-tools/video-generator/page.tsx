@@ -32,7 +32,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
 	title: "AI Video Generator",
 	description:
-		"Generate cinematic AI videos from prompts or images with a production-ready interface built on the LLM Gateway UI stack.",
+		"Generate cinematic AI videos from prompts or images with a production-ready interface built on the KiwiLLM UI stack.",
 };
 
 const modes = [
@@ -689,3 +689,4 @@ export default async function VideoGeneratorPage({
 		</>
 	);
 }
+

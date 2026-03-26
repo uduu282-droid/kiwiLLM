@@ -42,7 +42,7 @@ export const features: FeatureDefinition[] = [
 		description:
 			"Compatible with the OpenAI API format for seamless migration and integration.",
 		longDescription:
-			"LLM Gateway provides a unified API interface that's fully compatible with the OpenAI API format. This means you can easily migrate from OpenAI to any other provider without changing your code. Simply update the base URL and API key, and you're ready to go.",
+			"KiwiLLM provides a unified API interface that's fully compatible with the OpenAI API format. This means you can easily migrate from OpenAI to any other provider without changing your code. Simply update the base URL and API key, and you're ready to go.",
 		icon: null,
 		benefits: [
 			{
@@ -108,7 +108,7 @@ console.log(completion.choices[0].message.content);`,
 		subtitle: "Access 19+ LLM providers through one gateway",
 		description: "Connect to various LLM providers through a single gateway.",
 		longDescription:
-			"LLM Gateway supports over 19 different LLM providers, including OpenAI, Anthropic, Google, AWS Bedrock, Azure, and many more. Access cutting-edge models from multiple providers without managing separate integrations.",
+			"KiwiLLM supports over 19 different LLM providers, including OpenAI, Anthropic, Google, AWS Bedrock, Azure, and many more. Access cutting-edge models from multiple providers without managing separate integrations.",
 		icon: null,
 		demoComponent: "multi-provider",
 		benefits: [
@@ -246,7 +246,7 @@ console.log(completion.choices[0].message.content);`,
 		subtitle: "Deploy anywhere",
 		description: "Deploy on your own infrastructure or use our hosted version.",
 		longDescription:
-			"LLM Gateway offers flexible deployment options. Use our hosted cloud version for instant setup, or deploy on your own infrastructure for complete control. Both options provide the same features and performance.",
+			"KiwiLLM offers flexible deployment options. Use our hosted cloud version for instant setup, or deploy on your own infrastructure for complete control. Both options provide the same features and performance.",
 		icon: null,
 		benefits: [
 			{
@@ -567,3 +567,4 @@ console.log(completion.choices[0].message.content);`,
 export function getFeatureBySlug(slug: string): FeatureDefinition | undefined {
 	return features.find((f) => f.slug === slug);
 }
+

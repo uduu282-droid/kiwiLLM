@@ -547,7 +547,7 @@ export function ApiKeysList({
 														/>
 													</div>
 													<div className="text-muted-foreground text-sm">
-														Usage includes both usage from LLM Gateway credits
+														Usage includes both usage from KiwiLLM credits
 														and usage from your own provider keys when
 														applicable.
 													</div>
@@ -840,7 +840,7 @@ export function ApiKeysList({
 													/>
 												</div>
 												<div className="text-muted-foreground text-sm">
-													Usage includes both usage from LLM Gateway credits and
+													Usage includes both usage from KiwiLLM credits and
 													usage from your own provider keys when applicable.
 												</div>
 											</div>
@@ -909,3 +909,4 @@ export function ApiKeysList({
 		</>
 	);
 }
+

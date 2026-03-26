@@ -22,8 +22,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/lib/components/table";
+import { BrandMark } from "@/components/shared/brand-mark";
 import { useAppConfig } from "@/lib/config";
-import Logo from "@/lib/icons/Logo";
 import { formatContextSize } from "@/lib/utils";
 
 import {
@@ -957,8 +957,8 @@ export function ModelComparison() {
 				<div className="pointer-events-none flex justify-center z-50">
 					<div className="bg-background/90 backdrop-blur border rounded-full px-6 py-3 text-base md:text-lg flex items-center gap-3 md:gap-4 shadow-md">
 						<span className="text-muted-foreground">Powered by</span>
-						<Logo className="h-6 w-6 md:h-7 md:w-7" />
-						<span className="font-semibold tracking-tight">LLMGateway</span>
+						<BrandMark className="h-6 w-6 md:h-7 md:w-7" />
+						<span className="font-semibold tracking-tight">KiwiLLM</span>
 					</div>
 				</div>
 			) : null}

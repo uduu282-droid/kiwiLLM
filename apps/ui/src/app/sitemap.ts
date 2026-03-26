@@ -206,7 +206,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
 	// Provider pages
 	const providerPages: MetadataRoute.Sitemap = providerDefinitions
-		.filter((provider) => provider.name !== "LLM Gateway")
+		.filter((provider) => provider.id !== "llmgateway")
 		.map((provider) => ({
 			url: `${baseUrl}/providers/${provider.id}`,
 			lastModified: new Date(),
@@ -280,3 +280,4 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 		...migrationPages,
 	];
 }
+

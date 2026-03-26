@@ -43,7 +43,7 @@ const getModelsCountByProvider = () => {
 const modelCounts = getModelsCountByProvider();
 
 const sortedProviders = [...providerDefinitions]
-	.filter((p) => p.name !== "LLM Gateway" && p.id !== "custom")
+	.filter((p) => p.id !== "llmgateway" && p.id !== "custom")
 	.sort((a, b) => {
 		const countA = modelCounts[a.id] || 0;
 		const countB = modelCounts[b.id] || 0;
@@ -127,3 +127,4 @@ export function ProvidersGrid() {
 		</div>
 	);
 }
+

@@ -40,7 +40,7 @@ export function PricingBreakdown({ discount }: { discount: number }) {
 									Google AI Studio
 								</th>
 								<th className="px-4 py-3 text-right font-medium">
-									LLM Gateway
+									KiwiLLM
 								</th>
 							</tr>
 						</thead>
@@ -63,10 +63,11 @@ export function PricingBreakdown({ discount }: { discount: number }) {
 				</div>
 
 				<p className="text-xs text-muted-foreground text-center mt-4">
-					LLM Gateway prices reflect a {discount}% discount off Google AI Studio
+					KiwiLLM prices reflect a {discount}% discount off Google AI Studio
 					direct pricing.
 				</p>
 			</div>
 		</section>
 	);
 }
+

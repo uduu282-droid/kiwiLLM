@@ -31,20 +31,20 @@ import type { Metadata } from "next";
 import type { Route } from "next";
 
 export const metadata: Metadata = {
-	title: "Referral Program | LLM Gateway",
+	title: "Referral Program | KiwiLLM",
 	description:
-		"Earn credits by referring new users to LLM Gateway. Get 1% of all LLM spending from users you refer, added directly to your account balance.",
+		"Earn credits by referring new users to KiwiLLM. Get 1% of all LLM spending from users you refer, added directly to your account balance.",
 	openGraph: {
-		title: "Referral Program | LLM Gateway",
+		title: "Referral Program | KiwiLLM",
 		description:
-			"Earn 1% of all LLM spending from users you refer to LLM Gateway.",
+			"Earn 1% of all LLM spending from users you refer to KiwiLLM.",
 		type: "website",
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Referral Program | LLM Gateway",
+		title: "Referral Program | KiwiLLM",
 		description:
-			"Earn 1% of all LLM spending from users you refer to LLM Gateway.",
+			"Earn 1% of all LLM spending from users you refer to KiwiLLM.",
 	},
 };
 
@@ -376,7 +376,7 @@ export default function ReferralsPublicPage() {
 												</div>
 												<div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-center">
 													<p className="text-xs text-emerald-600 dark:text-emerald-400">
-														LLM Gateway
+														KiwiLLM
 													</p>
 													<p className="font-display mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
 														$8,000
@@ -538,7 +538,7 @@ export default function ReferralsPublicPage() {
 												Feature
 											</th>
 											<th className="px-6 py-4 text-center font-semibold">
-												LLM Gateway
+												KiwiLLM
 											</th>
 											<th className="px-6 py-4 text-center font-medium text-muted-foreground">
 												OpenRouter
@@ -804,3 +804,4 @@ export default function ReferralsPublicPage() {
 		</div>
 	);
 }
+

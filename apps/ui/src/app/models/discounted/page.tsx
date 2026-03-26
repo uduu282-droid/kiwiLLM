@@ -5,7 +5,7 @@ import { AllModels } from "@/components/models/all-models";
 import { fetchModels, fetchProviders } from "@/lib/fetch-models";
 
 export const metadata = {
-	title: "Discounted Models - AI Models on Sale | LLM Gateway",
+	title: "Discounted Models - AI Models on Sale | KiwiLLM",
 	description:
 		"Browse and compare AI models with active discounts. Save on API costs with discounted pricing from multiple providers.",
 	openGraph: {
@@ -36,3 +36,4 @@ export default async function DiscountedModelsPage() {
 		</Suspense>
 	);
 }
+

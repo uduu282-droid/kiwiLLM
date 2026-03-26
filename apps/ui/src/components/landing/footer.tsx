@@ -3,8 +3,8 @@ import { DiscordLogoIcon } from "@radix-ui/react-icons";
 import { GithubIcon } from "lucide-react";
 import Link from "next/link";
 
+import { BrandMark } from "@/components/shared/brand-mark";
 import { useAppConfig } from "@/lib/config";
-import Logo from "@/lib/icons/Logo";
 import { XIcon } from "@/lib/icons/XIcon";
 
 import { providers as providerDefinitions } from "@llmgateway/models";
@@ -12,7 +12,7 @@ import { providers as providerDefinitions } from "@llmgateway/models";
 export default function Footer() {
 	const config = useAppConfig();
 	const filteredProviders = providerDefinitions.filter(
-		(p) => p.name !== "LLM Gateway",
+		(p) => p.id !== "llmgateway",
 	);
 
 	return (
@@ -24,9 +24,9 @@ export default function Footer() {
 				<div className="flex flex-col md:flex-row md:justify-between md:items-start">
 					<div className="mb-6 md:mb-0">
 						<div className="flex items-center space-x-2">
-							<Logo className="h-8 w-8 rounded-full text-black dark:text-white" />
+							<BrandMark className="h-8 w-8" />
 							<span className="font-display text-lg font-bold tracking-tight text-foreground">
-								LLM Gateway
+								KiwiLLM
 							</span>
 						</div>
 						<div className="flex items-center space-x-4 mt-4">
@@ -405,7 +405,7 @@ export default function Footer() {
 				{/* Bottom bar */}
 				<div className="border-t border-border/50 pt-8 mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
 					<p className="text-muted-foreground text-sm">
-						&copy; {new Date().getFullYear()} LLM Gateway. All rights reserved.
+						&copy; {new Date().getFullYear()} KiwiLLM. All rights reserved.
 					</p>
 					<div className="flex items-center gap-6">
 						<Link

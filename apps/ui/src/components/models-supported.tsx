@@ -271,11 +271,11 @@ export const ModelsSupported = ({ isDashboard }: { isDashboard?: boolean }) => {
 	const filteredProviderEntries =
 		selectedProvider === "all"
 			? sortedProviderEntries.filter(
-					([providerName]) => providerName !== "LLM Gateway",
+					([providerName]) => providerName !== "KiwiLLM",
 				)
 			: sortedProviderEntries.filter(
 					([providerName]) =>
-						providerName !== "LLM Gateway" && providerName === selectedProvider,
+						providerName !== "KiwiLLM" && providerName === selectedProvider,
 				);
 
 	// Calculate filtered counts
@@ -414,7 +414,7 @@ export const ModelsSupported = ({ isDashboard }: { isDashboard?: boolean }) => {
 									</div>
 								</SelectItem>
 								{sortedProviderEntries
-									.filter(([providerName]) => providerName !== "LLM Gateway")
+									.filter(([providerName]) => providerName !== "KiwiLLM")
 									.map(([providerName, models]) => {
 										const providerId = models[0].providerDetails[0].provider
 											.providerId as ProviderId;
@@ -501,3 +501,4 @@ export const ModelsSupported = ({ isDashboard }: { isDashboard?: boolean }) => {
 		</div>
 	);
 };
+

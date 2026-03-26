@@ -71,7 +71,7 @@ export function ModelProviderCard({
 	const providerStability = provider.stability ?? modelStability;
 
 	const shareUrl = `${config.appUrl}/models/${encodeURIComponent(modelName)}/${encodeURIComponent(provider.providerId)}`;
-	const shareTitle = `${provider.providerInfo?.name ?? provider.providerId} - ${modelName} on LLM Gateway`;
+	const shareTitle = `${provider.providerInfo?.name ?? provider.providerId} - ${modelName} on KiwiLLM`;
 
 	const getStabilityBadgeProps = (stability?: StabilityLevel) => {
 		switch (stability) {
@@ -686,3 +686,4 @@ export function ModelProviderCard({
 		</Card>
 	);
 }
+

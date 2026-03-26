@@ -130,7 +130,7 @@ export function CreateApiKeyDialog({
 						<DialogHeader>
 							<DialogTitle>Create API Key</DialogTitle>
 							<DialogDescription>
-								Create a new API key to access LLM Gateway.
+								Create a new API key to access KiwiLLM.
 								<span className="block mt-1">
 									Project: {selectedProject.name}
 								</span>
@@ -165,7 +165,7 @@ export function CreateApiKeyDialog({
 								<div
 									className={`text-muted-foreground text-sm ${limitChecked ? "block" : "hidden"}`}
 								>
-									Usage includes both usage from LLM Gateway credits and usage
+									Usage includes both usage from KiwiLLM credits and usage
 									from your own provider keys when applicable.
 								</div>
 								<div
@@ -240,3 +240,4 @@ export function CreateApiKeyDialog({
 		</Dialog>
 	);
 }
+

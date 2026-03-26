@@ -99,7 +99,7 @@ export function ContactFormEnterprise() {
 						</h2>
 						<p className="text-lg text-muted-foreground text-balance leading-relaxed max-w-2xl mx-auto">
 							Tell us about your needs and our team will reach out to discuss
-							how LLMGateway can support your organization.
+							how KiwiLLM can support your organization.
 						</p>
 					</div>
 
@@ -324,3 +324,4 @@ export function ContactFormEnterprise() {
 		</section>
 	);
 }
+

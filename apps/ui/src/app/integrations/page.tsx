@@ -3,13 +3,13 @@ import Footer from "@/components/landing/footer";
 import { HeroRSC } from "@/components/landing/hero-rsc";
 
 export const metadata = {
-	title: "Integrations | LLM Gateway",
+	title: "Integrations | KiwiLLM",
 	description:
-		"Connect LLM Gateway with your favorite tools. Integrate with Claude Code, Cursor, Cline, n8n, and more.",
+		"Connect KiwiLLM with your favorite tools. Integrate with Claude Code, Cursor, Cline, n8n, and more.",
 	openGraph: {
-		title: "Integrations | LLM Gateway",
+		title: "Integrations | KiwiLLM",
 		description:
-			"Connect LLM Gateway with your favorite tools. Integrate with Claude Code, Cursor, Cline, n8n, and more.",
+			"Connect KiwiLLM with your favorite tools. Integrate with Claude Code, Cursor, Cline, n8n, and more.",
 	},
 };
 
@@ -24,7 +24,7 @@ export default function IntegrationsPage() {
 							Integrations
 						</h1>
 						<p className="text-lg text-muted-foreground leading-relaxed">
-							Connect LLM Gateway with your favorite tools and workflows. Access
+							Connect KiwiLLM with your favorite tools and workflows. Access
 							powerful AI capabilities wherever you work.
 						</p>
 					</div>
@@ -35,3 +35,4 @@ export default function IntegrationsPage() {
 		</div>
 	);
 }
+

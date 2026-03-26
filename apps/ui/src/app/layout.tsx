@@ -29,46 +29,42 @@ const plusJakarta = Plus_Jakarta_Sans({
 
 export const dynamic = "force-dynamic";
 
+const siteUrl = process.env.APP_URL ?? "https://kiwi-llm.vercel.app";
+
 export const metadata: Metadata = {
-	metadataBase: new URL("https://llmgateway.io"),
+	metadataBase: new URL(siteUrl),
 	title: {
-		default: "LLM Gateway - Unified API for Multiple LLM Providers",
-		template: "%s | LLM Gateway",
+		default: "KiwiLLM - Unified API for Multiple LLM Providers",
+		template: "%s | KiwiLLM",
 	},
 	description:
 		"Route, manage, and analyze your LLM requests across multiple providers with a unified API interface. Access OpenAI, Anthropic, Google, and 19+ providers through one API.",
-	authors: [{ name: "LLM Gateway" }],
-	creator: "LLM Gateway",
-	publisher: "LLM Gateway",
+	authors: [{ name: "KiwiLLM" }],
+	creator: "KiwiLLM",
+	publisher: "KiwiLLM",
 	icons: {
-		icon: [
-			{ url: "/favicon/favicon.ico", sizes: "any" },
-			{ url: "/favicon/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-			{ url: "/favicon/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-		],
-		apple: [{ url: "/favicon/apple-touch-icon.png", sizes: "180x180" }],
+		icon: [{ url: "/brand/kiwillm-logo.png", type: "image/png" }],
+		apple: [{ url: "/brand/kiwillm-logo.png", type: "image/png" }],
 	},
-	manifest: "/favicon/site.webmanifest",
 	alternates: {
 		canonical: "./",
 	},
 	openGraph: {
-		title: "LLM Gateway - Unified API for Multiple LLM Providers",
+		title: "KiwiLLM - Unified API for Multiple LLM Providers",
 		description:
 			"Route, manage, and analyze your LLM requests across multiple providers with a unified API interface. Access OpenAI, Anthropic, Google, and 19+ providers through one API.",
-		images: ["/opengraph.png?v=1"],
+		images: ["/brand/kiwillm-logo.png"],
 		type: "website",
-		url: "https://llmgateway.io",
-		siteName: "LLM Gateway",
+		url: siteUrl,
+		siteName: "KiwiLLM",
 		locale: "en_US",
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "LLM Gateway - Unified API for Multiple LLM Providers",
+		title: "KiwiLLM - Unified API for Multiple LLM Providers",
 		description:
 			"Route, manage, and analyze your LLM requests across multiple providers with a unified API interface.",
-		images: ["/opengraph.png?v=1"],
-		creator: "@llmgateway",
+		images: ["/brand/kiwillm-logo.png"],
 	},
 	robots: {
 		index: true,
@@ -86,32 +82,24 @@ export const metadata: Metadata = {
 const organizationSchema = {
 	"@context": "https://schema.org",
 	"@type": "Organization",
-	name: "LLM Gateway",
-	url: "https://llmgateway.io",
-	logo: "https://llmgateway.io/favicon/android-chrome-512x512.png",
+	name: "KiwiLLM",
+	url: siteUrl,
+	logo: `${siteUrl}/brand/kiwillm-logo.png`,
 	description:
 		"Route, manage, and analyze your LLM requests across multiple providers with a unified API interface.",
-	sameAs: [
-		"https://twitter.com/llmgateway",
-		"https://github.com/llmgateway/llmgateway",
-	],
-	contactPoint: {
-		"@type": "ContactPoint",
-		email: "contact@llmgateway.io",
-		contactType: "customer support",
-	},
+	sameAs: ["https://github.com/uduu282-droid/kiwiLLM"],
 };
 
 const websiteSchema = {
 	"@context": "https://schema.org",
 	"@type": "WebSite",
-	name: "LLM Gateway",
-	url: "https://llmgateway.io",
+	name: "KiwiLLM",
+	url: siteUrl,
 	potentialAction: {
 		"@type": "SearchAction",
 		target: {
 			"@type": "EntryPoint",
-			urlTemplate: "https://llmgateway.io/models?search={search_term_string}",
+			urlTemplate: `${siteUrl}/models?search={search_term_string}`,
 		},
 		"query-input": "required name=search_term_string",
 	},

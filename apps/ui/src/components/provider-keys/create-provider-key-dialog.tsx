@@ -125,7 +125,7 @@ export function CreateProviderKeyDialog({
 		if (selectedProvider === "llmgateway" && !baseUrl) {
 			toast({
 				title: "Error",
-				description: "Base URL is required for LLM Gateway provider",
+				description: "Base URL is required for KiwiLLM provider",
 				variant: "destructive",
 			});
 			return;
@@ -460,3 +460,4 @@ export function CreateProviderKeyDialog({
 		</Dialog>
 	);
 }
+

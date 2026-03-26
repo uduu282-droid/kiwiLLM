@@ -5,11 +5,11 @@ import { TemplateCards } from "@/components/templates/template-cards";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-	title: "Templates | LLM Gateway",
+	title: "Templates | KiwiLLM",
 	description:
 		"Production-ready templates to jumpstart your AI applications. Image generation, chatbots, and more.",
 	openGraph: {
-		title: "Templates | LLM Gateway",
+		title: "Templates | KiwiLLM",
 		description:
 			"Production-ready templates to jumpstart your AI applications. Image generation, chatbots, and more.",
 	},
@@ -37,3 +37,4 @@ export default function TemplatesPage() {
 		</div>
 	);
 }
+

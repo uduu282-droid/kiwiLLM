@@ -7,13 +7,13 @@ import { HeroRSC } from "@/components/landing/hero-rsc";
 import type { Migration } from "content-collections";
 
 export const metadata = {
-	title: "Migration Guides | LLM Gateway",
+	title: "Migration Guides | KiwiLLM",
 	description:
-		"Step-by-step guides to migrate from OpenRouter, Vercel AI Gateway, LiteLLM, and other LLM providers to LLM Gateway.",
+		"Step-by-step guides to migrate from OpenRouter, Vercel AI Gateway, LiteLLM, and other LLM providers to KiwiLLM.",
 	openGraph: {
-		title: "Migration Guides | LLM Gateway",
+		title: "Migration Guides | KiwiLLM",
 		description:
-			"Step-by-step guides to migrate from OpenRouter, Vercel AI Gateway, LiteLLM, and other LLM providers to LLM Gateway.",
+			"Step-by-step guides to migrate from OpenRouter, Vercel AI Gateway, LiteLLM, and other LLM providers to KiwiLLM.",
 	},
 };
 
@@ -50,7 +50,7 @@ export default async function MigrationPage() {
 							Migration Guides
 						</h1>
 						<p className="text-lg text-muted-foreground leading-relaxed">
-							Switch to LLM Gateway from other LLM providers with minimal code
+							Switch to KiwiLLM from other LLM providers with minimal code
 							changes. Our OpenAI-compatible API makes migration
 							straightforward.
 						</p>
@@ -101,7 +101,7 @@ export default async function MigrationPage() {
 								Don't see your provider?
 							</h2>
 							<p className="mb-4 text-muted-foreground">
-								LLM Gateway's OpenAI-compatible API works with any client that
+								KiwiLLM's OpenAI-compatible API works with any client that
 								supports OpenAI. Just change the base URL and API key.
 							</p>
 							<Link
@@ -119,3 +119,4 @@ export default async function MigrationPage() {
 		</div>
 	);
 }
+

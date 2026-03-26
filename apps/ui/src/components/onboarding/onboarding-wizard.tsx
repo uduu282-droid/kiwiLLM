@@ -246,7 +246,7 @@ export function OnboardingWizard() {
 							Your API Key
 						</CardTitle>
 						<CardDescription>
-							Use this key to authenticate requests to LLM Gateway
+							Use this key to authenticate requests to KiwiLLM
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
@@ -404,3 +404,4 @@ export function OnboardingWizard() {
 		</div>
 	);
 }
+

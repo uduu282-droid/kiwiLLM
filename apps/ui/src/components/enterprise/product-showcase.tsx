@@ -4,35 +4,35 @@ import Image from "next/image";
 const screenshots = [
 	{
 		slug: "dashboard",
-		alt: "LLM Gateway Dashboard",
+		alt: "KiwiLLM Dashboard",
 		title: "Analytics Dashboard",
 		description:
 			"Real-time usage metrics, cost breakdowns, and performance monitoring across all your LLM operations.",
 	},
 	{
 		slug: "playground",
-		alt: "LLM Gateway Chat Playground",
+		alt: "KiwiLLM Chat Playground",
 		title: "Chat Playground",
 		description:
 			"Interactive testing environment with model comparison, prompt engineering, and conversation management.",
 	},
 	{
 		slug: "image-studio",
-		alt: "LLM Gateway Image Studio",
+		alt: "KiwiLLM Image Studio",
 		title: "Image Studio",
 		description:
 			"Generate images with multiple providers and models. Compare outputs side-by-side with adjustable settings.",
 	},
 	{
 		slug: "admin",
-		alt: "LLM Gateway Admin Dashboard",
+		alt: "KiwiLLM Admin Dashboard",
 		title: "Admin Dashboard",
 		description:
 			"Full visibility into signups, revenue, provider health, and model performance across your deployment.",
 	},
 	{
 		slug: "docs",
-		alt: "LLM Gateway Documentation",
+		alt: "KiwiLLM Documentation",
 		title: "Developer Documentation",
 		description:
 			"Comprehensive API reference, integration guides, and self-hosting documentation for your team.",
@@ -94,7 +94,7 @@ export function ProductShowcase() {
 						<h3 className="text-lg font-semibold">Fully white-labelable</h3>
 					</div>
 					<p className="text-muted-foreground leading-relaxed">
-						Replace the LLM Gateway logo and branding with your own. Every
+						Replace the KiwiLLM logo and branding with your own. Every
 						dashboard, playground, and docs page can be customized to match your
 						company identity.
 					</p>
@@ -103,3 +103,4 @@ export function ProductShowcase() {
 		</section>
 	);
 }
+

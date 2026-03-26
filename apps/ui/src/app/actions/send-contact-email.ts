@@ -224,7 +224,7 @@ export async function sendContactEmail(data: ContactFormData) {
 	`;
 
 	const { error } = await resend.emails.send({
-		from: "LLMGateway Contact Form <contact@mail.llmgateway.io>",
+		from: "KiwiLLM Contact Form <contact@mail.llmgateway.io>",
 		to: ["contact@llmgateway.io"],
 		replyTo: validatedData.email,
 		subject: `Enterprise Contact Request from ${validatedData.name}`,
@@ -240,3 +240,4 @@ export async function sendContactEmail(data: ContactFormData) {
 
 	return { success: true, message: "Email sent successfully" };
 }
+

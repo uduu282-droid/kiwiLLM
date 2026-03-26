@@ -97,7 +97,7 @@ export function ReferralBanner() {
 				<DialogHeader>
 					<DialogTitle>How did you find us?</DialogTitle>
 					<DialogDescription>
-						This helps us understand how people discover LLM Gateway.
+						This helps us understand how people discover KiwiLLM.
 					</DialogDescription>
 				</DialogHeader>
 				<div className="grid grid-cols-2 gap-2">
@@ -121,3 +121,4 @@ export function ReferralBanner() {
 		</Dialog>
 	);
 }
+

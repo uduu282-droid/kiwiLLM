@@ -79,10 +79,10 @@ console.log(response.choices[0].message.content);`,
 		"ai-sdk": {
 			label: "AI SDK",
 			language: "typescript",
-			code: `import { createLLMGateway } from "@llmgateway/ai-sdk-provider";
+			code: `import { createKiwiLLM } from "@llmgateway/ai-sdk-provider";
 import { generateText } from "ai";
 
-const llmgateway = createLLMGateway({ apiKey: process.env.LLM_GATEWAY_API_KEY });
+const llmgateway = createKiwiLLM({ apiKey: process.env.LLM_GATEWAY_API_KEY });
 
 const { text } = await generateText({
   model: llmgateway("${modelId}"),
@@ -132,7 +132,7 @@ const { text } = await generateText({
 			</DialogTrigger>
 			<DialogContent className="sm:max-w-2xl">
 				<DialogHeader>
-					<DialogTitle>Use this model with LLM Gateway</DialogTitle>
+					<DialogTitle>Use this model with KiwiLLM</DialogTitle>
 					<DialogDescription>
 						Code examples for{" "}
 						<code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
@@ -235,3 +235,4 @@ const { text } = await generateText({
 		</Dialog>
 	);
 }
+

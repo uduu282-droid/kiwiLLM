@@ -38,7 +38,7 @@ export function BlogList({
 	entries,
 	selectedCategory,
 	heading = "Blog",
-	subheading = "Latest news and updates from LLM Gateway",
+	subheading = "Latest news and updates from KiwiLLM",
 }: BlogListProps = {}) {
 	const blogEntries = entries ?? [];
 	const categoryList = ["Announcements", "Guides", "Engineering", "Changelog"];
@@ -151,3 +151,4 @@ export function BlogList({
 		</div>
 	);
 }
+

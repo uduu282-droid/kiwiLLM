@@ -26,7 +26,7 @@ export default async function BlogPage() {
 			<BlogList
 				entries={sortedEntries}
 				heading="Blog"
-				subheading="Latest news and updates from LLM Gateway"
+				subheading="Latest news and updates from KiwiLLM"
 			/>
 		</div>
 	);
@@ -34,17 +34,18 @@ export default async function BlogPage() {
 
 export async function generateMetadata() {
 	return {
-		title: "Blog - LLM Gateway",
-		description: "News, tutorials, and deep-dives from the LLM Gateway team.",
+		title: "Blog - KiwiLLM",
+		description: "News, tutorials, and deep-dives from the KiwiLLM team.",
 		openGraph: {
-			title: "Blog - LLM Gateway",
-			description: "News, tutorials, and deep-dives from the LLM Gateway team.",
+			title: "Blog - KiwiLLM",
+			description: "News, tutorials, and deep-dives from the KiwiLLM team.",
 			type: "website",
 		},
 		twitter: {
 			card: "summary_large_image",
-			title: "Blog - LLM Gateway",
-			description: "News, tutorials, and deep-dives from the LLM Gateway team.",
+			title: "Blog - KiwiLLM",
+			description: "News, tutorials, and deep-dives from the KiwiLLM team.",
 		},
 	};
 }
+

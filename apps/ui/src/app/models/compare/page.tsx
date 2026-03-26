@@ -5,7 +5,7 @@ import { Navbar } from "@/components/landing/navbar";
 import { ModelComparison } from "@/components/models/model-comparison";
 
 export const metadata = {
-	title: "Compare AI Models Side by Side | LLM Gateway",
+	title: "Compare AI Models Side by Side | KiwiLLM",
 	description:
 		"Select any two AI models to compare pricing, context window, and capabilities with our interactive model comparison tool.",
 	openGraph: {
@@ -37,3 +37,4 @@ export default function ModelsComparePage() {
 		</>
 	);
 }
+

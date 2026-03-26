@@ -83,7 +83,7 @@ export function TimelineClient({ models }: TimelineClientProps) {
 			let createdAt = model.createdAt ? new Date(model.createdAt) : undefined;
 
 			// Clamp createdAt to gateway launch date so we never show support
-			// before LLM Gateway existed.
+			// before KiwiLLM existed.
 			if (createdAt && createdAt.getTime() < GATEWAY_LAUNCH.getTime()) {
 				createdAt = GATEWAY_LAUNCH;
 			}
@@ -139,11 +139,11 @@ export function TimelineClient({ models }: TimelineClientProps) {
 								Model timeline
 							</Badge>
 							<h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-								LLM Gateway model support timeline
+								KiwiLLM model support timeline
 							</h1>
 							<p className="text-muted-foreground text-sm md:text-base">
 								See when each model was released by its provider and when it was
-								added to LLM Gateway.
+								added to KiwiLLM.
 							</p>
 						</div>
 
@@ -307,7 +307,7 @@ export function TimelineClient({ models }: TimelineClientProps) {
 																			</div>
 																			<div className="space-y-1">
 																				<p className="text-muted-foreground text-[11px] uppercase tracking-wide">
-																					Added to LLM Gateway
+																					Added to KiwiLLM
 																				</p>
 																				<p className="font-medium">
 																					{formatDate(item.createdAt)}
@@ -345,3 +345,4 @@ export function TimelineClient({ models }: TimelineClientProps) {
 		</>
 	);
 }
+

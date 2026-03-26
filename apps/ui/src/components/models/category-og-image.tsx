@@ -132,7 +132,7 @@ export function generateCategoryOgImage(categoryKey: string) {
 							"system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
 					}}
 				>
-					LLM Gateway
+					KiwiLLM
 				</div>
 			),
 			ogSize,
@@ -217,7 +217,7 @@ export function generateCategoryOgImage(categoryKey: string) {
 									letterSpacing: "0.02em",
 								}}
 							>
-								LLM Gateway
+								KiwiLLM
 							</span>
 						</div>
 
@@ -394,3 +394,4 @@ export function generateCategoryOgImage(categoryKey: string) {
 		ogSize,
 	);
 }
+

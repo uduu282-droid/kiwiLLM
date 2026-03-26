@@ -4,13 +4,13 @@ import { HeroRSC } from "@/components/landing/hero-rsc";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-	title: "Brand Assets | LLM Gateway",
+	title: "Brand Assets | KiwiLLM",
 	description:
-		"Download official LLM Gateway logos and brand assets. Get our logo in PNG or SVG format, with or without the name, in black and white variants.",
+		"Download official KiwiLLM logos and brand assets. Get the kiwi mark and wordmark for product screenshots, presentations, and integrations.",
 	openGraph: {
-		title: "Brand Assets | LLM Gateway",
+		title: "Brand Assets | KiwiLLM",
 		description:
-			"Download official LLM Gateway logos and brand assets. Get our logo in PNG or SVG format, with or without the name, in black and white variants.",
+			"Download official KiwiLLM logos and brand assets. Get the kiwi mark and wordmark for product screenshots, presentations, and integrations.",
 	},
 };
 

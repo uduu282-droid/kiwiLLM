@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { AuthLink } from "@/components/shared/auth-link";
+import { BrandMark } from "@/components/shared/brand-mark";
 import { ModelSearch } from "@/components/shared/model-search";
 import { Button } from "@/lib/components/button";
 import {
@@ -32,7 +33,6 @@ import {
 	NavigationMenuTrigger,
 } from "@/lib/components/navigation-menu";
 import { useAppConfig } from "@/lib/config";
-import Logo from "@/lib/icons/Logo";
 import { cn } from "@/lib/utils";
 
 import { ThemeToggle } from "./theme-toggle";
@@ -162,7 +162,7 @@ export const Navbar = ({
 		{
 			title: "Changelog",
 			href: "/changelog",
-			description: "What's new in LLM Gateway across releases.",
+			description: "What's new in KiwiLLM across releases.",
 		},
 		{
 			title: "Providers",
@@ -223,7 +223,7 @@ export const Navbar = ({
 		{
 			title: "AI SDK Provider",
 			href: "https://github.com/theopenco/llmgateway-ai-sdk-provider",
-			description: "Use LLM Gateway with Vercel's AI SDK.",
+			description: "Use KiwiLLM with Vercel's AI SDK.",
 			icon: Zap,
 			gradient:
 				"hover:from-amber-500/20 hover:to-orange-600/30 hover:shadow-amber-500/10 group-hover/product:text-amber-500 dark:group-hover/product:text-amber-400",
@@ -319,9 +319,9 @@ export const Navbar = ({
 								className="flex items-center space-x-2"
 								prefetch={true}
 							>
-								<Logo className="h-8 w-8 rounded-full text-black dark:text-white" />
+								<BrandMark className="h-8 w-8" />
 								<span className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white">
-									LLM Gateway
+									KiwiLLM
 								</span>
 							</Link>
 
@@ -734,4 +734,5 @@ export const Navbar = ({
 		</header>
 	);
 };
+
 

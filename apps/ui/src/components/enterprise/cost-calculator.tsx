@@ -158,7 +158,7 @@ export function CostCalculator() {
 						See how much you could save
 					</h2>
 					<p className="text-lg text-muted-foreground text-balance leading-relaxed">
-						Companies switching to LLM Gateway save up to 35% on LLM costs
+						Companies switching to KiwiLLM save up to 35% on LLM costs
 						through smart provider routing, volume discounts, and zero platform
 						fees.
 					</p>
@@ -297,7 +297,7 @@ export function CostCalculator() {
 
 									<div className="rounded-xl border-2 border-green-500/50 bg-green-500/5 p-4 shadow-sm shadow-green-500/10">
 										<p className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">
-											LLM Gateway
+											KiwiLLM
 										</p>
 										<p className="text-xl font-bold text-green-600 dark:text-green-400">
 											{formatCurrency(costs.gatewayCost)}
@@ -363,3 +363,4 @@ export function CostCalculator() {
 		</section>
 	);
 }
+

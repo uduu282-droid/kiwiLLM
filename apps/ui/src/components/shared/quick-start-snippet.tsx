@@ -39,7 +39,7 @@ const client = new OpenAI({
 const response = await client.chat.completions.create({
   model: "auto",
   messages: [{ role: "user", content: "Hello!" }],
-  // @ts-expect-error LLM Gateway extension
+  // @ts-expect-error KiwiLLM extension
   free_models_only: true,
 });`;
 
@@ -63,7 +63,7 @@ const response = await client.chat.completions.create({
 						<span className="font-medium">Quick Start</span>
 					</div>
 					<p className="text-sm text-muted-foreground">
-						Use your API key to make requests. LLM Gateway is compatible with
+						Use your API key to make requests. KiwiLLM is compatible with
 						the OpenAI SDK — just change the base URL.
 					</p>
 					<div className="flex gap-2">
@@ -104,3 +104,4 @@ const response = await client.chat.completions.create({
 		</Card>
 	);
 }
+
