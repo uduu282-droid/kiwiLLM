@@ -8,7 +8,7 @@
 		".next"
 	],
 	"scripts": {
-		"build": "pnpm generate && next build --webpack && tsc && mkdir -p .next/static && cp -r .next/static .next/standalone/apps/ui/.next/ && test -d public && cp -r public .next/standalone/apps/ui/",
+		"build": "pnpm generate && next build --webpack && tsc && node ./scripts/finalize-build.mjs",
 		"dev": "next dev --port 3002 --webpack",
 		"format": "eslint --fix . && prettier --write .",
 		"generate": "openapi-typescript ../api/openapi.json -o ./src/lib/api/v1.d.ts",
