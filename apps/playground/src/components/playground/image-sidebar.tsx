@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 
 import { CreditsDisplay } from "@/components/credits/credits-display";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
@@ -181,6 +181,10 @@ export function ImageSidebar({
 				<div className="flex items-center justify-between p-4 pt-0">
 					<div className="flex items-center gap-3 flex-1">
 						<Avatar className="border-border h-9 w-9 border">
+							<AvatarImage
+								src={user?.image ?? undefined}
+								alt={user?.name ?? "User"}
+							/>
 							<AvatarFallback className="bg-muted">
 								{user?.name?.slice(0, 2) ?? "AU"}
 							</AvatarFallback>

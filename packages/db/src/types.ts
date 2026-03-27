@@ -137,7 +137,7 @@ export type SerializedProject = Omit<Project, "createdAt" | "updatedAt"> & {
 	updatedAt: string;
 };
 
-export type SerializedUser = Pick<User, "id" | "email" | "name">;
+export type SerializedUser = Pick<User, "id" | "email" | "name" | "image">;
 
 export type SerializedApiKey = Omit<ApiKey, "createdAt" | "updatedAt"> & {
 	createdAt: string;

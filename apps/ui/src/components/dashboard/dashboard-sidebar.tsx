@@ -45,6 +45,7 @@ import { useDashboardNavigation } from "@/hooks/useDashboardNavigation";
 import { useUser } from "@/hooks/useUser";
 import { clearLastUsedProjectCookiesAction } from "@/lib/actions/last-used-project";
 import { useAuth } from "@/lib/auth-client";
+import { Avatar, AvatarFallback, AvatarImage } from "@/lib/components/avatar";
 import { Button } from "@/lib/components/button";
 import {
 	DropdownMenu,
@@ -672,7 +673,17 @@ function UserDropdownMenu({
 					className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
 				>
 					<div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-						<span className="text-xs font-semibold">{getUserInitials()}</span>
+						<Avatar className="size-8 rounded-lg">
+							<AvatarImage
+								src={user?.image ?? undefined}
+								alt={user?.name ?? "User"}
+							/>
+							<AvatarFallback className="rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+								<span className="text-xs font-semibold">
+									{getUserInitials()}
+								</span>
+							</AvatarFallback>
+						</Avatar>
 					</div>
 					<div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
 						<span className="truncate font-semibold">{user?.name}</span>
