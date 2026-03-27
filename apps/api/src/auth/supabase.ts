@@ -164,56 +164,78 @@ function getSupabaseAccounts(user: SupabaseUser): AuthAccount[] {
 	}));
 }
 
-async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
+function getSupabaseUserValues(supabaseUser: SupabaseUser) {
 	const userEmail = supabaseUser.email;
 
 	if (!userEmail) {
 		throw new Error("Supabase user must have an email address.");
 	}
 
-	const name = getSupabaseDisplayName(supabaseUser);
-	const image = getSupabaseImage(supabaseUser);
-	const emailVerified = getSupabaseEmailVerified(supabaseUser);
+	return {
+		id: supabaseUser.id,
+		email: userEmail,
+		name: getSupabaseDisplayName(supabaseUser),
+		image: getSupabaseImage(supabaseUser),
+		emailVerified: getSupabaseEmailVerified(supabaseUser),
+	};
+}
 
-	let dbUser =
+async function findExistingSupabaseUser(supabaseUser: SupabaseUser) {
+	const userValues = getSupabaseUserValues(supabaseUser);
+
+	return (
 		(await db.query.user.findFirst({
 			where: {
-				id: { eq: supabaseUser.id },
+				id: { eq: userValues.id },
 			},
 		})) ??
 		(await db.query.user.findFirst({
 			where: {
-				email: { eq: userEmail },
+				email: { eq: userValues.email },
 			},
-		}));
+		}))
+	);
+}
 
-	if (!dbUser) {
-		const [createdUser] = await db
-			.insert(tables.user)
-			.values({
-				id: supabaseUser.id,
-				email: userEmail,
-				name,
-				image,
-				emailVerified,
-			})
-			.returning();
+async function upsertSupabaseUser(supabaseUser: SupabaseUser) {
+	const userValues = getSupabaseUserValues(supabaseUser);
+	const existingUser = await findExistingSupabaseUser(supabaseUser);
 
-		dbUser = createdUser;
-	} else {
+	if (existingUser) {
 		const [updatedUser] = await db
 			.update(tables.user)
 			.set({
-				email: userEmail,
-				name,
-				image,
-				emailVerified,
+				email: userValues.email,
+				name: userValues.name,
+				image: userValues.image,
+				emailVerified: userValues.emailVerified,
 			})
-			.where(eq(tables.user.id, dbUser.id))
+			.where(eq(tables.user.id, existingUser.id))
 			.returning();
 
-		dbUser = updatedUser;
+		return updatedUser;
 	}
+
+	const [createdUser] = await db
+		.insert(tables.user)
+		.values(userValues)
+		.onConflictDoUpdate({
+			target: tables.user.id,
+			set: {
+				email: userValues.email,
+				name: userValues.name,
+				image: userValues.image,
+				emailVerified: userValues.emailVerified,
+			},
+		})
+		.returning();
+
+	return createdUser;
+}
+
+async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
+	const { email: userEmail } = getSupabaseUserValues(supabaseUser);
+	const dbUser = await upsertSupabaseUser(supabaseUser);
 
 	const activeOrganizations = (
 		await db.query.userOrganization.findMany({
@@ -270,65 +292,7 @@ async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
 }
 
 async function syncSupabaseUserRecord(supabaseUser: SupabaseUser) {
-	const userEmail = supabaseUser.email;
-
-	if (!userEmail) {
-		throw new Error("Supabase user must have an email address.");
-	}
-
-	const name = getSupabaseDisplayName(supabaseUser);
-	const image = getSupabaseImage(supabaseUser);
-	const emailVerified = getSupabaseEmailVerified(supabaseUser);
-
-	const existingUser =
-		(await db.query.user.findFirst({
-			where: {
-				id: { eq: supabaseUser.id },
-			},
-		})) ??
-		(await db.query.user.findFirst({
-			where: {
-				email: { eq: userEmail },
-			},
-		}));
-
-	if (!existingUser) {
-		const [createdUser] = await db
-			.insert(tables.user)
-			.values({
-				id: supabaseUser.id,
-				email: userEmail,
-				name,
-				image,
-				emailVerified,
-			})
-			.returning();
-
-		return createdUser;
-	}
-
-	if (
-		existingUser.id === supabaseUser.id &&
-		existingUser.email === userEmail &&
-		existingUser.name === name &&
-		existingUser.image === image &&
-		existingUser.emailVerified === emailVerified
-	) {
-		return existingUser;
-	}
-
-	const [updatedUser] = await db
-		.update(tables.user)
-		.set({
-			email: userEmail,
-			name,
-			image,
-			emailVerified,
-		})
-		.where(eq(tables.user.id, existingUser.id))
-		.returning();
-
-	return updatedUser;
+	return upsertSupabaseUser(supabaseUser);
 }
 
 async function resolveSupabaseAuthContext(supabaseUser: SupabaseUser) {

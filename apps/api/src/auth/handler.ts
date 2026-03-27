@@ -37,12 +37,19 @@ authHandler.post("/auth/supabase/session", async (c) => {
 		return c.json({ message: "Supabase auth is not configured" }, 500);
 	}
 
+	const rawBody = await c.req.text();
+
+	if (!rawBody.trim()) {
+		return c.json({ message: "Missing Supabase session payload" }, 400);
+	}
+
+	const parsedBody = JSON.parse(rawBody);
 	const body = z
 		.object({
 			accessToken: z.string().min(1),
 			refreshToken: z.string().nullable().optional(),
 		})
-		.parse(await c.req.json());
+		.parse(parsedBody);
 
 	const session = await createSupabaseSession(body);
 	setCookie(
