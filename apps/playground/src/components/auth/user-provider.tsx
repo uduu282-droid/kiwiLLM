@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { useApi } from "@/lib/fetch-client";
 
@@ -17,11 +17,15 @@ export function UserProvider({ children, initialUserData }: UserProviderProps) {
 	const hasSetInitialData = useRef(false);
 	const api = useApi();
 
-	if (initialUserData && !hasSetInitialData.current) {
+	useEffect(() => {
+		if (!initialUserData || hasSetInitialData.current) {
+			return;
+		}
+
 		const queryKey = api.queryOptions("get", "/user/me", {}).queryKey;
 		queryClient.setQueryData(queryKey, initialUserData);
 		hasSetInitialData.current = true;
-	}
+	}, [api, initialUserData, queryClient]);
 
 	return children;
 }

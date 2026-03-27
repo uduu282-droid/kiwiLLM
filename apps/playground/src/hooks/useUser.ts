@@ -38,12 +38,16 @@ export function useUser(options?: UseUserOptions) {
 		},
 	);
 
-	if (data) {
+	useEffect(() => {
+		if (!data?.user) {
+			return;
+		}
+
 		posthog.identify(data.user.id, {
 			email: data.user.email,
 			name: data.user.name,
 		});
-	}
+	}, [data?.user?.email, data?.user?.id, data?.user?.name, posthog]);
 
 	// Check for onboarding completion for all authenticated users
 	useEffect(() => {

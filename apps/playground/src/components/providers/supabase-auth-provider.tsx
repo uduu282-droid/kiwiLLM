@@ -101,24 +101,46 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 				return;
 			}
 
-			const response = await fetch(`${config.apiUrl}/auth/supabase/session`, {
-				method: "POST",
-				credentials: "include",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					accessToken: nextSession.access_token,
-					refreshToken: nextSession.refresh_token,
-				}),
-			});
+			const retryDelaysMs = [0, 150, 300, 600];
+			let lastError: Error | null = null;
 
-			if (!response.ok) {
-				throw new Error("Failed to create Supabase session");
+			for (const retryDelayMs of retryDelaysMs) {
+				if (retryDelayMs > 0) {
+					await sleep(retryDelayMs);
+				}
+
+				try {
+					const response = await fetch(
+						`${config.apiUrl}/auth/supabase/session`,
+						{
+							method: "POST",
+							credentials: "include",
+							headers: {
+								"Content-Type": "application/json",
+							},
+							body: JSON.stringify({
+								accessToken: nextSession.access_token,
+								refreshToken: nextSession.refresh_token,
+							}),
+						},
+					);
+
+					if (!response.ok) {
+						throw new Error("Failed to create Supabase session");
+					}
+
+					await waitForServerSession();
+					lastSyncedTokenRef.current = nextSession.access_token;
+					return;
+				} catch (error) {
+					lastError =
+						error instanceof Error
+							? error
+							: new Error("Failed to create Supabase session");
+				}
 			}
 
-			await waitForServerSession();
-			lastSyncedTokenRef.current = nextSession.access_token;
+			throw lastError ?? new Error("Failed to create Supabase session");
 		},
 		[auth, config.apiUrl, waitForServerSession],
 	);
