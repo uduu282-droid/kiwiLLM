@@ -38,13 +38,23 @@ export default function Login() {
 	const queryClient = useQueryClient();
 	const router = useRouter();
 	const posthog = usePostHog();
-	const [isLoading, setIsLoading] = useState(false);
+	const [loadingState, setLoadingState] = useState<
+		null | "email" | "github" | "google"
+	>(null);
 	const [showPassword, setShowPassword] = useState(false);
 	const { signIn } = useAuth();
 	const { githubAuth, googleAuth } = useAppConfig();
+	const isLoading = loadingState !== null;
+
+	const loadingMessage =
+		loadingState === "google"
+			? "Redirecting to Google and preparing your dashboard..."
+			: loadingState === "github"
+				? "Redirecting to GitHub and preparing your dashboard..."
+				: "Signing you in and preparing your dashboard...";
 
 	const signInWithSocial = async (provider: "github" | "google") => {
-		setIsLoading(true);
+		setLoadingState(provider);
 		try {
 			const res = await signIn.social({
 				provider,
@@ -61,9 +71,14 @@ export default function Login() {
 						`Failed to sign in with ${provider === "github" ? "GitHub" : "Google"}`,
 					variant: "destructive",
 				});
+				setLoadingState(null);
 			}
-		} finally {
-			setIsLoading(false);
+		} catch {
+			toast({
+				title: `Failed to sign in with ${provider === "github" ? "GitHub" : "Google"}`,
+				variant: "destructive",
+			});
+			setLoadingState(null);
 		}
 	};
 
@@ -87,7 +102,7 @@ export default function Login() {
 	});
 
 	async function onSubmit(values: z.infer<typeof formSchema>) {
-		setIsLoading(true);
+		setLoadingState("email");
 		const { error } = await signIn.email(
 			{
 				email: values.email,
@@ -121,9 +136,8 @@ export default function Login() {
 				title: error.message ?? "An unknown error occurred",
 				variant: "destructive",
 			});
+			setLoadingState(null);
 		}
-
-		setIsLoading(false);
 	}
 
 	return (
@@ -136,6 +150,18 @@ export default function Login() {
 					<p className="text-sm text-muted-foreground">
 						Enter your email and password to sign in to your account
 					</p>
+					{isLoading ? (
+						<div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-left text-sm text-muted-foreground">
+							<div className="flex items-center gap-2 font-medium text-foreground">
+								<Loader2 className="h-4 w-4 animate-spin" />
+								Working on it
+							</div>
+							<p className="mt-1 text-xs leading-relaxed">
+								{loadingMessage} First sign in can take a few seconds while we
+								sync your account and load your workspace.
+							</p>
+						</div>
+					) : null}
 				</div>
 				<Form {...form}>
 					<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

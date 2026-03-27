@@ -48,13 +48,23 @@ export default function Signup() {
 	const queryClient = useQueryClient();
 	const router = useRouter();
 	const posthog = usePostHog();
-	const [isLoading, setIsLoading] = useState(false);
+	const [loadingState, setLoadingState] = useState<
+		null | "email" | "github" | "google"
+	>(null);
 	const [showPassword, setShowPassword] = useState(false);
 	const { signUp, signIn } = useAuth();
 	const config = useAppConfig();
+	const isLoading = loadingState !== null;
+
+	const loadingMessage =
+		loadingState === "google"
+			? "Redirecting to Google and creating your workspace..."
+			: loadingState === "github"
+				? "Redirecting to GitHub and creating your workspace..."
+				: "Creating your account and preparing your workspace...";
 
 	const signInWithSocial = async (provider: "github" | "google") => {
-		setIsLoading(true);
+		setLoadingState(provider);
 		try {
 			const res = await signIn.social({
 				provider,
@@ -71,9 +81,14 @@ export default function Signup() {
 						`Failed to sign up with ${provider === "github" ? "GitHub" : "Google"}`,
 					variant: "destructive",
 				});
+				setLoadingState(null);
 			}
-		} finally {
-			setIsLoading(false);
+		} catch {
+			toast({
+				title: `Failed to sign up with ${provider === "github" ? "GitHub" : "Google"}`,
+				variant: "destructive",
+			});
+			setLoadingState(null);
 		}
 	};
 
@@ -99,7 +114,7 @@ export default function Signup() {
 	});
 
 	async function onSubmit(values: z.infer<typeof formSchema>) {
-		setIsLoading(true);
+		setLoadingState("email");
 
 		const { error } = await signUp.email(
 			{
@@ -141,9 +156,8 @@ export default function Signup() {
 				title: error.message ?? "Failed to sign up",
 				variant: "destructive",
 			});
+			setLoadingState(null);
 		}
-
-		setIsLoading(false);
 	}
 
 	return (
@@ -156,6 +170,18 @@ export default function Signup() {
 					<p className="text-sm text-muted-foreground">
 						No credit card required
 					</p>
+					{isLoading ? (
+						<div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-left text-sm text-muted-foreground">
+							<div className="flex items-center gap-2 font-medium text-foreground">
+								<Loader2 className="h-4 w-4 animate-spin" />
+								Working on it
+							</div>
+							<p className="mt-1 text-xs leading-relaxed">
+								{loadingMessage} First-time setup can take a few seconds while
+								we create your account and default workspace.
+							</p>
+						</div>
+					) : null}
 				</div>
 				<div className="grid grid-cols-1 gap-3">
 					{config.googleAuth && (

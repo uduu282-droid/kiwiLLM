@@ -52,9 +52,15 @@ export default function AuthCallbackPage() {
 
 	return (
 		<div className="flex min-h-screen items-center justify-center">
-			<div className="flex items-center gap-2 text-sm text-muted-foreground">
-				<Loader2 className="h-4 w-4 animate-spin" />
-				Completing sign in...
+			<div className="rounded-lg border border-border/60 bg-background/95 px-5 py-4 text-center shadow-xs">
+				<div className="flex items-center justify-center gap-2 text-sm font-medium text-foreground">
+					<Loader2 className="h-4 w-4 animate-spin" />
+					Completing sign in
+				</div>
+				<p className="mt-2 max-w-xs text-sm text-muted-foreground">
+					We&apos;re syncing your account and preparing the dashboard. This can
+					take a few seconds on the first sign in.
+				</p>
 			</div>
 		</div>
 	);
