@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/hooks/useUser";
-import { useAuth } from "@/lib/auth-client";
+import { useAuth, useAuthClient } from "@/lib/auth-client";
 import { useAppConfig } from "@/lib/config";
 
 const formSchema = z.object({
@@ -42,18 +42,53 @@ function getSafeRedirectUrl(url: string | null): string {
 	return "/";
 }
 
+function sleep(ms: number) {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
 export default function Login() {
 	const queryClient = useQueryClient();
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const posthog = usePostHog();
-	const [isLoading, setIsLoading] = useState(false);
+	const [loadingState, setLoadingState] = useState<
+		null | "email" | "github" | "google"
+	>(null);
+	const [isRecoveringSession, setIsRecoveringSession] = useState(false);
+	const [resumeAuthTimedOut, setResumeAuthTimedOut] = useState(false);
 	const { signIn } = useAuth();
+	const authClient = useAuthClient();
 	const { githubAuth, googleAuth } = useAppConfig();
 	const returnUrl = getSafeRedirectUrl(searchParams.get("returnUrl"));
+	const shouldResumeAuth = searchParams.get("resumeAuth") === "true";
+
+	const { user, isLoading: isUserLoading } = useUser({
+		redirectTo: returnUrl,
+		redirectWhen: "authenticated",
+	});
+	const isResumeAuthPending = shouldResumeAuth && !resumeAuthTimedOut;
+	const isBootstrappingAuth =
+		loadingState === null &&
+		(isResumeAuthPending ||
+			(!!authClient.currentSession &&
+				(isRecoveringSession ||
+					!authClient.isReady ||
+					isUserLoading ||
+					!!user)));
+	const isLoading = loadingState !== null || isBootstrappingAuth;
+
+	const loadingMessage = isBootstrappingAuth
+		? "Finishing sign in and opening chat..."
+		: loadingState === "google"
+			? "Redirecting to Google and preparing chat..."
+			: loadingState === "github"
+				? "Redirecting to GitHub and preparing chat..."
+				: "Signing you in and preparing chat...";
 
 	const signInWithSocial = async (provider: "github" | "google") => {
-		setIsLoading(true);
+		setLoadingState(provider);
 		try {
 			const result = await signIn.social({
 				provider,
@@ -73,14 +108,123 @@ export default function Login() {
 				);
 			}
 		} finally {
-			setIsLoading(false);
+			setLoadingState(null);
 		}
 	};
 
-	useUser({
-		redirectTo: returnUrl,
-		redirectWhen: "authenticated",
-	});
+	useEffect(() => {
+		if (!authClient.currentSession?.access_token || user || isUserLoading) {
+			return;
+		}
+
+		let isCancelled = false;
+		setIsRecoveringSession(true);
+
+		void authClient
+			.syncServerSession(authClient.currentSession)
+			.then(async () => {
+				if (isCancelled) {
+					return;
+				}
+
+				if (shouldResumeAuth) {
+					window.location.replace(returnUrl);
+					return;
+				}
+
+				await queryClient.invalidateQueries();
+			})
+			.catch((error: unknown) => {
+				console.error(
+					"Failed to recover server session from playground login page",
+					error,
+				);
+			})
+			.finally(() => {
+				if (!isCancelled) {
+					setIsRecoveringSession(false);
+				}
+			});
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [
+		authClient,
+		authClient.currentSession,
+		isUserLoading,
+		queryClient,
+		returnUrl,
+		shouldResumeAuth,
+		user,
+	]);
+
+	useEffect(() => {
+		if (!shouldResumeAuth || authClient.currentSession || user) {
+			return;
+		}
+
+		let isCancelled = false;
+		const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000];
+
+		setIsRecoveringSession(true);
+		setResumeAuthTimedOut(false);
+
+		void (async () => {
+			for (const retryDelayMs of retryDelaysMs) {
+				if (isCancelled) {
+					return;
+				}
+
+				if (retryDelayMs > 0) {
+					await sleep(retryDelayMs);
+				}
+
+				const {
+					data: { session },
+				} = await authClient.auth.auth.getSession();
+
+				if (!session?.access_token) {
+					continue;
+				}
+
+				await authClient.syncServerSession(session);
+
+				if (!isCancelled) {
+					window.location.replace(returnUrl);
+				}
+				return;
+			}
+
+			if (!isCancelled) {
+				setResumeAuthTimedOut(true);
+			}
+		})()
+			.catch((error: unknown) => {
+				console.error(
+					"Failed to resume auth from playground login page",
+					error,
+				);
+				if (!isCancelled) {
+					setResumeAuthTimedOut(true);
+				}
+			})
+			.finally(() => {
+				if (!isCancelled) {
+					setIsRecoveringSession(false);
+				}
+			});
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [
+		authClient,
+		authClient.currentSession,
+		returnUrl,
+		shouldResumeAuth,
+		user,
+	]);
 
 	useEffect(() => {
 		posthog.capture("page_viewed_login");
@@ -95,7 +239,7 @@ export default function Login() {
 	});
 
 	async function onSubmit(values: z.infer<typeof formSchema>) {
-		setIsLoading(true);
+		setLoadingState("email");
 		const { error } = await signIn.email(
 			{
 				email: values.email,
@@ -135,7 +279,7 @@ export default function Login() {
 			});
 		}
 
-		setIsLoading(false);
+		setLoadingState(null);
 	}
 
 	return (
@@ -148,6 +292,18 @@ export default function Login() {
 					<p className="text-sm text-muted-foreground">
 						Enter your email and password to sign in to your account
 					</p>
+					{isLoading ? (
+						<div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-left text-sm text-muted-foreground">
+							<div className="flex items-center gap-2 font-medium text-foreground">
+								<Loader2 className="h-4 w-4 animate-spin" />
+								Working on it
+							</div>
+							<p className="mt-1 text-xs leading-relaxed">
+								{loadingMessage} First sign in can take a few seconds while we
+								sync your session and load chat.
+							</p>
+						</div>
+					) : null}
 				</div>
 				<Form {...form}>
 					<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

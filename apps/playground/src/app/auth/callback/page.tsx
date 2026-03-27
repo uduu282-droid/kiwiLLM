@@ -57,6 +57,7 @@ export default function AuthCallbackPage() {
 				await authClient.syncServerSession(session);
 				window.location.replace(next);
 			} catch {
+				const resumeAuthUrl = `/login?resumeAuth=true&returnUrl=${encodeURIComponent(next)}`;
 				let recoveredSession = exchangedSession;
 				const retryDelaysMs = [0, 250, 500, 1000, 2000];
 
@@ -75,7 +76,7 @@ export default function AuthCallbackPage() {
 
 				hasHandledCallbackRef.current = true;
 				window.location.replace(
-					recoveredSession?.user ? "/login?resumeAuth=true" : "/login",
+					recoveredSession?.user ? resumeAuthUrl : resumeAuthUrl,
 				);
 			}
 		})();
