@@ -10,6 +10,10 @@ export interface AppConfig {
 	posthogKey?: string;
 	posthogHost?: string;
 	crispId?: string;
+	githubAuth: boolean;
+	googleAuth: boolean;
+	supabaseUrl?: string;
+	supabaseAnonKey?: string;
 }
 
 export function getConfig(): AppConfig {
@@ -17,6 +21,13 @@ export function getConfig(): AppConfig {
 	const apiUrl =
 		process.env.API_URL ??
 		(hosted ? "https://api.kiwillm.in" : "http://localhost:4002");
+	const supabaseUrl =
+		process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+	const supabaseAnonKey =
+		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+		process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ??
+		process.env.SUPABASE_ANON_KEY;
+	const supabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 	return {
 		hosted,
 		apiUrl,
@@ -34,5 +45,13 @@ export function getConfig(): AppConfig {
 		posthogKey: process.env.POSTHOG_KEY,
 		posthogHost: process.env.POSTHOG_HOST,
 		crispId: process.env.CRISP_ID,
+		githubAuth:
+			process.env.SUPABASE_GITHUB_AUTH === "false"
+				? false
+				: !!process.env.GITHUB_CLIENT_ID || supabaseConfigured,
+		googleAuth:
+			process.env.SUPABASE_GOOGLE_AUTH === "false" ? false : supabaseConfigured,
+		supabaseUrl,
+		supabaseAnonKey,
 	};
 }

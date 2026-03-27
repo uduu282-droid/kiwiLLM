@@ -3,26 +3,50 @@ import { cookies } from "next/headers";
 import PostHogClient from "@/app/posthog";
 import { getConfig } from "@/lib/config-server";
 
-import type { User } from "better-auth/types";
+interface PublicUser {
+	id: string;
+	email: string;
+	name: string | null;
+}
 
 export async function getUser() {
 	const posthog = PostHogClient();
 	const config = getConfig();
 	const cookieStore = await cookies();
 
+	const supabaseSessionCookie = cookieStore.get(
+		process.env.SUPABASE_SESSION_COOKIE_NAME ?? "sb-access-token",
+	);
+	const supabaseRefreshCookie = cookieStore.get(
+		process.env.SUPABASE_REFRESH_COOKIE_NAME ?? "sb-refresh-token",
+	);
 	const key = "better-auth.session_token";
-	// Get session cookie for authentication
 	const sessionCookie = cookieStore.get(`${key}`);
 	const secureSessionCookie = cookieStore.get(`__Secure-${key}`);
+	const cookieHeaderParts = [];
+
+	if (supabaseSessionCookie?.value) {
+		cookieHeaderParts.push(
+			`${process.env.SUPABASE_SESSION_COOKIE_NAME ?? "sb-access-token"}=${supabaseSessionCookie.value}`,
+		);
+	}
+
+	if (supabaseRefreshCookie?.value) {
+		cookieHeaderParts.push(
+			`${process.env.SUPABASE_REFRESH_COOKIE_NAME ?? "sb-refresh-token"}=${supabaseRefreshCookie.value}`,
+		);
+	}
+
+	if (secureSessionCookie?.value) {
+		cookieHeaderParts.push(`__Secure-${key}=${secureSessionCookie.value}`);
+	} else if (sessionCookie?.value) {
+		cookieHeaderParts.push(`${key}=${sessionCookie.value}`);
+	}
 
 	const data = await fetch(`${config.apiBackendUrl}/user/me`, {
 		method: "GET",
 		headers: {
-			Cookie: secureSessionCookie
-				? `__Secure-${key}=${secureSessionCookie.value}`
-				: sessionCookie
-					? `${key}=${sessionCookie.value}`
-					: "",
+			Cookie: cookieHeaderParts.join("; "),
 		},
 	});
 
@@ -30,7 +54,12 @@ export async function getUser() {
 		return null;
 	}
 
-	const user: User = await data.json();
+	const payload = (await data.json()) as { user?: PublicUser };
+	const user = payload.user;
+
+	if (!user) {
+		return null;
+	}
 
 	if (posthog) {
 		posthog.identify({

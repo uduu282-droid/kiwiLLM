@@ -10,20 +10,40 @@ export async function createServerApiClient() {
 	const config = getConfig();
 	const cookieStore = await cookies();
 
+	const supabaseSessionCookie = cookieStore.get(
+		process.env.SUPABASE_SESSION_COOKIE_NAME ?? "sb-access-token",
+	);
+	const supabaseRefreshCookie = cookieStore.get(
+		process.env.SUPABASE_REFRESH_COOKIE_NAME ?? "sb-refresh-token",
+	);
 	const key = "better-auth.session_token";
-	// Get session cookie for authentication
 	const sessionCookie = cookieStore.get(`${key}`);
 	const secureSessionCookie = cookieStore.get(`__Secure-${key}`);
+	const cookieHeaderParts = [];
+
+	if (supabaseSessionCookie?.value) {
+		cookieHeaderParts.push(
+			`${process.env.SUPABASE_SESSION_COOKIE_NAME ?? "sb-access-token"}=${supabaseSessionCookie.value}`,
+		);
+	}
+
+	if (supabaseRefreshCookie?.value) {
+		cookieHeaderParts.push(
+			`${process.env.SUPABASE_REFRESH_COOKIE_NAME ?? "sb-refresh-token"}=${supabaseRefreshCookie.value}`,
+		);
+	}
+
+	if (secureSessionCookie?.value) {
+		cookieHeaderParts.push(`__Secure-${key}=${secureSessionCookie.value}`);
+	} else if (sessionCookie?.value) {
+		cookieHeaderParts.push(`${key}=${sessionCookie.value}`);
+	}
 
 	return createFetchClient<paths>({
 		baseUrl: config.apiBackendUrl,
 		credentials: "include",
 		headers: {
-			Cookie: secureSessionCookie
-				? `__Secure-${key}=${secureSessionCookie.value}`
-				: sessionCookie
-					? `${key}=${sessionCookie.value}`
-					: "",
+			Cookie: cookieHeaderParts.join("; "),
 		},
 	});
 }

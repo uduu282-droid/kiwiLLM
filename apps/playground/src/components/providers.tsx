@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { PostHogProvider } from "posthog-js/react";
 import { useMemo } from "react";
 
+import { SupabaseAuthProvider } from "@/components/providers/supabase-auth-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { AppConfigProvider } from "@/lib/config";
 
@@ -47,21 +48,23 @@ export function Providers({ children, config }: ProvidersProps) {
 				enableSystem
 				storageKey="theme"
 			>
-				<QueryClientProvider client={queryClient}>
-					{config.posthogKey ? (
-						<PostHogProvider
-							apiKey={config.posthogKey}
-							options={posthogOptions}
-						>
-							{children}
-						</PostHogProvider>
-					) : (
-						children
-					)}
-					{process.env.NODE_ENV === "development" && (
-						<ReactQueryDevtools buttonPosition="top-right" />
-					)}
-				</QueryClientProvider>
+				<SupabaseAuthProvider>
+					<QueryClientProvider client={queryClient}>
+						{config.posthogKey ? (
+							<PostHogProvider
+								apiKey={config.posthogKey}
+								options={posthogOptions}
+							>
+								{children}
+							</PostHogProvider>
+						) : (
+							children
+						)}
+						{process.env.NODE_ENV === "development" && (
+							<ReactQueryDevtools buttonPosition="top-right" />
+						)}
+					</QueryClientProvider>
+				</SupabaseAuthProvider>
 				<Toaster />
 			</ThemeProvider>
 		</AppConfigProvider>

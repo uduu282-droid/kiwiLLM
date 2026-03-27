@@ -19,18 +19,41 @@ export async function POST(req: NextRequest) {
 	}
 
 	const config = getConfig();
+	const supabaseSessionCookie = cookieStore.get(
+		process.env.SUPABASE_SESSION_COOKIE_NAME ?? "sb-access-token",
+	);
+	const supabaseRefreshCookie = cookieStore.get(
+		process.env.SUPABASE_REFRESH_COOKIE_NAME ?? "sb-refresh-token",
+	);
 	const key = "better-auth.session_token";
 	const sessionCookie = cookieStore.get(`${key}`);
 	const secureSessionCookie = cookieStore.get(`__Secure-${key}`);
-	const cookieHeader = secureSessionCookie
-		? `__Secure-${key}=${secureSessionCookie.value}`
-		: sessionCookie
-			? `${key}=${sessionCookie.value}`
-			: "";
+	const cookieHeaderParts = [];
+
+	if (supabaseSessionCookie?.value) {
+		cookieHeaderParts.push(
+			`${process.env.SUPABASE_SESSION_COOKIE_NAME ?? "sb-access-token"}=${supabaseSessionCookie.value}`,
+		);
+	}
+
+	if (supabaseRefreshCookie?.value) {
+		cookieHeaderParts.push(
+			`${process.env.SUPABASE_REFRESH_COOKIE_NAME ?? "sb-refresh-token"}=${supabaseRefreshCookie.value}`,
+		);
+	}
+
+	if (secureSessionCookie?.value) {
+		cookieHeaderParts.push(`__Secure-${key}=${secureSessionCookie.value}`);
+	} else if (sessionCookie?.value) {
+		cookieHeaderParts.push(`${key}=${sessionCookie.value}`);
+	}
 
 	const res = await fetch(`${config.apiBackendUrl}/playground/ensure-key`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json", Cookie: cookieHeader },
+		headers: {
+			"Content-Type": "application/json",
+			Cookie: cookieHeaderParts.join("; "),
+		},
 		body: JSON.stringify({ projectId }),
 	});
 

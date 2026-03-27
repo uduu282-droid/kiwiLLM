@@ -2,11 +2,11 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Github, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod/v3";
@@ -23,9 +23,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { useUser } from "@/hooks/useUser";
 import { useAuth } from "@/lib/auth-client";
+import { useAppConfig } from "@/lib/config";
 
 const formSchema = z.object({
-	name: z.string().min(2, { message: "Name is required" }),
 	email: z.string().email({ message: "Please enter a valid email address" }),
 	password: z
 		.string()
@@ -48,8 +48,34 @@ export default function Signup() {
 	const router = useRouter();
 	const posthog = usePostHog();
 	const [isLoading, setIsLoading] = useState(false);
-	const { signUp } = useAuth();
+	const { signIn, signUp } = useAuth();
+	const { githubAuth, googleAuth } = useAppConfig();
 	const returnUrl = getSafeRedirectUrl(searchParams.get("returnUrl"));
+
+	const signInWithSocial = async (provider: "github" | "google") => {
+		setIsLoading(true);
+		try {
+			const result = await signIn.social({
+				provider,
+				callbackURL: `${window.location.origin}/auth/callback?next=${encodeURIComponent(returnUrl)}`,
+			});
+
+			if (result?.error) {
+				toast.error(
+					result.error.message ??
+						`Failed to continue with ${provider === "github" ? "GitHub" : "Google"}`,
+					{
+						style: {
+							backgroundColor: "var(--destructive)",
+							color: "var(--destructive-foreground)",
+						},
+					},
+				);
+			}
+		} finally {
+			setIsLoading(false);
+		}
+	};
 
 	useUser({
 		redirectTo: returnUrl,
@@ -63,7 +89,6 @@ export default function Signup() {
 	const form = useForm<z.infer<typeof formSchema>>({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
-			name: "",
 			email: "",
 			password: "",
 		},
@@ -74,7 +99,7 @@ export default function Signup() {
 
 		const { error } = await signUp.email(
 			{
-				name: values.name,
+				name: "",
 				email: values.email,
 				password: values.password,
 			},
@@ -87,12 +112,20 @@ export default function Signup() {
 					});
 					posthog.capture("user_signed_up", {
 						email: values.email,
-						name: values.name,
 					});
 					toast.success("Account created", {
-						description:
-							"Please check your email to verify your account before signing in.",
+						description: ctx.data.requiresEmailVerification
+							? "Please check your email to verify your account before signing in."
+							: "Your account is ready.",
 					});
+					if (ctx.data.requiresEmailVerification) {
+						const loginParams = new URLSearchParams({
+							returnUrl,
+						});
+						router.push(`/login?${loginParams.toString()}`);
+						return;
+					}
+
 					router.push(returnUrl);
 				},
 				onError: (ctx) => {
@@ -129,21 +162,52 @@ export default function Signup() {
 						Enter your email below to create your account
 					</p>
 				</div>
+				<div className="grid grid-cols-1 gap-3">
+					{googleAuth ? (
+						<Button
+							onClick={async () => {
+								await signInWithSocial("google");
+							}}
+							variant="outline"
+							className="w-full"
+							disabled={isLoading}
+						>
+							{isLoading ? (
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							) : (
+								<GoogleIcon className="mr-2 h-4 w-4" />
+							)}
+							Continue with Google
+						</Button>
+					) : null}
+					{githubAuth ? (
+						<Button
+							onClick={async () => {
+								await signInWithSocial("github");
+							}}
+							variant="outline"
+							className="w-full"
+							disabled={isLoading}
+						>
+							{isLoading ? (
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							) : (
+								<Github className="mr-2 h-4 w-4" />
+							)}
+							Continue with GitHub
+						</Button>
+					) : null}
+				</div>
+				<div className="relative">
+					<div className="absolute inset-0 flex items-center">
+						<span className="w-full border-t" />
+					</div>
+					<div className="relative flex justify-center text-xs uppercase">
+						<span className="bg-background px-2 text-muted-foreground">Or</span>
+					</div>
+				</div>
 				<Form {...form}>
 					<form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-						<FormField
-							control={form.control}
-							name="name"
-							render={({ field }) => (
-								<FormItem>
-									<FormLabel>Name</FormLabel>
-									<FormControl>
-										<Input placeholder="John Doe" {...field} />
-									</FormControl>
-									<FormMessage />
-								</FormItem>
-							)}
-						/>
 						<FormField
 							control={form.control}
 							name="email"
@@ -196,5 +260,33 @@ export default function Signup() {
 				</p>
 			</div>
 		</div>
+	);
+}
+
+function GoogleIcon({ className }: { className?: string }) {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={className}
+			fill="none"
+		>
+			<path
+				d="M21.805 12.23c0-.68-.061-1.334-.174-1.963H12v3.714h5.498a4.703 4.703 0 0 1-2.04 3.086v2.565h3.304c1.934-1.781 3.043-4.406 3.043-7.402Z"
+				fill="#4285F4"
+			/>
+			<path
+				d="M12 22c2.76 0 5.073-.914 6.763-2.468l-3.304-2.565c-.914.612-2.083.974-3.459.974-2.659 0-4.912-1.795-5.717-4.209H2.867v2.645A10.215 10.215 0 0 0 12 22Z"
+				fill="#34A853"
+			/>
+			<path
+				d="M6.283 13.732A6.14 6.14 0 0 1 5.963 12c0-.602.109-1.186.32-1.732V7.623H2.867A10.215 10.215 0 0 0 1.8 12c0 1.64.393 3.192 1.067 4.377l3.416-2.645Z"
+				fill="#FBBC05"
+			/>
+			<path
+				d="M12 6.06c1.5 0 2.848.517 3.908 1.53l2.93-2.93C17.068 3.012 14.755 2 12 2a10.215 10.215 0 0 0-9.133 5.623l3.416 2.645C7.088 7.855 9.341 6.06 12 6.06Z"
+				fill="#EA4335"
+			/>
+		</svg>
 	);
 }

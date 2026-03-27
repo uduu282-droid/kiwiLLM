@@ -37,11 +37,18 @@ export default async function ChatPage({
 		q?: string;
 		hints?: string;
 		model?: string;
+		code?: string;
 	}>;
 }) {
 	const params = await searchParams;
-	const { orgId, projectId, q, hints } = params;
+	const { code, orgId, projectId, q, hints } = params;
 	let { model } = params;
+
+	if (code) {
+		redirect(
+			`/auth/callback?next=${encodeURIComponent("/")}&code=${encodeURIComponent(code)}`,
+		);
+	}
 
 	// Auto-select a web search capable model when hints=search
 	if (hints === "search" && !model) {
