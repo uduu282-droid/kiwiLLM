@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Github, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -37,6 +37,7 @@ const formSchema = z.object({
 export default function Login() {
 	const queryClient = useQueryClient();
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const posthog = usePostHog();
 	const [loadingState, setLoadingState] = useState<
 		null | "email" | "github" | "google"
@@ -46,6 +47,7 @@ export default function Login() {
 	const { signIn } = useAuth();
 	const authClient = useAuthClient();
 	const { githubAuth, googleAuth } = useAppConfig();
+	const shouldResumeAuth = searchParams.get("resumeAuth") === "true";
 	const { user, isLoading: isUserLoading } = useUser({
 		redirectTo: "/dashboard",
 		redirectWhen: "authenticated",
@@ -53,8 +55,12 @@ export default function Login() {
 	});
 	const isBootstrappingAuth =
 		loadingState === null &&
-		!!authClient.currentSession &&
-		(isRecoveringSession || !authClient.isReady || isUserLoading || !!user);
+		((!!authClient.currentSession &&
+			(isRecoveringSession ||
+				!authClient.isReady ||
+				isUserLoading ||
+				!!user)) ||
+			(shouldResumeAuth && (!authClient.isReady || isRecoveringSession)));
 	const isLoading = loadingState !== null || isBootstrappingAuth;
 
 	const loadingMessage = isBootstrappingAuth
@@ -127,6 +133,19 @@ export default function Login() {
 			isCancelled = true;
 		};
 	}, [authClient, authClient.currentSession, isUserLoading, queryClient, user]);
+
+	useEffect(() => {
+		if (
+			!shouldResumeAuth ||
+			!authClient.isReady ||
+			authClient.currentSession ||
+			user
+		) {
+			return;
+		}
+
+		setIsRecoveringSession(false);
+	}, [authClient.currentSession, authClient.isReady, shouldResumeAuth, user]);
 
 	useEffect(() => {
 		posthog.capture("page_viewed_login");

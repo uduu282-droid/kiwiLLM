@@ -61,7 +61,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 	const inFlightSyncTokenRef = useRef<string | null>(null);
 
 	const waitForServerSession = useCallback(async () => {
-		const retryDelaysMs = [0, 150, 300, 600, 1200];
+		const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000];
 
 		for (const retryDelayMs of retryDelaysMs) {
 			if (retryDelayMs > 0) {
@@ -114,7 +114,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 			}
 
 			const syncPromise = (async () => {
-				const retryDelaysMs = [0, 150, 300, 600];
+				const retryDelaysMs = [0, 250, 500, 1000, 2000];
 				let lastError: Error | null = null;
 
 				for (const retryDelayMs of retryDelaysMs) {
