@@ -44,17 +44,18 @@ export default function AuthCallbackPage() {
 				await authClient.syncServerSession(session);
 				window.location.replace(next);
 			} catch {
+				const resumeAuthUrl = `/login?resumeAuth=true&next=${encodeURIComponent(next)}`;
 				const {
 					data: { session },
 				} = await authClient.auth.auth.getSession();
 
 				hasHandledCallbackRef.current = true;
 				if (session?.user) {
-					window.location.replace("/login?resumeAuth=true");
+					window.location.replace(resumeAuthUrl);
 					return;
 				}
 
-				window.location.replace("/login");
+				window.location.replace(resumeAuthUrl);
 			}
 		})();
 	}, [authClient, searchParams]);

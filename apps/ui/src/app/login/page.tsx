@@ -25,6 +25,12 @@ import { Input } from "@/lib/components/input";
 import { toast } from "@/lib/components/use-toast";
 import { useAppConfig } from "@/lib/config";
 
+function sleep(ms: number) {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
 const formSchema = z.object({
 	email: z.string().email({
 		message: "Please enter a valid email address",
@@ -48,19 +54,22 @@ export default function Login() {
 	const authClient = useAuthClient();
 	const { githubAuth, googleAuth } = useAppConfig();
 	const shouldResumeAuth = searchParams.get("resumeAuth") === "true";
+	const resumeAuthTarget = searchParams.get("next") ?? "/dashboard";
+	const [resumeAuthTimedOut, setResumeAuthTimedOut] = useState(false);
 	const { user, isLoading: isUserLoading } = useUser({
 		redirectTo: "/dashboard",
 		redirectWhen: "authenticated",
 		checkOnboarding: true,
 	});
+	const isResumeAuthPending = shouldResumeAuth && !resumeAuthTimedOut;
 	const isBootstrappingAuth =
 		loadingState === null &&
-		((!!authClient.currentSession &&
-			(isRecoveringSession ||
-				!authClient.isReady ||
-				isUserLoading ||
-				!!user)) ||
-			(shouldResumeAuth && (!authClient.isReady || isRecoveringSession)));
+		(isResumeAuthPending ||
+			(!!authClient.currentSession &&
+				(isRecoveringSession ||
+					!authClient.isReady ||
+					isUserLoading ||
+					!!user)));
 	const isLoading = loadingState !== null || isBootstrappingAuth;
 
 	const loadingMessage = isBootstrappingAuth
@@ -115,6 +124,11 @@ export default function Login() {
 					return;
 				}
 
+				if (shouldResumeAuth) {
+					window.location.replace(resumeAuthTarget);
+					return;
+				}
+
 				await queryClient.invalidateQueries();
 			})
 			.catch((error: unknown) => {
@@ -132,20 +146,80 @@ export default function Login() {
 		return () => {
 			isCancelled = true;
 		};
-	}, [authClient, authClient.currentSession, isUserLoading, queryClient, user]);
+	}, [
+		authClient,
+		authClient.currentSession,
+		isUserLoading,
+		queryClient,
+		resumeAuthTarget,
+		shouldResumeAuth,
+		user,
+	]);
 
 	useEffect(() => {
-		if (
-			!shouldResumeAuth ||
-			!authClient.isReady ||
-			authClient.currentSession ||
-			user
-		) {
+		if (!shouldResumeAuth || authClient.currentSession || user) {
 			return;
 		}
 
-		setIsRecoveringSession(false);
-	}, [authClient.currentSession, authClient.isReady, shouldResumeAuth, user]);
+		let isCancelled = false;
+		const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000];
+
+		setIsRecoveringSession(true);
+		setResumeAuthTimedOut(false);
+
+		void (async () => {
+			for (const retryDelayMs of retryDelaysMs) {
+				if (isCancelled) {
+					return;
+				}
+
+				if (retryDelayMs > 0) {
+					await sleep(retryDelayMs);
+				}
+
+				const {
+					data: { session },
+				} = await authClient.auth.auth.getSession();
+
+				if (!session?.access_token) {
+					continue;
+				}
+
+				await authClient.syncServerSession(session);
+
+				if (!isCancelled) {
+					window.location.replace(resumeAuthTarget);
+				}
+				return;
+			}
+
+			if (!isCancelled) {
+				setResumeAuthTimedOut(true);
+			}
+		})()
+			.catch((error: unknown) => {
+				console.error("Failed to resume auth from login page", error);
+				if (!isCancelled) {
+					setResumeAuthTimedOut(true);
+				}
+			})
+			.finally(() => {
+				if (!isCancelled) {
+					setIsRecoveringSession(false);
+				}
+			});
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [
+		authClient,
+		authClient.currentSession,
+		queryClient,
+		resumeAuthTarget,
+		shouldResumeAuth,
+		user,
+	]);
 
 	useEffect(() => {
 		posthog.capture("page_viewed_login");
