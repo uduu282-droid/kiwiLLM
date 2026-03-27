@@ -53,6 +53,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/lib/components/select";
+import { useAppConfig } from "@/lib/config";
 import { useApi } from "@/lib/fetch-client";
 
 import type { ActivitT } from "@/types/activity";
@@ -65,6 +66,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const { buildUrl, buildOrgUrl } = useDashboardNavigation();
+	const config = useAppConfig();
 
 	// Get date range from URL params
 	const { from, to } = getDateRangeFromParams(searchParams);
@@ -454,7 +456,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 									<div className="flex flex-wrap gap-2">
 										<Button asChild variant="outline" size="sm">
 											<a
-												href="https://docs.llmgateway.io"
+												href={config.docsUrl}
 												target="_blank"
 												rel="noopener noreferrer"
 											>
@@ -465,11 +467,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 										</Button>
 										<Button asChild variant="outline" size="sm">
 											<a
-												href={
-													process.env.NODE_ENV === "development"
-														? "http://localhost:3003"
-														: "https://chat.llmgateway.io"
-												}
+												href={config.playgroundUrl}
 												target="_blank"
 												rel="noopener noreferrer"
 											>
@@ -608,4 +606,3 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 		</div>
 	);
 }
-

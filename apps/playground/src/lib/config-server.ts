@@ -13,17 +13,24 @@ export interface AppConfig {
 }
 
 export function getConfig(): AppConfig {
-	const apiUrl = process.env.API_URL ?? "http://localhost:4002";
+	const hosted = process.env.HOSTED === "true";
+	const apiUrl =
+		process.env.API_URL ??
+		(hosted ? "https://api.kiwillm.in" : "http://localhost:4002");
 	return {
-		hosted: process.env.HOSTED === "true",
+		hosted,
 		apiUrl,
 		apiBackendUrl: process.env.API_BACKEND_URL ?? apiUrl,
 		githubUrl:
 			process.env.GITHUB_URL ?? "https://github.com/uduu282-droid/kiwiLLM",
 		discordUrl: process.env.DISCORD_URL ?? "https://discord.gg/gcqcZeYWEz",
 		twitterUrl: process.env.TWITTER_URL ?? "https://kiwillm.in",
-		docsUrl: process.env.DOCS_URL ?? "https://kiwillm.in",
-		adminUrl: process.env.ADMIN_URL ?? "https://app.kiwillm.in",
+		docsUrl:
+			process.env.DOCS_URL ??
+			(hosted ? "https://kiwillm.in" : "http://localhost:3005"),
+		adminUrl:
+			process.env.ADMIN_URL ??
+			(hosted ? "https://app.kiwillm.in" : "http://localhost:3006"),
 		posthogKey: process.env.POSTHOG_KEY,
 		posthogHost: process.env.POSTHOG_HOST,
 		crispId: process.env.CRISP_ID,

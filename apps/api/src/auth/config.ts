@@ -13,13 +13,20 @@ import { db, eq, tables, shortid } from "@llmgateway/db";
 import { logger } from "@llmgateway/logger";
 import { getResendClient } from "@llmgateway/shared/email";
 
-const apiUrl = process.env.API_URL ?? "http://localhost:4002";
-const cookieDomain = process.env.COOKIE_DOMAIN ?? "localhost";
-const uiUrl = process.env.UI_URL ?? "http://localhost:3002";
+const isHosted = process.env.HOSTED === "true";
+const apiUrl =
+	process.env.API_URL ??
+	(isHosted ? "https://api.kiwillm.in" : "http://localhost:4002");
+const cookieDomain =
+	process.env.COOKIE_DOMAIN ?? (isHosted ? ".kiwillm.in" : "localhost");
+const uiUrl =
+	process.env.UI_URL ??
+	(isHosted ? "https://app.kiwillm.in" : "http://localhost:3002");
 const originUrls =
 	process.env.ORIGIN_URLS ??
-	"http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:4002,http://localhost:3006";
-const isHosted = process.env.HOSTED === "true";
+	(isHosted
+		? "https://kiwillm.in,https://www.kiwillm.in,https://app.kiwillm.in,https://chat.kiwillm.in,https://api.kiwillm.in"
+		: "http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:4002,http://localhost:3006");
 
 export const redisClient = new Redis({
 	host: process.env.REDIS_HOST ?? "localhost",

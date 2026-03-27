@@ -40,6 +40,7 @@ import {
 	AnimatedShieldAlert,
 } from "@/components/dashboard/animated-nav-icons";
 import { ReferralDialog } from "@/components/dashboard/referral-dialog";
+import { BrandMark } from "@/components/shared/brand-mark";
 import { useDashboardNavigation } from "@/hooks/useDashboardNavigation";
 import { useUser } from "@/hooks/useUser";
 import { clearLastUsedProjectCookiesAction } from "@/lib/actions/last-used-project";
@@ -76,7 +77,7 @@ import {
 	SidebarRail,
 	useSidebar,
 } from "@/lib/components/sidebar";
-import { BrandMark } from "@/components/shared/brand-mark";
+import { useAppConfig } from "@/lib/config";
 import { buildUrlWithParams } from "@/lib/navigation-utils";
 
 import { OrganizationSwitcher } from "./organization-switcher";
@@ -210,9 +211,7 @@ function DashboardSidebarHeader({
 							<div className="flex aspect-square size-8 items-center justify-center">
 								<BrandMark className="size-6" />
 							</div>
-							<span className="text-lg font-bold tracking-tight">
-								KiwiLLM
-							</span>
+							<span className="text-lg font-bold tracking-tight">KiwiLLM</span>
 						</Link>
 					</SidebarMenuButton>
 				</SidebarMenuItem>
@@ -825,6 +824,7 @@ export function DashboardSidebar({
 	onOrganizationCreated,
 	selectedOrganization,
 }: DashboardSidebarProps) {
+	const config = useAppConfig();
 	const { isMobile, toggleSidebar } = useSidebar();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
@@ -883,16 +883,13 @@ export function DashboardSidebar({
 				internal: true,
 			},
 			{
-				href:
-					process.env.NODE_ENV === "development"
-						? "http://localhost:3003"
-						: "https://chat.llmgateway.io",
+				href: config.playgroundUrl,
 				label: "Chat",
 				icon: AnimatedBotMessageSquare,
 				internal: false,
 			},
 			{
-				href: "https://docs.llmgateway.io",
+				href: config.docsUrl,
 				label: "Documentation",
 				icon: AnimatedExternalLink,
 				internal: false,
