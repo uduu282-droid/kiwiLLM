@@ -22,27 +22,28 @@ const geistMono = Geist_Mono({
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-	metadataBase: new URL("https://chat.llmgateway.io"),
-	title: "LLM Gateway Chat",
-	description: "Chat with your favorite LLM models through LLM Gateway.",
+	metadataBase: new URL("https://chat.kiwillm.in"),
+	title: "KiwiLLM Chat",
+	description: "Chat, compare models, and generate images with KiwiLLM.",
 	icons: {
-		icon: "/favicon/favicon.ico?v=2",
+		icon: "/icon.png",
+		apple: "/apple-icon.png",
 	},
 	alternates: {
 		canonical: "./",
 	},
 	openGraph: {
-		title: "LLM Gateway Chat",
-		description: "Chat with your favorite LLM models through LLM Gateway.",
-		images: ["/opengraph.png?v=1"],
+		title: "KiwiLLM Chat",
+		description: "Chat, compare models, and generate images with KiwiLLM.",
+		images: ["/brand/kiwillm-logo.png"],
 		type: "website",
-		url: "https://chat.llmgateway.io",
+		url: "https://chat.kiwillm.in",
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "LLM Gateway Chat",
-		description: "Chat with your favorite LLM models through LLM Gateway.",
-		images: ["/opengraph.png?v=1"],
+		title: "KiwiLLM Chat",
+		description: "Chat, compare models, and generate images with KiwiLLM.",
+		images: ["/brand/kiwillm-logo.png"],
 	},
 };
 

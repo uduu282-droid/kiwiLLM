@@ -38,7 +38,7 @@ export const ChatSidebarSkeleton = ({
 						prefetch={true}
 					>
 						<Logo className="h-10 w-10" />
-						<h1 className="text-xl font-semibold">LLM Gateway</h1>
+						<h1 className="text-xl font-semibold">KiwiLLM</h1>
 						<Badge>Chat</Badge>
 					</Link>
 					<Button

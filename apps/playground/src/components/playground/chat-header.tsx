@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useAppConfig } from "@/lib/config";
 
 import type { McpServer } from "@/hooks/useMcpServers";
 import type { ApiModel, ApiProvider } from "@/lib/fetch-models";
@@ -42,6 +43,8 @@ export const ChatHeader = ({
 	onRemoveMcpServer,
 	onToggleMcpServer,
 }: ChatHeaderProps) => {
+	const config = useAppConfig();
+
 	return (
 		<header className="bg-background flex items-center border-b p-4">
 			<div className="flex min-w-0 flex-1 items-center gap-3">
@@ -83,11 +86,7 @@ export const ChatHeader = ({
 				</div>
 				<ThemeToggle />
 				<a
-					href={
-						process.env.NODE_ENV === "development"
-							? "http://localhost:3002/dashboard"
-							: "https://llmgateway.io/dashboard"
-					}
+					href={`${config.adminUrl.replace(/\/$/, "")}/dashboard`}
 					target="_blank"
 					rel="noopener noreferrer"
 					className="hidden sm:inline"

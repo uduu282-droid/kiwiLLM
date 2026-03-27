@@ -13,6 +13,7 @@ import { GroupChatUI } from "@/components/playground/group-chat-ui";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useUser } from "@/hooks/useUser";
+import { useAppConfig } from "@/lib/config";
 import { mapModels } from "@/lib/mapmodels";
 
 import { getProviderIcon } from "@llmgateway/shared/components";
@@ -46,6 +47,7 @@ export default function GroupChatClient({
 	selectedProject,
 }: GroupChatClientProps) {
 	const { user, isLoading: isUserLoading } = useUser();
+	const config = useAppConfig();
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
@@ -408,11 +410,7 @@ export default function GroupChatClient({
 						<div className="flex items-center gap-3 ml-3">
 							<ThemeToggle />
 							<a
-								href={
-									process.env.NODE_ENV === "development"
-										? "http://localhost:3002/dashboard"
-										: "https://llmgateway.io/dashboard"
-								}
+								href={`${config.adminUrl.replace(/\/$/, "")}/dashboard`}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="hidden sm:inline"

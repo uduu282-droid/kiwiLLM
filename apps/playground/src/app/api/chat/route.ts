@@ -343,13 +343,13 @@ export async function POST(req: Request) {
 		process.env.GATEWAY_URL ??
 		(process.env.NODE_ENV === "development"
 			? "http://localhost:4001/v1"
-			: "https://api.llmgateway.io/v1");
+			: "https://api.kiwillm.in/v1");
 
 	const llmgateway = createLLMGateway({
 		apiKey: finalApiKey,
 		baseURL: gatewayUrl,
 		headers: {
-			"x-source": "chat.llmgateway.io",
+			"x-source": "chat.kiwillm.in",
 			...(noFallbackHeader ? { "x-no-fallback": noFallbackHeader } : {}),
 		},
 		extraBody: {
@@ -844,7 +844,7 @@ export async function POST(req: Request) {
 		}
 
 		const message =
-			error instanceof Error ? error.message : "LLM Gateway request failed";
+			error instanceof Error ? error.message : "KiwiLLM request failed";
 		const status =
 			typeof error === "object" &&
 			error !== null &&

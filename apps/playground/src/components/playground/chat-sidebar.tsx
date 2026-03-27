@@ -129,7 +129,7 @@ export function ChatSidebar({
 					router.push(
 						process.env.NODE_ENV === "development"
 							? "http://localhost:3003/login"
-							: "https://chat.llmgateway.io/login",
+							: "/login",
 					);
 				},
 			},
@@ -336,7 +336,7 @@ export function ChatSidebar({
 							prefetch={true}
 						>
 							<Logo className="h-10 w-10" />
-							<h1 className="text-xl font-semibold">LLM Gateway</h1>
+							<h1 className="text-xl font-semibold">KiwiLLM</h1>
 							<Badge>Chat</Badge>
 						</Link>
 						<div className="w-full rounded-md border p-4 text-sm">
@@ -378,7 +378,7 @@ export function ChatSidebar({
 						prefetch={true}
 					>
 						<Logo className="h-10 w-10" />
-						<h1 className="text-xl font-semibold">LLM Gateway</h1>
+						<h1 className="text-xl font-semibold">KiwiLLM</h1>
 						<Badge>Chat</Badge>
 					</Link>
 					<Button
