@@ -22,11 +22,40 @@ const cookieDomain =
 const uiUrl =
 	process.env.UI_URL ??
 	(isHosted ? "https://app.kiwillm.in" : "http://localhost:3002");
-const originUrls =
-	process.env.ORIGIN_URLS ??
-	(isHosted
-		? "https://kiwillm.in,https://www.kiwillm.in,https://app.kiwillm.in,https://chat.kiwillm.in,https://api.kiwillm.in"
-		: "http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:4002,http://localhost:3006");
+const defaultHostedOrigins = [
+	"https://kiwillm.in",
+	"https://www.kiwillm.in",
+	"https://app.kiwillm.in",
+	"https://chat.kiwillm.in",
+	"https://api.kiwillm.in",
+];
+const defaultLocalOrigins = [
+	"http://localhost:3002",
+	"http://localhost:3003",
+	"http://localhost:3004",
+	"http://localhost:4002",
+	"http://localhost:3006",
+];
+
+function splitOrigins(value: string | undefined) {
+	return (value ?? "")
+		.split(",")
+		.map((origin) => origin.trim())
+		.filter(Boolean);
+}
+
+export const allowedOrigins = Array.from(
+	new Set([
+		...(isHosted ? defaultHostedOrigins : defaultLocalOrigins),
+		...splitOrigins(process.env.ORIGIN_URLS),
+		...splitOrigins(process.env.UI_URL),
+		...splitOrigins(process.env.APP_URL),
+		...splitOrigins(process.env.PLAYGROUND_URL),
+		...splitOrigins(process.env.CHAT_URL),
+		...splitOrigins(process.env.ADMIN_URL),
+		...splitOrigins(process.env.API_URL),
+	]),
+);
 
 export const redisClient = new Redis({
 	host: process.env.REDIS_HOST ?? "localhost",
@@ -483,7 +512,7 @@ export const apiAuth: ReturnType<typeof instrumentBetterAuth> =
 				updateAge: 60 * 60 * 24, // 1 day (every 1 day the session expiration is updated)
 			},
 			basePath: "/auth",
-			trustedOrigins: originUrls.split(","),
+			trustedOrigins: allowedOrigins,
 			plugins: [
 				passkey({
 					rpID: process.env.PASSKEY_RP_ID ?? "localhost",

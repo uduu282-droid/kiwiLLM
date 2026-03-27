@@ -269,8 +269,70 @@ async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
 	};
 }
 
+async function syncSupabaseUserRecord(supabaseUser: SupabaseUser) {
+	const userEmail = supabaseUser.email;
+
+	if (!userEmail) {
+		throw new Error("Supabase user must have an email address.");
+	}
+
+	const name = getSupabaseDisplayName(supabaseUser);
+	const image = getSupabaseImage(supabaseUser);
+	const emailVerified = getSupabaseEmailVerified(supabaseUser);
+
+	const existingUser =
+		(await db.query.user.findFirst({
+			where: {
+				id: { eq: supabaseUser.id },
+			},
+		})) ??
+		(await db.query.user.findFirst({
+			where: {
+				email: { eq: userEmail },
+			},
+		}));
+
+	if (!existingUser) {
+		const [createdUser] = await db
+			.insert(tables.user)
+			.values({
+				id: supabaseUser.id,
+				email: userEmail,
+				name,
+				image,
+				emailVerified,
+			})
+			.returning();
+
+		return createdUser;
+	}
+
+	if (
+		existingUser.id === supabaseUser.id &&
+		existingUser.email === userEmail &&
+		existingUser.name === name &&
+		existingUser.image === image &&
+		existingUser.emailVerified === emailVerified
+	) {
+		return existingUser;
+	}
+
+	const [updatedUser] = await db
+		.update(tables.user)
+		.set({
+			email: userEmail,
+			name,
+			image,
+			emailVerified,
+		})
+		.where(eq(tables.user.id, existingUser.id))
+		.returning();
+
+	return updatedUser;
+}
+
 async function resolveSupabaseAuthContext(supabaseUser: SupabaseUser) {
-	const { dbUser } = await ensureSupabaseUserAppData(supabaseUser);
+	const dbUser = await syncSupabaseUserRecord(supabaseUser);
 
 	const user: AuthenticatedUser = {
 		id: dbUser.id,

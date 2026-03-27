@@ -15,7 +15,7 @@ import {
 import { logger } from "@llmgateway/logger";
 import { HealthChecker } from "@llmgateway/shared";
 
-import { redisClient } from "./auth/config.js";
+import { allowedOrigins, redisClient } from "./auth/config.js";
 import { authHandler } from "./auth/handler.js";
 import { tracingMiddleware } from "./middleware/tracing.js";
 import { beacon } from "./routes/beacon.js";
@@ -56,13 +56,7 @@ app.use("*", honoRequestLogger);
 app.use(
 	"*",
 	cors({
-		origin: process.env.ORIGIN_URLS?.split(",") ?? [
-			"http://localhost:3002",
-			"http://localhost:3003",
-			"http://localhost:3004",
-			"http://localhost:3005",
-			"http://localhost:3006",
-		],
+		origin: allowedOrigins,
 		allowHeaders: ["Content-Type", "Authorization", "Cache-Control"],
 		allowMethods: ["POST", "GET", "OPTIONS", "PUT", "PATCH", "DELETE"],
 		exposeHeaders: ["Content-Length"],
