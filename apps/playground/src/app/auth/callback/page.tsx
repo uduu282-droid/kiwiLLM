@@ -1,13 +1,12 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 import { useAuthClient } from "@/lib/auth-client";
 
 export default function AuthCallbackPage() {
-	const router = useRouter();
 	const searchParams = useSearchParams();
 	const authClient = useAuthClient();
 	const hasHandledCallbackRef = useRef(false);
@@ -43,13 +42,13 @@ export default function AuthCallbackPage() {
 
 				hasHandledCallbackRef.current = true;
 				await authClient.syncServerSession(session);
-				router.replace(next);
+				window.location.replace(next);
 			} catch {
 				hasHandledCallbackRef.current = true;
-				router.replace("/login");
+				window.location.replace("/login");
 			}
 		})();
-	}, [authClient, router, searchParams]);
+	}, [authClient, searchParams]);
 
 	return (
 		<div className="flex min-h-screen items-center justify-center">

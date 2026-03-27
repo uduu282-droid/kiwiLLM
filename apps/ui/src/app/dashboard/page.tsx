@@ -6,18 +6,15 @@ import { fetchServerData } from "@/lib/server-api";
 import type { User } from "@/lib/types";
 
 export default async function DashboardPage() {
-	// Fetch user data server-side
-	const initialUserData = await fetchServerData<
-		{ user: User } | undefined | null
-	>("GET", "/user/me");
+	const [initialUserData, initialOrganizationsData] = await Promise.all([
+		fetchServerData<{ user: User } | undefined | null>("GET", "/user/me"),
+		fetchServerData("GET", "/orgs"),
+	]);
 
 	// Redirect to login if not authenticated
 	if (!initialUserData?.user) {
 		redirect("/login");
 	}
-
-	// Fetch organizations server-side
-	const initialOrganizationsData = await fetchServerData("GET", "/orgs");
 
 	// Check if organizations data is null (API error)
 	if (!initialOrganizationsData) {

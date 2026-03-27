@@ -34,6 +34,12 @@ const SupabaseAuthContext = createContext<SupabaseAuthContextValue | null>(
 	null,
 );
 
+function sleep(ms: number) {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
 async function safeFetch(url: string, init: RequestInit) {
 	try {
 		await fetch(url, init);
@@ -51,6 +57,28 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 	const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
 	const [isReady, setIsReady] = useState(false);
 	const lastSyncedTokenRef = useRef<string | null>(null);
+
+	const waitForServerSession = useCallback(async () => {
+		const retryDelaysMs = [0, 150, 300, 600, 1200];
+
+		for (const retryDelayMs of retryDelaysMs) {
+			if (retryDelayMs > 0) {
+				await sleep(retryDelayMs);
+			}
+
+			const response = await fetch(`${config.apiUrl}/user/me`, {
+				method: "GET",
+				credentials: "include",
+				cache: "no-store",
+			});
+
+			if (response.ok) {
+				return;
+			}
+		}
+
+		throw new Error("Server session was not ready after sign in.");
+	}, [config.apiUrl]);
 
 	const clearServerSession = useCallback(async () => {
 		lastSyncedTokenRef.current = null;
@@ -90,9 +118,10 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 				throw new Error("Failed to create Supabase session");
 			}
 
+			await waitForServerSession();
 			lastSyncedTokenRef.current = nextSession.access_token;
 		},
-		[auth, clearServerSession, config.apiUrl],
+		[auth, clearServerSession, config.apiUrl, waitForServerSession],
 	);
 
 	useEffect(() => {
