@@ -11,7 +11,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { useUser } from "@/hooks/useUser";
-import { useAuth } from "@/lib/auth-client";
+import { useAuth, useAuthClient } from "@/lib/auth-client";
 import { Button } from "@/lib/components/button";
 import {
 	Form,
@@ -41,13 +41,25 @@ export default function Login() {
 	const [loadingState, setLoadingState] = useState<
 		null | "email" | "github" | "google"
 	>(null);
+	const [isRecoveringSession, setIsRecoveringSession] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const { signIn } = useAuth();
+	const authClient = useAuthClient();
 	const { githubAuth, googleAuth } = useAppConfig();
-	const isLoading = loadingState !== null;
+	const { user, isLoading: isUserLoading } = useUser({
+		redirectTo: "/dashboard",
+		redirectWhen: "authenticated",
+		checkOnboarding: true,
+	});
+	const isBootstrappingAuth =
+		loadingState === null &&
+		!!authClient.currentSession &&
+		(isRecoveringSession || !authClient.isReady || isUserLoading || !!user);
+	const isLoading = loadingState !== null || isBootstrappingAuth;
 
-	const loadingMessage =
-		loadingState === "google"
+	const loadingMessage = isBootstrappingAuth
+		? "Finishing sign in and loading your dashboard..."
+		: loadingState === "google"
 			? "Redirecting to Google and preparing your dashboard..."
 			: loadingState === "github"
 				? "Redirecting to GitHub and preparing your dashboard..."
@@ -82,12 +94,39 @@ export default function Login() {
 		}
 	};
 
-	// Redirect to dashboard if already authenticated
-	useUser({
-		redirectTo: "/dashboard",
-		redirectWhen: "authenticated",
-		checkOnboarding: true,
-	});
+	useEffect(() => {
+		if (!authClient.currentSession?.access_token || user || isUserLoading) {
+			return;
+		}
+
+		let isCancelled = false;
+		setIsRecoveringSession(true);
+
+		void authClient
+			.syncServerSession(authClient.currentSession)
+			.then(async () => {
+				if (isCancelled) {
+					return;
+				}
+
+				await queryClient.invalidateQueries();
+			})
+			.catch((error: unknown) => {
+				console.error(
+					"Failed to recover server session from login page",
+					error,
+				);
+			})
+			.finally(() => {
+				if (!isCancelled) {
+					setIsRecoveringSession(false);
+				}
+			});
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [authClient, authClient.currentSession, isUserLoading, queryClient, user]);
 
 	useEffect(() => {
 		posthog.capture("page_viewed_login");
@@ -158,7 +197,8 @@ export default function Login() {
 							</div>
 							<p className="mt-1 text-xs leading-relaxed">
 								{loadingMessage} First sign in can take a few seconds while we
-								sync your account and load your workspace.
+								sync your account, create your workspace if needed, and load
+								your dashboard.
 							</p>
 						</div>
 					) : null}

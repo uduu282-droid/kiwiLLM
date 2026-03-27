@@ -43,7 +43,14 @@ authHandler.post("/auth/supabase/session", async (c) => {
 		return c.json({ message: "Missing Supabase session payload" }, 400);
 	}
 
-	const parsedBody = JSON.parse(rawBody);
+	let parsedBody: unknown;
+
+	try {
+		parsedBody = JSON.parse(rawBody);
+	} catch {
+		return c.json({ message: "Invalid Supabase session payload" }, 400);
+	}
+
 	const body = z
 		.object({
 			accessToken: z.string().min(1),

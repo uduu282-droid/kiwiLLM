@@ -11,7 +11,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { useUser } from "@/hooks/useUser";
-import { useAuth } from "@/lib/auth-client";
+import { useAuth, useAuthClient } from "@/lib/auth-client";
 import { Button } from "@/lib/components/button";
 import {
 	Form,
@@ -51,13 +51,25 @@ export default function Signup() {
 	const [loadingState, setLoadingState] = useState<
 		null | "email" | "github" | "google"
 	>(null);
+	const [isRecoveringSession, setIsRecoveringSession] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const { signUp, signIn } = useAuth();
+	const authClient = useAuthClient();
 	const config = useAppConfig();
-	const isLoading = loadingState !== null;
+	const { user, isLoading: isUserLoading } = useUser({
+		redirectTo: "/dashboard",
+		redirectWhen: "authenticated",
+		checkOnboarding: true,
+	});
+	const isBootstrappingAuth =
+		loadingState === null &&
+		!!authClient.currentSession &&
+		(isRecoveringSession || !authClient.isReady || isUserLoading || !!user);
+	const isLoading = loadingState !== null || isBootstrappingAuth;
 
-	const loadingMessage =
-		loadingState === "google"
+	const loadingMessage = isBootstrappingAuth
+		? "Finishing sign in and loading your dashboard..."
+		: loadingState === "google"
 			? "Redirecting to Google and creating your workspace..."
 			: loadingState === "github"
 				? "Redirecting to GitHub and creating your workspace..."
@@ -94,12 +106,39 @@ export default function Signup() {
 
 	const formSchema = createFormSchema(config.hosted);
 
-	// Redirect to dashboard if already authenticated
-	useUser({
-		redirectTo: "/dashboard",
-		redirectWhen: "authenticated",
-		checkOnboarding: true,
-	});
+	useEffect(() => {
+		if (!authClient.currentSession?.access_token || user || isUserLoading) {
+			return;
+		}
+
+		let isCancelled = false;
+		setIsRecoveringSession(true);
+
+		void authClient
+			.syncServerSession(authClient.currentSession)
+			.then(async () => {
+				if (isCancelled) {
+					return;
+				}
+
+				await queryClient.invalidateQueries();
+			})
+			.catch((error: unknown) => {
+				console.error(
+					"Failed to recover server session from signup page",
+					error,
+				);
+			})
+			.finally(() => {
+				if (!isCancelled) {
+					setIsRecoveringSession(false);
+				}
+			});
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [authClient, authClient.currentSession, isUserLoading, queryClient, user]);
 
 	useEffect(() => {
 		posthog.capture("page_viewed_signup");
@@ -178,7 +217,8 @@ export default function Signup() {
 							</div>
 							<p className="mt-1 text-xs leading-relaxed">
 								{loadingMessage} First-time setup can take a few seconds while
-								we create your account and default workspace.
+								we create your account, sync your workspace, and load the
+								dashboard.
 							</p>
 						</div>
 					) : null}

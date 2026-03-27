@@ -57,6 +57,8 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 	const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
 	const [isReady, setIsReady] = useState(false);
 	const lastSyncedTokenRef = useRef<string | null>(null);
+	const inFlightSyncRef = useRef<Promise<void> | null>(null);
+	const inFlightSyncTokenRef = useRef<string | null>(null);
 
 	const waitForServerSession = useCallback(async () => {
 		const retryDelaysMs = [0, 150, 300, 600, 1200];
@@ -82,6 +84,8 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
 	const clearServerSession = useCallback(async () => {
 		lastSyncedTokenRef.current = null;
+		inFlightSyncRef.current = null;
+		inFlightSyncTokenRef.current = null;
 		await safeFetch(`${config.apiUrl}/auth/supabase/sign-out`, {
 			method: "POST",
 			credentials: "include",
@@ -101,46 +105,68 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 				return;
 			}
 
-			const retryDelaysMs = [0, 150, 300, 600];
-			let lastError: Error | null = null;
-
-			for (const retryDelayMs of retryDelaysMs) {
-				if (retryDelayMs > 0) {
-					await sleep(retryDelayMs);
-				}
-
-				try {
-					const response = await fetch(
-						`${config.apiUrl}/auth/supabase/session`,
-						{
-							method: "POST",
-							credentials: "include",
-							headers: {
-								"Content-Type": "application/json",
-							},
-							body: JSON.stringify({
-								accessToken: nextSession.access_token,
-								refreshToken: nextSession.refresh_token,
-							}),
-						},
-					);
-
-					if (!response.ok) {
-						throw new Error("Failed to create Supabase session");
-					}
-
-					await waitForServerSession();
-					lastSyncedTokenRef.current = nextSession.access_token;
-					return;
-				} catch (error) {
-					lastError =
-						error instanceof Error
-							? error
-							: new Error("Failed to create Supabase session");
-				}
+			if (
+				inFlightSyncRef.current &&
+				inFlightSyncTokenRef.current === nextSession.access_token
+			) {
+				await inFlightSyncRef.current;
+				return;
 			}
 
-			throw lastError ?? new Error("Failed to create Supabase session");
+			const syncPromise = (async () => {
+				const retryDelaysMs = [0, 150, 300, 600];
+				let lastError: Error | null = null;
+
+				for (const retryDelayMs of retryDelaysMs) {
+					if (retryDelayMs > 0) {
+						await sleep(retryDelayMs);
+					}
+
+					try {
+						const response = await fetch(
+							`${config.apiUrl}/auth/supabase/session`,
+							{
+								method: "POST",
+								credentials: "include",
+								headers: {
+									"Content-Type": "application/json",
+								},
+								body: JSON.stringify({
+									accessToken: nextSession.access_token,
+									refreshToken: nextSession.refresh_token,
+								}),
+							},
+						);
+
+						if (!response.ok) {
+							throw new Error("Failed to create Supabase session");
+						}
+
+						await waitForServerSession();
+						lastSyncedTokenRef.current = nextSession.access_token;
+						return;
+					} catch (error) {
+						lastError =
+							error instanceof Error
+								? error
+								: new Error("Failed to create Supabase session");
+					}
+				}
+
+				throw lastError ?? new Error("Failed to create Supabase session");
+			})();
+
+			inFlightSyncRef.current = syncPromise;
+			inFlightSyncTokenRef.current = nextSession.access_token;
+
+			try {
+				await syncPromise;
+			} finally {
+				if (inFlightSyncRef.current === syncPromise) {
+					inFlightSyncRef.current = null;
+					inFlightSyncTokenRef.current = null;
+				}
+			}
 		},
 		[auth, config.apiUrl, waitForServerSession],
 	);
@@ -159,6 +185,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 				setCurrentUser(session?.user ?? null);
 
 				if (session) {
+					setIsReady(false);
 					await syncServerSession(session);
 				}
 			})
@@ -181,6 +208,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
 				setCurrentSession(session);
 				setCurrentUser(session?.user ?? null);
+				setIsReady(false);
 
 				const nextAction =
 					event === "SIGNED_OUT"
