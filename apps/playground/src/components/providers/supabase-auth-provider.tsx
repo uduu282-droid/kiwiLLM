@@ -94,7 +94,6 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 				sessionOverride ?? (await auth.auth.getSession()).data.session;
 
 			if (!nextSession?.access_token) {
-				await clearServerSession();
 				return;
 			}
 
@@ -121,31 +120,70 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 			await waitForServerSession();
 			lastSyncedTokenRef.current = nextSession.access_token;
 		},
-		[auth, clearServerSession, config.apiUrl, waitForServerSession],
+		[auth, config.apiUrl, waitForServerSession],
 	);
 
 	useEffect(() => {
-		const {
-			data: { subscription },
-		} = auth.auth.onAuthStateChange(
-			(_event: AuthChangeEvent, session: SupabaseSession | null) => {
+		let isMounted = true;
+
+		void auth.auth
+			.getSession()
+			.then(async ({ data: { session } }) => {
+				if (!isMounted) {
+					return;
+				}
+
 				setCurrentSession(session);
 				setCurrentUser(session?.user ?? null);
 
-				void syncServerSession(session)
+				if (session) {
+					await syncServerSession(session);
+				}
+			})
+			.catch((error: unknown) => {
+				console.error("Failed to restore Supabase session", error);
+			})
+			.finally(() => {
+				if (isMounted) {
+					setIsReady(true);
+				}
+			});
+
+		const {
+			data: { subscription },
+		} = auth.auth.onAuthStateChange(
+			(event: AuthChangeEvent, session: SupabaseSession | null) => {
+				if (!isMounted || event === "INITIAL_SESSION") {
+					return;
+				}
+
+				setCurrentSession(session);
+				setCurrentUser(session?.user ?? null);
+
+				const nextAction =
+					event === "SIGNED_OUT"
+						? clearServerSession()
+						: session
+							? syncServerSession(session)
+							: Promise.resolve();
+
+				void nextAction
 					.catch((error: unknown) => {
 						console.error("Failed to sync Supabase session", error);
 					})
 					.finally(() => {
-						setIsReady(true);
+						if (isMounted) {
+							setIsReady(true);
+						}
 					});
 			},
 		);
 
 		return () => {
+			isMounted = false;
 			subscription.unsubscribe();
 		};
-	}, [auth, syncServerSession]);
+	}, [auth, clearServerSession, syncServerSession]);
 
 	const value = useMemo<SupabaseAuthContextValue>(
 		() => ({
