@@ -6,6 +6,14 @@ import { useEffect, useRef } from "react";
 
 import { useAuthClient } from "@/lib/auth-client";
 
+import type { Session as SupabaseSession } from "@supabase/supabase-js";
+
+function sleep(ms: number) {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
 export default function AuthCallbackPage() {
 	const searchParams = useSearchParams();
 	const authClient = useAuthClient();
@@ -20,19 +28,24 @@ export default function AuthCallbackPage() {
 		const code = searchParams.get("code");
 
 		void (async () => {
+			let exchangedSession: SupabaseSession | null = null;
+
 			try {
 				if (code && !authClient.currentSession) {
-					const { error } =
+					const { data, error } =
 						await authClient.auth.auth.exchangeCodeForSession(code);
 
 					if (error) {
 						throw error;
 					}
+
+					exchangedSession = data.session;
 				}
 
-				const {
-					data: { session },
-				} = await authClient.auth.auth.getSession();
+				const session =
+					exchangedSession ??
+					authClient.currentSession ??
+					(await authClient.auth.auth.getSession()).data.session;
 
 				if (!session?.user) {
 					throw new Error(
@@ -45,12 +58,24 @@ export default function AuthCallbackPage() {
 				window.location.replace(next);
 			} catch {
 				const resumeAuthUrl = `/login?resumeAuth=true&next=${encodeURIComponent(next)}`;
-				const {
-					data: { session },
-				} = await authClient.auth.auth.getSession();
+				let recoveredSession = exchangedSession;
+				const retryDelaysMs = [0, 250, 500, 1000, 2000];
+
+				for (const retryDelayMs of retryDelaysMs) {
+					if (recoveredSession?.user) {
+						break;
+					}
+
+					if (retryDelayMs > 0) {
+						await sleep(retryDelayMs);
+					}
+
+					recoveredSession = (await authClient.auth.auth.getSession()).data
+						.session;
+				}
 
 				hasHandledCallbackRef.current = true;
-				if (session?.user) {
+				if (recoveredSession?.user) {
 					window.location.replace(resumeAuthUrl);
 					return;
 				}
