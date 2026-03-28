@@ -30,6 +30,10 @@ import type { ServerTypes } from "./vars.js";
 
 const isHosted = process.env.HOSTED === "true";
 const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+const gatewayServiceName =
+	process.env.GATEWAY_SERVICE_NAME ??
+	process.env.OTEL_SERVICE_NAME ??
+	"kiwillm-gateway";
 const docsUrl =
 	process.env.DOCS_URL ?? process.env.SITE_URL ?? "https://kiwillm.in";
 const gatewayUrl =
@@ -68,7 +72,7 @@ export const app = new OpenAPIHono<ServerTypes>();
 const honoRequestLogger = createHonoRequestLogger({ service: "gateway" });
 
 const requestLifecycleMiddleware = createRequestLifecycleMiddleware({
-	serviceName: "llmgateway-gateway-lifecycle",
+	serviceName: `${gatewayServiceName}-lifecycle`,
 });
 
 // Add tracing middleware first so instrumentation stays active for downstream handlers

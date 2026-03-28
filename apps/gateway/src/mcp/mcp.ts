@@ -127,6 +127,12 @@ type GenerateImageInput = z.infer<typeof generateImageInputSchema>;
 type ListImageModelsInput = z.infer<typeof listImageModelsInputSchema>;
 type GenerateNanoBananaInput = z.infer<typeof generateNanoBananaInputSchema>;
 const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+const isHosted = process.env.HOSTED === "true";
+const defaultGatewayUrl =
+	process.env.MCP_GATEWAY_URL ??
+	process.env.GATEWAY_URL ??
+	process.env.PUBLIC_GATEWAY_URL ??
+	(isHosted ? "https://api.kiwillm.in" : "http://localhost:4001");
 
 /**
  * Creates an MCP server instance with tools for KiwiLLM
@@ -144,27 +150,23 @@ function createMcpServer(apiKey: string): McpServer {
 		chatInputSchema.shape,
 		async (input: ChatInput) => {
 			try {
-				// Call the internal chat completions endpoint
-				const gatewayUrl =
-					process.env.MCP_GATEWAY_URL ??
-					(process.env.NODE_ENV === "production"
-						? "https://api.llmgateway.io"
-						: "http://localhost:4001");
-
-				const response = await fetch(`${gatewayUrl}/v1/chat/completions`, {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${apiKey}`,
+				const response = await fetch(
+					`${defaultGatewayUrl}/v1/chat/completions`,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${apiKey}`,
+						},
+						body: JSON.stringify({
+							model: input.model,
+							messages: input.messages,
+							temperature: input.temperature,
+							max_tokens: input.max_tokens,
+							stream: false, // MCP doesn't support streaming
+						}),
 					},
-					body: JSON.stringify({
-						model: input.model,
-						messages: input.messages,
-						temperature: input.temperature,
-						max_tokens: input.max_tokens,
-						stream: false, // MCP doesn't support streaming
-					}),
-				});
+				);
 
 				if (!response.ok) {
 					const errorText = await response.text();
@@ -417,34 +419,31 @@ function createMcpServer(apiKey: string): McpServer {
 		generateImageInputSchema.shape,
 		async (input: GenerateImageInput) => {
 			try {
-				const gatewayUrl =
-					process.env.MCP_GATEWAY_URL ??
-					(process.env.NODE_ENV === "production"
-						? "https://api.llmgateway.io"
-						: "http://localhost:4001");
-
 				// Call the chat completions endpoint with image generation model
-				const response = await fetch(`${gatewayUrl}/v1/chat/completions`, {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${apiKey}`,
-					},
-					body: JSON.stringify({
-						model: input.model,
-						messages: [
-							{
-								role: "user",
-								content: input.prompt,
-							},
-						],
-						stream: false,
-						image_config: {
-							image_size: input.size,
-							n: input.n,
+				const response = await fetch(
+					`${defaultGatewayUrl}/v1/chat/completions`,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${apiKey}`,
 						},
-					}),
-				});
+						body: JSON.stringify({
+							model: input.model,
+							messages: [
+								{
+									role: "user",
+									content: input.prompt,
+								},
+							],
+							stream: false,
+							image_config: {
+								image_size: input.size,
+								n: input.n,
+							},
+						}),
+					},
+				);
 
 				if (!response.ok) {
 					const errorText = await response.text();
@@ -561,12 +560,6 @@ function createMcpServer(apiKey: string): McpServer {
 		generateNanoBananaInputSchema.shape,
 		async (input: GenerateNanoBananaInput) => {
 			try {
-				const gatewayUrl =
-					process.env.MCP_GATEWAY_URL ??
-					(process.env.NODE_ENV === "production"
-						? "https://api.llmgateway.io"
-						: "http://localhost:4001");
-
 				const body: Record<string, unknown> = {
 					model: "gemini-3-pro-image-preview",
 					messages: [
@@ -582,14 +575,17 @@ function createMcpServer(apiKey: string): McpServer {
 					body.image_config = { aspect_ratio: input.aspect_ratio };
 				}
 
-				const response = await fetch(`${gatewayUrl}/v1/chat/completions`, {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${apiKey}`,
+				const response = await fetch(
+					`${defaultGatewayUrl}/v1/chat/completions`,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${apiKey}`,
+						},
+						body: JSON.stringify(body),
 					},
-					body: JSON.stringify(body),
-				});
+				);
 
 				if (!response.ok) {
 					const errorText = await response.text();

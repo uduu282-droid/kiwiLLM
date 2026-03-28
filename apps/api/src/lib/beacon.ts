@@ -12,6 +12,9 @@ interface BeaconData {
 	providers: string[];
 }
 
+const beaconUrl =
+	process.env.BEACON_URL ?? "https://internal.llmgateway.io/beacon";
+
 /**
  * Detects which provider API keys are configured in the environment
  * Returns a list of provider IDs for providers that have their API key configured
@@ -37,7 +40,7 @@ function detectConfiguredProviders(): string[] {
  * Sends installation beacon data to the tracking endpoint
  */
 async function sendBeacon(data: BeaconData): Promise<void> {
-	const response = await fetch("https://internal.llmgateway.io/beacon", {
+	const response = await fetch(beaconUrl, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",

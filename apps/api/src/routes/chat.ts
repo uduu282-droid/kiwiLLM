@@ -7,6 +7,11 @@ import { logger } from "@llmgateway/logger";
 import type { ServerTypes } from "@/vars.js";
 
 const chat = new OpenAPIHono<ServerTypes>();
+const isHosted = process.env.HOSTED === "true";
+const gatewayUrl =
+	process.env.GATEWAY_URL ??
+	process.env.PUBLIC_GATEWAY_URL ??
+	(isHosted ? "https://api.kiwillm.in" : "http://localhost:4001");
 
 const chatCompletionSchema = z.object({
 	messages: z.array(
@@ -50,23 +55,18 @@ chat.openapi(completionRoute, async (c) => {
 		}
 		const authToken = apiKey;
 
-		const response = await fetch(
-			process.env.NODE_ENV === "production"
-				? "https://api.llmgateway.io/v1/chat/completions"
-				: "http://localhost:4001/v1/chat/completions",
-			{
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${authToken}`,
-				},
-				body: JSON.stringify({
-					model,
-					messages,
-					stream,
-				}),
+		const response = await fetch(`${gatewayUrl}/v1/chat/completions`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${authToken}`,
 			},
-		);
+			body: JSON.stringify({
+				model,
+				messages,
+				stream,
+			}),
+		});
 
 		if (!response.ok) {
 			const errorText = await response.text();

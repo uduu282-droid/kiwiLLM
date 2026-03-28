@@ -20,6 +20,10 @@ const port = Number(process.env.PORT) || 4001;
 // If Node closes the connection first, the LB sends requests on stale connections → 502.
 // Default to 620s (above GCP's 600s) to ensure the LB closes first.
 const keepAliveTimeoutS = Number(process.env.KEEP_ALIVE_TIMEOUT_S) || 620;
+const gatewayServiceName =
+	process.env.GATEWAY_SERVICE_NAME ??
+	process.env.OTEL_SERVICE_NAME ??
+	"kiwillm-gateway";
 
 let sdk: NodeSDK | null = null;
 
@@ -27,7 +31,7 @@ async function startServer() {
 	// Initialize tracing for gateway service
 	try {
 		sdk = initializeInstrumentation({
-			serviceName: process.env.OTEL_SERVICE_NAME ?? "llmgateway-gateway",
+			serviceName: gatewayServiceName,
 			projectId: process.env.GOOGLE_CLOUD_PROJECT,
 		});
 	} catch (error) {

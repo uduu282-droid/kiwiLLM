@@ -21,6 +21,10 @@ import type { Server } from "node:http";
 // Increase keepAliveTimeout from Node.js default of 5s to reduce 502 errors
 // from GCP Load Balancer reusing stale connections.
 const keepAliveTimeoutS = Number(process.env.KEEP_ALIVE_TIMEOUT_S) || 60;
+const apiServiceName =
+	process.env.API_SERVICE_NAME ??
+	process.env.OTEL_SERVICE_NAME ??
+	"kiwillm-api";
 
 let sdk: NodeSDK | null = null;
 
@@ -30,7 +34,7 @@ async function startServer() {
 	// Initialize tracing for API service
 	try {
 		sdk = initializeInstrumentation({
-			serviceName: process.env.OTEL_SERVICE_NAME ?? "llmgateway-api",
+			serviceName: apiServiceName,
 			projectId: process.env.GOOGLE_CLOUD_PROJECT,
 		});
 	} catch (error) {
