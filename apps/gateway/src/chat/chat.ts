@@ -117,6 +117,8 @@ const SSE_FIELD_PATTERN = /^[a-zA-Z_-]+:\s*/;
 
 // Reusable TextDecoder to avoid per-chunk allocation in the streaming hot path
 const sharedTextDecoder = new TextDecoder();
+const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+const dashboardUrl = process.env.APP_URL ?? "https://app.kiwillm.in";
 
 export const chat = new OpenAPIHono<ServerTypes>();
 
@@ -492,14 +494,13 @@ chat.openapi(completions, async (c) => {
 
 	if (!apiKey || apiKey.status !== "active") {
 		throw new HTTPException(401, {
-			message:
-				"Unauthorized: Invalid LLMGateway API token. Please make sure the token is not deleted or disabled. Go to the LLMGateway 'API Keys' page to generate a new token.",
+			message: `Unauthorized: Invalid ${brandName} API token. Please make sure the token is not deleted or disabled. Go to the ${brandName} API keys page in your dashboard to generate a new token.`,
 		});
 	}
 
 	if (apiKey.usageLimit && Number(apiKey.usage) >= Number(apiKey.usageLimit)) {
 		throw new HTTPException(401, {
-			message: "Unauthorized: LLMGateway API key reached its usage limit.",
+			message: `Unauthorized: ${brandName} API key reached its usage limit.`,
 		});
 	}
 
@@ -594,7 +595,7 @@ chat.openapi(completions, async (c) => {
 	) {
 		if (!isCodingModel(modelInfo)) {
 			throw new HTTPException(403, {
-				message: `Model ${modelInfo.id} is not available for coding plans. Coding plans only include models optimized for coding tasks with prompt caching, tool calling, JSON output, and streaming support. You can enable access to all models in your dashboard settings at code.llmgateway.io/dashboard, though this may significantly increase costs due to lack of prompt caching.`,
+				message: `Model ${modelInfo.id} is not available for coding plans. Coding plans only include models optimized for coding tasks with prompt caching, tool calling, JSON output, and streaming support. You can enable access to all models in your dashboard settings at ${dashboardUrl}/dashboard, though this may significantly increase costs due to lack of prompt caching.`,
 			});
 		}
 	}

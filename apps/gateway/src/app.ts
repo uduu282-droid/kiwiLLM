@@ -28,23 +28,29 @@ import { responses } from "./responses/responses.js";
 
 import type { ServerTypes } from "./vars.js";
 
+const isHosted = process.env.HOSTED === "true";
+const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+const docsUrl =
+	process.env.DOCS_URL ?? process.env.SITE_URL ?? "https://kiwillm.in";
+const gatewayUrl =
+	process.env.GATEWAY_URL ??
+	process.env.PUBLIC_GATEWAY_URL ??
+	(isHosted ? "https://api.kiwillm.in" : "http://localhost:4001");
+
 export const config = {
 	servers: [
 		{
-			url: "https://api.llmgateway.io",
-		},
-		{
-			url: "http://localhost:4001",
+			url: gatewayUrl,
 		},
 	],
 	openapi: "3.0.0",
 	info: {
 		version: "1.0.0",
-		title: "LLMGateway API",
+		title: `${brandName} API`,
 	},
 	externalDocs: {
-		url: "https://docs.llmgateway.io",
-		description: "LLMGateway Documentation",
+		url: docsUrl,
+		description: `${brandName} Documentation`,
 	},
 	components: {
 		securitySchemes: {

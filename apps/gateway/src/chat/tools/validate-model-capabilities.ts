@@ -9,6 +9,9 @@ import type {
 	WebSearchTool,
 } from "@llmgateway/models";
 
+const siteUrl =
+	process.env.SITE_URL ?? process.env.DOCS_URL ?? "https://kiwillm.in";
+
 export interface ValidateModelCapabilitiesOptions {
 	response_format?: {
 		type: "text" | "json_object" | "json_schema";
@@ -202,7 +205,7 @@ export function validateModelCapabilities(
 		// If web_search tool is specifically requested, ensure the model supports it
 		if (webSearchTool && !supportsWebSearch) {
 			throw new HTTPException(400, {
-				message: `Model ${requestedModel} does not support native web search. Remove the web_search tool or use a model that supports it. See https://llmgateway.io/models?features=webSearch for supported models.`,
+				message: `Model ${requestedModel} does not support native web search. Remove the web_search tool or use a model that supports it. See ${siteUrl}/models?features=webSearch for supported models.`,
 			});
 		}
 	}

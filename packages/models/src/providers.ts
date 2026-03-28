@@ -31,12 +31,20 @@ export interface ProviderDefinition {
 	priority?: number;
 }
 
+const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+const siteUrl = process.env.SITE_URL ?? "https://kiwillm.in";
+const docsUrl = process.env.DOCS_URL;
+const awsBedrockLearnMore = docsUrl
+	? `${docsUrl}/integrations/aws-bedrock`
+	: siteUrl;
+const azureLearnMore = docsUrl ? `${docsUrl}/integrations/azure` : siteUrl;
+
 export const providers = [
 	{
 		id: "llmgateway",
-		name: "LLM Gateway",
+		name: brandName,
 		description:
-			"LLMGateway is a framework for building and deploying large language models.",
+			"KiwiLLM is a unified platform for routing and managing large language model workloads.",
 		env: {
 			required: {
 				apiKey: "LLM_LLMGATEWAY_API_KEY",
@@ -45,7 +53,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#6366f1",
-		website: "https://llmgateway.io",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -247,7 +255,7 @@ export const providers = [
 		announcement: null,
 		apiKeyInstructions:
 			"Use AWS Bedrock Long-Term API Keys (not IAM service account or private keys)",
-		learnMore: "https://docs.llmgateway.io/integrations/aws-bedrock",
+		learnMore: awsBedrockLearnMore,
 	},
 	{
 		id: "azure",
@@ -272,7 +280,7 @@ export const providers = [
 		announcement: null,
 		apiKeyInstructions:
 			"The resource name can be found in your Azure base URL: https://<resource-name>.openai.azure.com",
-		learnMore: "https://docs.llmgateway.io/integrations/azure",
+		learnMore: azureLearnMore,
 	},
 	{
 		id: "zai",

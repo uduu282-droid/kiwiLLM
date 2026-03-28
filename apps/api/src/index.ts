@@ -27,16 +27,28 @@ import { stripeRoutes } from "./stripe.js";
 
 import type { ServerTypes } from "./vars.js";
 
+const isHosted = process.env.HOSTED === "true";
+const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+const apiUrl =
+	process.env.API_URL ??
+	(isHosted ? "https://api.kiwillm.in" : "http://localhost:4002");
+const docsUrl =
+	process.env.DOCS_URL ?? process.env.SITE_URL ?? "https://kiwillm.in";
+
 export const config = {
 	servers: [
 		{
-			url: "http://localhost:4002",
+			url: apiUrl,
 		},
 	],
 	openapi: "3.0.0",
 	info: {
 		version: "1.0.0",
-		title: "My API",
+		title: `${brandName} Backend API`,
+	},
+	externalDocs: {
+		url: docsUrl,
+		description: `${brandName} Documentation`,
 	},
 };
 

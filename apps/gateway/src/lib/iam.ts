@@ -8,6 +8,8 @@ import {
 	type ProviderId,
 } from "@llmgateway/models";
 
+const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+
 export interface IamRule {
 	id: string;
 	ruleType:
@@ -77,7 +79,7 @@ export async function validateModelAccess(
 				allowed: false,
 				reason:
 					result.reason +
-					` Adapt your LLMGateway API key IAM permissions in the dashboard or contact your LLMGateway API Key issuer. (Rule ID: ${rule.id})`,
+					` Adapt your ${brandName} API key IAM permissions in the dashboard or contact your ${brandName} API key issuer. (Rule ID: ${rule.id})`,
 			};
 		}
 		// Update allowed providers based on rule evaluation

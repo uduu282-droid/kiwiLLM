@@ -126,9 +126,10 @@ type ListModelsInput = z.infer<typeof listModelsInputSchema>;
 type GenerateImageInput = z.infer<typeof generateImageInputSchema>;
 type ListImageModelsInput = z.infer<typeof listImageModelsInputSchema>;
 type GenerateNanoBananaInput = z.infer<typeof generateNanoBananaInputSchema>;
+const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
 
 /**
- * Creates an MCP server instance with tools for LLM Gateway
+ * Creates an MCP server instance with tools for KiwiLLM
  */
 function createMcpServer(apiKey: string): McpServer {
 	const server = new McpServer({
@@ -1182,8 +1183,7 @@ export async function mcpHandler(c: Context): Promise<Response> {
 			return c.json({
 				name: "llmgateway",
 				version: "1.0.0",
-				description:
-					"LLM Gateway MCP Server - Access multiple LLM providers through a unified API",
+				description: `${brandName} MCP Server - Access multiple LLM providers through a unified API`,
 				protocolVersion: "2024-11-05",
 				capabilities: {
 					tools: {},
@@ -1817,8 +1817,7 @@ async function oauthRegisterHandler(c: Context): Promise<Response> {
 			return c.json(
 				{
 					error: "invalid_request",
-					error_description:
-						"API key required. Provide your LLM Gateway API key in the request body as 'api_key' or in Authorization header.",
+					error_description: `API key required. Provide your ${brandName} API key in the request body as 'api_key' or in Authorization header.`,
 				},
 				400,
 			);
