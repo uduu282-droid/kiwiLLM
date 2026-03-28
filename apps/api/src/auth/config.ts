@@ -22,6 +22,7 @@ const cookieDomain =
 const uiUrl =
 	process.env.UI_URL ??
 	(isHosted ? "https://app.kiwillm.in" : "http://localhost:3002");
+const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
 const defaultHostedOrigins = [
 	"https://kiwillm.in",
 	"https://www.kiwillm.in",
@@ -516,7 +517,7 @@ export const apiAuth: ReturnType<typeof instrumentBetterAuth> =
 			plugins: [
 				passkey({
 					rpID: process.env.PASSKEY_RP_ID ?? "localhost",
-					rpName: process.env.PASSKEY_RP_NAME ?? "LLMGateway",
+					rpName: process.env.PASSKEY_RP_NAME ?? brandName,
 					origin: uiUrl,
 				}),
 			],
@@ -583,7 +584,7 @@ export const apiAuth: ReturnType<typeof instrumentBetterAuth> =
 
 							const text = `Hey${user.name ? ` ${user.name}` : ""}!
 
-Welcome to LLM Gateway — glad to have you here.
+Welcome to ${brandName} — glad to have you here.
 
 First things first, verify your email by clicking the link below:
 
@@ -596,12 +597,12 @@ Also, if you're interested in free credits to get started, reply to this email a
 If you didn't create this account, feel free to ignore this.
 
 Cheers,
-The LLM Gateway Team`.trim();
+The ${brandName} Team`.trim();
 
 							try {
 								await sendTransactionalEmail({
 									to: user.email,
-									subject: "Welcome to LLM Gateway — verify your email",
+									subject: `Welcome to ${brandName} — verify your email`,
 									text,
 								});
 							} catch (error) {

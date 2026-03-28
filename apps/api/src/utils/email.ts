@@ -5,6 +5,13 @@ import {
 	replyToEmail,
 } from "@llmgateway/shared/email";
 
+const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+const appUrl = process.env.APP_URL ?? "https://app.kiwillm.in";
+const docsUrl =
+	process.env.DOCS_URL ?? process.env.SITE_URL ?? "https://kiwillm.in";
+const billingUrl = `${appUrl}/dashboard/settings/org/billing`;
+const currentYear = new Date().getFullYear();
+
 /**
  * Escapes HTML special characters to prevent XSS attacks
  */
@@ -149,7 +156,7 @@ export function generatePaymentFailureEmailHtml(
 	<head>
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>Payment Failed - LLMGateway</title>
+		<title>Payment Failed - ${brandName}</title>
 	</head>
 	<body
 		style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #ffffff;"
@@ -204,7 +211,7 @@ export function generatePaymentFailureEmailHtml(
 									<tr>
 										<td align="center" style="padding: 10px 0;">
 											<a
-												href="https://llmgateway.io/dashboard/settings/org/billing"
+												href="${billingUrl}"
 												style="display: inline-block; background-color: #000000; color: #ffffff; padding: 14px 40px; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 16px;"
 											>Update Payment Method</a>
 										</td>
@@ -225,11 +232,11 @@ export function generatePaymentFailureEmailHtml(
 							>
 								<p style="margin: 0 0 12px; color: #666666; font-size: 14px; line-height: 1.6;">
 									Need help? Check out our <a
-									href="https://docs.llmgateway.io" style="color: #000000; text-decoration: none;"
+									href="${docsUrl}" style="color: #000000; text-decoration: none;"
 								>documentation</a> or reply to this email for any questions.
 								</p>
 								<p style="margin: 0; color: #999999; font-size: 12px;">
-									© 2025 LLM Gateway. All rights reserved. This is a transactional email and it can't be unsubscribed from.
+									© ${currentYear} ${brandName}. All rights reserved. This is a transactional email and it can't be unsubscribed from.
 								</p>
 							</td>
 						</tr>
@@ -251,7 +258,7 @@ export function generateSubscriptionCancelledEmailHtml(
 	<head>
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>Subscription Cancelled - LLMGateway</title>
+		<title>Subscription Cancelled - ${brandName}</title>
 	</head>
 	<body
 		style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #ffffff;"
@@ -279,14 +286,14 @@ export function generateSubscriptionCancelledEmailHtml(
 									</p>
 
 									<p style="font-size: 16px; margin-bottom: 20px; color: #333; line-height: 1.5;">
-										You can continue using LLMGateway with our free plan features, or you can resubscribe to Pro at any
+										You can continue using ${brandName} with our free plan features, or you can resubscribe to Pro at any
 										time from your dashboard.
 									</p>
 
 									<!-- CTA Button -->
 									<div style="text-align: center; margin: 30px 0;">
 										<a
-											href="https://llmgateway.io/dashboard/settings/org/billing"
+											href="${billingUrl}"
 											style="display: inline-block; background-color: #000000; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 500; font-size: 16px;"
 										>Manage Subscription</a>
 									</div>
@@ -304,11 +311,11 @@ export function generateSubscriptionCancelledEmailHtml(
 									>
 										<p style="margin: 0 0 12px; color: #666666; font-size: 14px; line-height: 1.6;">
 											Need help getting started? Check out our <a
-											href="https://docs.llmgateway.io" style="color: #000000; text-decoration: none;"
+											href="${docsUrl}" style="color: #000000; text-decoration: none;"
 										>documentation</a> or reply to this email for any questions.
 										</p>
 										<p style="margin: 0; color: #999999; font-size: 12px;">
-											© 2025 LLM Gateway. All rights reserved. This is a transactional email and it can't be unsubscribed from.
+											© ${currentYear} ${brandName}. All rights reserved. This is a transactional email and it can't be unsubscribed from.
 										</p>
 									</td>
 								</tr>

@@ -13,6 +13,7 @@ import { getStripe } from "./payments.js";
 import type { ServerTypes } from "@/vars.js";
 
 export const subscriptions = new OpenAPIHono<ServerTypes>();
+const dashboardUrl = process.env.APP_URL ?? "https://app.kiwillm.in";
 
 const createProSubscription = createRoute({
 	method: "post",
@@ -89,8 +90,7 @@ subscriptions.openapi(createProSubscription, async (c) => {
 	// Block Pro plan for personal orgs (dev plan only)
 	if (organization.isPersonal) {
 		throw new HTTPException(403, {
-			message:
-				"Pro plan is not available for personal organizations. Please use Dev Plans at code.llmgateway.io or create a regular organization.",
+			message: `Pro plan is not available for personal organizations. Please manage Dev Plans in the KiwiLLM dashboard at ${dashboardUrl}/dashboard or create a regular organization.`,
 		});
 	}
 

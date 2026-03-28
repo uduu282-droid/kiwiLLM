@@ -5,6 +5,12 @@ import { logger } from "@llmgateway/logger";
 import { sendTransactionalEmail } from "./email.js";
 
 const invoiceFrom = process.env.INVOICE_FROM ?? "Fake Company\\nUnited States";
+const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+const supportEmail =
+	process.env.SUPPORT_EMAIL ??
+	process.env.RESEND_REPLY_TO_EMAIL ??
+	"support@kiwillm.in";
+const currentYear = new Date().getFullYear();
 
 function escapeHtml(unsafe: string): string {
 	return unsafe
@@ -211,7 +217,7 @@ export async function generateAndEmailInvoice(
 
 		await sendTransactionalEmail({
 			to: data.billingEmail,
-			subject: `Invoice ${escapedInvoiceNumber} - LLMGateway`,
+			subject: `Invoice ${escapedInvoiceNumber} - ${brandName}`,
 			attachments: [
 				{
 					filename: `invoice-${escapedInvoiceNumber}.pdf`,
@@ -255,10 +261,10 @@ export async function generateAndEmailInvoice(
 						<tr>
 							<td style="padding: 30px 40px; background-color: #f8f9fa; border-radius: 0 0 8px 8px; border-top: 1px solid #e9ecef;">
 								<p style="margin: 0 0 12px; color: #666666; font-size: 14px; line-height: 1.6;">
-									If you have any questions about this invoice, please contact us at <a href="mailto:contact@llmgateway.io" style="color: #000000; text-decoration: none;">contact@llmgateway.io</a>
+									If you have any questions about this invoice, please contact us at <a href="mailto:${supportEmail}" style="color: #000000; text-decoration: none;">${supportEmail}</a>
 								</p>
 								<p style="margin: 0; color: #999999; font-size: 12px;">
-									© 2025 LLM Gateway. All rights reserved.
+									© ${currentYear} ${brandName}. All rights reserved.
 								</p>
 							</td>
 						</tr>

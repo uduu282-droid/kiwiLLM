@@ -10,6 +10,7 @@ import { db, eq, tables } from "@llmgateway/db";
 import type { ServerTypes } from "@/vars.js";
 
 export const projects = new OpenAPIHono<ServerTypes>();
+const supportEmail = process.env.SUPPORT_EMAIL ?? "support@kiwillm.in";
 
 // Define schema directly with Zod instead of using createSelectSchema
 const projectSchema = z.object({
@@ -358,7 +359,7 @@ projects.openapi(createProject, async (c) => {
 
 	if (projectCount >= projectLimit) {
 		throw new HTTPException(403, {
-			message: `You have reached the limit of ${projectLimit} projects. Contact us at contact@llmgateway.io to unlock more.`,
+			message: `You have reached the limit of ${projectLimit} projects. Contact us at ${supportEmail} to unlock more.`,
 		});
 	}
 

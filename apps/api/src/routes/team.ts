@@ -8,6 +8,7 @@ import { db, eq, tables } from "@llmgateway/db";
 import type { ServerTypes } from "@/vars.js";
 
 export const team = new OpenAPIHono<ServerTypes>();
+const supportEmail = process.env.SUPPORT_EMAIL ?? "support@kiwillm.in";
 
 const roleSchema = z.enum(["owner", "admin", "developer"]);
 
@@ -189,8 +190,7 @@ team.openapi(addMember, async (c) => {
 
 	if (currentMembers.length >= 5) {
 		throw new HTTPException(403, {
-			message:
-				"Your organization has reached the maximum of 5 team members. Contact us at contact@llmgateway.io to unlock more seats.",
+			message: `Your organization has reached the maximum of 5 team members. Contact us at ${supportEmail} to unlock more seats.`,
 		});
 	}
 

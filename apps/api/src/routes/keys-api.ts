@@ -11,6 +11,7 @@ import { eq, db, shortid, tables } from "@llmgateway/db";
 import type { ServerTypes } from "@/vars.js";
 
 export const keysApi = new OpenAPIHono<ServerTypes>();
+const supportEmail = process.env.SUPPORT_EMAIL ?? "support@kiwillm.in";
 
 // Create a schema for API key responses
 // Using z.object directly instead of createSelectSchema due to compatibility issues
@@ -224,7 +225,7 @@ keysApi.openapi(create, async (c) => {
 
 	if (existingApiKeys.length >= maxApiKeys) {
 		throw new HTTPException(400, {
-			message: `API key limit reached. Maximum ${maxApiKeys} API keys per project. Contact us at contact@llmgateway.io to unlock more.`,
+			message: `API key limit reached. Maximum ${maxApiKeys} API keys per project. Contact us at ${supportEmail} to unlock more.`,
 		});
 	}
 

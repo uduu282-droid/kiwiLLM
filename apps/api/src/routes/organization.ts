@@ -10,6 +10,7 @@ import { and, db, desc, eq, gte, isNull, or, tables } from "@llmgateway/db";
 import type { ServerTypes } from "@/vars.js";
 
 export const organization = new OpenAPIHono<ServerTypes>();
+const dashboardUrl = process.env.APP_URL ?? "https://app.kiwillm.in";
 
 // Define schemas directly with Zod instead of using createSelectSchema
 const organizationSchema = z.object({
@@ -138,7 +139,7 @@ organization.openapi(getOrganizations, async (c) => {
 	const organizations = userOrganizations
 		.map((uo) => uo.organization!)
 		.filter((org) => org.status !== "deleted")
-		// Hide personal orgs from regular UI - they are only visible on code.llmgateway.io
+		// Hide personal orgs from the regular organization UI - they are managed through the dashboard flow
 		.filter((org) => !org.isPersonal);
 
 	return c.json({
@@ -606,8 +607,7 @@ organization.openapi(deleteOrganization, async (c) => {
 	// Block deletion of personal orgs - they are managed via dev plans
 	if (userOrganization.organization?.isPersonal) {
 		throw new HTTPException(403, {
-			message:
-				"Personal organizations cannot be deleted. Please cancel your dev plan at code.llmgateway.io instead.",
+			message: `Personal organizations cannot be deleted. Please cancel your dev plan in the KiwiLLM dashboard instead: ${dashboardUrl}/dashboard`,
 		});
 	}
 

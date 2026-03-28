@@ -28,6 +28,7 @@ export function getStripe(): Stripe {
 }
 
 export const payments = new OpenAPIHono<ServerTypes>();
+const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
 
 const createPaymentIntent = createRoute({
 	method: "post",
@@ -752,7 +753,7 @@ payments.openapi(createCheckoutSession, async (c) => {
 					currency: "usd",
 					product_data: {
 						name: `Credit Top-Up ($${amount})`,
-						description: `$${amount} in credits for your LLMGateway account`,
+						description: `$${amount} in credits for your ${brandName} account`,
 					},
 					unit_amount: Math.round(feeBreakdown.totalAmount * 100),
 				},
