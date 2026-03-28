@@ -265,7 +265,7 @@ codex mcp add llmgateway --url https://api.llmgateway.io/mcp \\
 - \`ping\`: Health check
 
 ## Links
-- Documentation: https://docs.llmgateway.io/guides/mcp
+- Documentation: https://kiwillm.in/guides/mcp
 - Models: https://llmgateway.io/models
 - Dashboard: https://llmgateway.io/dashboard
 - API Keys: https://llmgateway.io/dashboard/keys`;
@@ -597,7 +597,7 @@ export function McpContent() {
 							</Link>
 						</Button>
 						<Button asChild variant="outline" size="lg">
-							<Link href="https://docs.llmgateway.io/guides/mcp">
+							<Link href="https://kiwillm.in/guides/mcp">
 								Read Documentation
 								<ArrowUpRight className="ml-2 h-4 w-4" />
 							</Link>
@@ -646,4 +646,3 @@ export function McpContent() {
 		</Tabs>
 	);
 }
-

@@ -22,7 +22,7 @@ export function PricingPlans() {
 	const handlePlanSelection = (planName: string) => {
 		switch (planName) {
 			case "Self-Host":
-				router.push("https://docs.llmgateway.io");
+				router.push("https://kiwillm.in");
 				return;
 			case "Enterprise":
 				router.push("/enterprise");

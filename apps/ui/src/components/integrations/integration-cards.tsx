@@ -40,7 +40,7 @@ const integrations: Integration[] = [
 		name: "Cursor",
 		description:
 			"Use KiwiLLM with Cursor IDE for AI-powered code editing and chat.",
-		href: "https://docs.llmgateway.io/guides/cursor",
+		href: "https://kiwillm.in/guides/cursor",
 		icon: CursorIcon,
 		comingSoon: false,
 		badge: "Plan mode only",
@@ -49,7 +49,7 @@ const integrations: Integration[] = [
 		name: "Cline",
 		description:
 			"Use KiwiLLM with Cline for AI-powered coding assistance in VS Code.",
-		href: "https://docs.llmgateway.io/guides/cline",
+		href: "https://kiwillm.in/guides/cline",
 		icon: ClineIcon,
 		comingSoon: false,
 	},
@@ -57,7 +57,7 @@ const integrations: Integration[] = [
 		name: "n8n",
 		description:
 			"Connect n8n workflow automation to KiwiLLM for AI-powered workflows.",
-		href: "https://docs.llmgateway.io/guides/n8n",
+		href: "https://kiwillm.in/guides/n8n",
 		icon: N8nIcon,
 		comingSoon: false,
 	},
@@ -164,4 +164,3 @@ export function IntegrationCards() {
 		</div>
 	);
 }
-

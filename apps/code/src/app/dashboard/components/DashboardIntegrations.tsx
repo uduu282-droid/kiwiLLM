@@ -28,7 +28,7 @@ const integrations = [
 	{
 		name: "Cline",
 		description: "AI-powered coding in VS Code",
-		href: "https://docs.llmgateway.io/guides/cline",
+		href: "https://kiwillm.in/guides/cline",
 		icon: ClineIcon,
 		external: true,
 	},

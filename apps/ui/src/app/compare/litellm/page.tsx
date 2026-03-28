@@ -24,7 +24,7 @@ export default function CompareLiteLLMPage() {
 							},
 							secondary: {
 								text: "View Documentation",
-								href: "https://docs.llmgateway.io",
+								href: "https://kiwillm.in",
 								external: true,
 							},
 						},
@@ -56,4 +56,3 @@ export async function generateMetadata() {
 		},
 	};
 }
-

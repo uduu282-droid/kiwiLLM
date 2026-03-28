@@ -33,7 +33,10 @@ export interface ProviderDefinition {
 
 const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
 const siteUrl = process.env.SITE_URL ?? "https://kiwillm.in";
-const docsUrl = process.env.DOCS_URL;
+const docsUrl = process.env.DOCS_URL?.replace(
+	"https://docs.llmgateway.io",
+	"https://kiwillm.in",
+);
 const awsBedrockLearnMore = docsUrl
 	? `${docsUrl}/integrations/aws-bedrock`
 	: siteUrl;

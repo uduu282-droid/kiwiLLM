@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
 		}
 
 		config.resolve.alias = {
-			...(config.resolve.alias || {}),
+			...(config.resolve.alias ?? {}),
 			"@llmgateway/shared$": resolve(
 				__dirname,
 				"../../packages/shared/src/index.ts",
@@ -45,7 +45,7 @@ const nextConfig: NextConfig = {
 			},
 			{
 				source: "/docs",
-				destination: "https://docs.llmgateway.io",
+				destination: "https://kiwillm.in",
 				permanent: true,
 			},
 			{

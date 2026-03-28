@@ -69,7 +69,7 @@ const defaultContent: HeroContent = {
 		},
 		secondary: {
 			text: "View Documentation",
-			href: "https://docs.llmgateway.io",
+			href: "https://kiwillm.in",
 			external: true,
 		},
 	},
@@ -199,4 +199,3 @@ export function HeroCompare({ content }: HeroCompareProps) {
 		</>
 	);
 }
-

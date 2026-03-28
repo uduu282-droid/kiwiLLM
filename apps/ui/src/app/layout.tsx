@@ -112,7 +112,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 		<html lang="en" suppressHydrationWarning>
 			<head>
 				<link rel="preconnect" href="https://internal.llmgateway.io" />
-				<link rel="preconnect" href="https://docs.llmgateway.io" />
+				<link rel="preconnect" href="https://kiwillm.in" />
 				<script
 					type="application/ld+json"
 					// eslint-disable-next-line @eslint-react/dom/no-dangerously-set-innerhtml
