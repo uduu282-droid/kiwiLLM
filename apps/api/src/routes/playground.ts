@@ -2,6 +2,8 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 
+import { getApiKeyPrefix } from "@/lib/api-key-prefix.js";
+
 import { db, tables, shortid } from "@llmgateway/db";
 
 import type { ServerTypes } from "@/vars.js";
@@ -74,9 +76,7 @@ playground.openapi(ensureKey, async (c) => {
 	});
 
 	if (!key) {
-		const prefix =
-			process.env.NODE_ENV === "development" ? `llmgdev_` : "llmgtwy_";
-		const token = prefix + shortid(40);
+		const token = getApiKeyPrefix() + shortid(40);
 		[key] = await db
 			.insert(tables.apiKey)
 			.values({

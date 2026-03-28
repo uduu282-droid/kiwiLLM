@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 
+import { getApiKeyPrefix } from "@/lib/api-key-prefix.js";
 import { ensureStripeCustomer } from "@/stripe.js";
 
 import { logAuditEvent } from "@llmgateway/audit";
@@ -95,10 +96,7 @@ async function getOrCreatePersonalOrgApiKey(
 		return existingKey.token;
 	}
 
-	// Create new API key
-	const prefix =
-		process.env.NODE_ENV === "development" ? `llmgdev_` : "llmgtwy_";
-	const token = prefix + shortid(40);
+	const token = getApiKeyPrefix() + shortid(40);
 
 	await db.insert(tables.apiKey).values({
 		token,

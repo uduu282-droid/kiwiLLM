@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 
+import { getApiKeyPrefix } from "@/lib/api-key-prefix.js";
 import { maskToken } from "@/lib/maskToken.js";
 import { getUserProjectIds } from "@/utils/authorization.js";
 
@@ -229,10 +230,7 @@ keysApi.openapi(create, async (c) => {
 		});
 	}
 
-	// Generate a token with a prefix for better identification
-	const prefix =
-		process.env.NODE_ENV === "development" ? `llmgdev_` : "llmgtwy_";
-	const token = prefix + shortid(40);
+	const token = getApiKeyPrefix() + shortid(40);
 
 	// Create the API key
 	const [apiKey] = await db

@@ -5,6 +5,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
 import { Redis } from "ioredis";
 
+import { getApiKeyPrefix } from "@/lib/api-key-prefix.js";
 import { notifyUserSignup } from "@/utils/discord.js";
 import { validateEmail } from "@/utils/email-validation.js";
 import { sendTransactionalEmail } from "@/utils/email.js";
@@ -781,10 +782,7 @@ The ${brandName} Team`.trim();
 							.returning();
 
 						// Auto-create an API key for the playground to use
-						// Generate a token with a prefix for better identification
-						const prefix =
-							process.env.NODE_ENV === "development" ? `llmgdev_` : "llmgtwy_";
-						const token = prefix + shortid(40);
+						const token = getApiKeyPrefix() + shortid(40);
 
 						await tx.insert(tables.apiKey).values({
 							projectId: project.id,

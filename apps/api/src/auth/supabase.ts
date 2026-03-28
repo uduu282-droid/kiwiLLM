@@ -1,6 +1,7 @@
 import { createClient, type User as SupabaseUser } from "@supabase/supabase-js";
 
 import { apiAuth } from "@/auth/config.js";
+import { getApiKeyPrefix } from "@/lib/api-key-prefix.js";
 
 import { db, eq, tables, shortid } from "@llmgateway/db";
 import { logger } from "@llmgateway/logger";
@@ -272,9 +273,7 @@ async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
 				})
 				.returning();
 
-			const prefix =
-				process.env.NODE_ENV === "development" ? "llmgdev_" : "llmgtwy_";
-			const token = prefix + shortid(40);
+			const token = getApiKeyPrefix() + shortid(40);
 
 			await tx.insert(tables.apiKey).values({
 				projectId: project.id,
