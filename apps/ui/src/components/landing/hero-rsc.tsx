@@ -1,9 +1,13 @@
+import { getUser } from "@/lib/getUser";
+
 import { Hero } from "./hero";
 
 export const HeroRSC = async ({
+	initialUser,
 	navbarOnly,
 	sticky = true,
 }: {
+	initialUser?: import("@/lib/getUser").PublicUser | null;
 	navbarOnly?: boolean;
 	sticky?: boolean;
 }) => {
@@ -15,8 +19,15 @@ export const HeroRSC = async ({
 				title: m.title,
 				fromProvider: m.fromProvider,
 			}));
+	const resolvedInitialUser =
+		initialUser === undefined ? await getUser() : initialUser;
 
 	return (
-		<Hero navbarOnly={navbarOnly} sticky={sticky} migrations={migrations} />
+		<Hero
+			initialUser={resolvedInitialUser}
+			navbarOnly={navbarOnly}
+			sticky={sticky}
+			migrations={migrations}
+		/>
 	);
 };

@@ -3,10 +3,12 @@ import { cookies } from "next/headers";
 import PostHogClient from "@/app/posthog";
 import { getConfig } from "@/lib/config-server";
 
-interface PublicUser {
+export interface PublicUser {
 	id: string;
 	email: string;
 	name: string | null;
+	image: string | null;
+	onboardingCompleted: boolean;
 }
 
 export async function getUser() {

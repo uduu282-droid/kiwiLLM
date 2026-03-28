@@ -15,6 +15,7 @@ import { AnimatedGroup } from "./animated-group";
 import { Navbar } from "./navbar";
 
 import type { Variants } from "@/components/motion-wrapper";
+import type { PublicUser } from "@/lib/getUser";
 import type { ProviderId } from "@llmgateway/models";
 
 const transitionVariants: { item: Variants } = {
@@ -101,19 +102,31 @@ const providerIcons: Record<string, React.ReactNode> = {
 };
 
 export function Hero({
+	initialUser,
 	navbarOnly,
 	sticky = true,
 	migrations = [],
 }: {
+	initialUser?: PublicUser | null;
 	navbarOnly?: boolean;
 	sticky?: boolean;
 	migrations?: MigrationData[];
 }) {
 	const config = useAppConfig();
+	const primaryCtaHref = initialUser
+		? initialUser.onboardingCompleted
+			? "/dashboard"
+			: "/onboarding"
+		: "/signup";
+	const primaryCtaLabel = initialUser
+		? initialUser.onboardingCompleted
+			? "Go to Dashboard"
+			: "Continue Onboarding"
+		: "Get My API Key";
 
 	return (
 		<>
-			<Navbar sticky={sticky} />
+			<Navbar initialUser={initialUser} sticky={sticky} />
 			{!navbarOnly && (
 				<main className="overflow-hidden">
 					<div
@@ -189,17 +202,35 @@ export function Hero({
 										<div className="relative">
 											{/* Outer glow ring */}
 											<div className="absolute -inset-3 bg-blue-500/30 rounded-full blur-xl animate-pulse" />
-											<AuthLink href="/signup" className="group relative">
-												<ShimmerButton
-													background="rgb(37, 99, 235)"
-													className="shadow-2xl shadow-blue-500/25 px-10 md:px-12 py-3 md:py-4"
+											{initialUser ? (
+												<Link
+													href={primaryCtaHref}
+													className="group relative"
+													prefetch={true}
 												>
-													<span className="flex items-center gap-3 text-center text-xl leading-none font-bold tracking-tight whitespace-pre-wrap text-white md:text-2xl">
-														<span>Get My API Key</span>
-														<ArrowRight className="size-6 md:size-7 transition-transform group-hover:translate-x-1" />
-													</span>
-												</ShimmerButton>
-											</AuthLink>
+													<ShimmerButton
+														background="rgb(37, 99, 235)"
+														className="shadow-2xl shadow-blue-500/25 px-10 md:px-12 py-3 md:py-4"
+													>
+														<span className="flex items-center gap-3 text-center text-xl leading-none font-bold tracking-tight whitespace-pre-wrap text-white md:text-2xl">
+															<span>{primaryCtaLabel}</span>
+															<ArrowRight className="size-6 md:size-7 transition-transform group-hover:translate-x-1" />
+														</span>
+													</ShimmerButton>
+												</Link>
+											) : (
+												<AuthLink href={primaryCtaHref} className="group relative">
+													<ShimmerButton
+														background="rgb(37, 99, 235)"
+														className="shadow-2xl shadow-blue-500/25 px-10 md:px-12 py-3 md:py-4"
+													>
+														<span className="flex items-center gap-3 text-center text-xl leading-none font-bold tracking-tight whitespace-pre-wrap text-white md:text-2xl">
+															<span>{primaryCtaLabel}</span>
+															<ArrowRight className="size-6 md:size-7 transition-transform group-hover:translate-x-1" />
+														</span>
+													</ShimmerButton>
+												</AuthLink>
+											)}
 										</div>
 
 										{/* Trust indicators */}

@@ -24,6 +24,10 @@ const uiUrl =
 	process.env.UI_URL ??
 	(isHosted ? "https://app.kiwillm.in" : "http://localhost:3002");
 const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+const sessionMaxAgeSeconds =
+	Number(process.env.SESSION_MAX_AGE_SECONDS) || 60 * 60 * 24 * 14;
+const sessionUpdateAgeSeconds =
+	Number(process.env.SESSION_UPDATE_AGE_SECONDS) || 60 * 60 * 24;
 const defaultHostedOrigins = [
 	"https://kiwillm.in",
 	"https://www.kiwillm.in",
@@ -510,8 +514,8 @@ export const apiAuth: ReturnType<typeof instrumentBetterAuth> =
 					enabled: true,
 					maxAge: 5 * 60,
 				},
-				expiresIn: 60 * 60 * 24 * 30, // 30 days
-				updateAge: 60 * 60 * 24, // 1 day (every 1 day the session expiration is updated)
+				expiresIn: sessionMaxAgeSeconds,
+				updateAge: sessionUpdateAgeSeconds,
 			},
 			basePath: "/auth",
 			trustedOrigins: allowedOrigins,

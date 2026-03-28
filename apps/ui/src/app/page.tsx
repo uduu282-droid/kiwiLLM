@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import Features from "@/components/landing/features";
 import { HeroRSC } from "@/components/landing/hero-rsc";
 import { Testimonials } from "@/components/landing/testimonials";
+import { getUser } from "@/lib/getUser";
 
 const Graph = dynamic(() =>
 	import("@/components/landing/graph").then((mod) => mod.Graph),
@@ -45,9 +46,11 @@ export default async function Home({
 		redirect(`/auth/callback?${callbackParams.toString()}`);
 	}
 
+	const user = await getUser();
+
 	return (
 		<>
-			<HeroRSC />
+			<HeroRSC initialUser={user} />
 			<Features />
 			<Graph />
 			<CodeExample />

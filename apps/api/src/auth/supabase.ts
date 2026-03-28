@@ -17,7 +17,9 @@ const SUPABASE_SESSION_COOKIE_NAME =
 const SUPABASE_REFRESH_COOKIE_NAME =
 	process.env.SUPABASE_REFRESH_COOKIE_NAME ?? "sb-refresh-token";
 const SUPABASE_COOKIE_MAX_AGE_SECONDS =
-	Number(process.env.SUPABASE_COOKIE_MAX_AGE_SECONDS) || 60 * 60 * 24 * 30;
+	Number(process.env.SUPABASE_COOKIE_MAX_AGE_SECONDS) ||
+	Number(process.env.SESSION_MAX_AGE_SECONDS) ||
+	60 * 60 * 24 * 14;
 
 function getSupabaseConfig() {
 	const url =
@@ -291,7 +293,7 @@ async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
 }
 
 async function syncSupabaseUserRecord(supabaseUser: SupabaseUser) {
-	return upsertSupabaseUser(supabaseUser);
+	return await upsertSupabaseUser(supabaseUser);
 }
 
 async function resolveSupabaseAuthContext(supabaseUser: SupabaseUser) {
