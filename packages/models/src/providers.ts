@@ -60,6 +60,25 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-qwen",
+		name: "KiwiLLM Qwen",
+		description:
+			"KiwiLLM-hosted Qwen models exposed through our OpenAI-compatible worker.",
+		env: {
+			required: {
+				apiKey: "LLM_KIWILLM_QWEN_API_KEY",
+			},
+			optional: {
+				baseUrl: "LLM_KIWILLM_QWEN_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://qwen-worker-proxy.ronitshrimankar1.workers.dev",
+		announcement: null,
+	},
+	{
 		id: "openai",
 		name: "OpenAI",
 		description:

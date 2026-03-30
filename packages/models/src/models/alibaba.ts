@@ -224,6 +224,20 @@ export const alibabaModels = [
 		providers: [
 			{
 				test: "skip",
+				providerId: "kiwillm-qwen",
+				modelName: "qwen3-coder-plus",
+				inputPrice: 0,
+				outputPrice: 0,
+				requestPrice: 0,
+				contextSize: 1000000,
+				maxOutput: 66000,
+				streaming: true,
+				vision: false,
+				tools: true,
+				jsonOutput: true,
+			},
+			{
+				test: "skip",
 				providerId: "alibaba",
 				modelName: "qwen3-coder-plus",
 				discount: 0.2,
@@ -1254,6 +1268,19 @@ export const alibabaModels = [
 		family: "alibaba",
 		releasedAt: new Date("2025-07-22"),
 		providers: [
+			{
+				providerId: "kiwillm-qwen",
+				modelName: "qwen3-coder-flash",
+				inputPrice: 0,
+				outputPrice: 0,
+				requestPrice: 0,
+				contextSize: 262144,
+				maxOutput: 65536,
+				streaming: true,
+				vision: false,
+				tools: true,
+				jsonOutput: true,
+			},
 			{
 				providerId: "alibaba",
 				modelName: "qwen3-coder-flash",

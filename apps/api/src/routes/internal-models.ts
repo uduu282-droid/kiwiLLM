@@ -7,6 +7,8 @@ import type { ServerTypes } from "@/vars.js";
 
 export const internalModels = new OpenAPIHono<ServerTypes>();
 
+const preferredProviderOrder = ["kiwillm-qwen"] as const;
+
 // Provider schema
 const providerSchema = z.object({
 	id: z.string(),
@@ -174,16 +176,33 @@ internalModels.openapi(getModelsRoute, async (c) => {
 	// Transform and apply effective discount
 	const transformedModels = models.map((model) => ({
 		...model,
-		mappings: model.modelProviderMappings.map((mapping) => {
-			const globalDiscount = getGlobalDiscount(
-				mapping.providerId,
-				model.id,
-				mapping.modelName,
-			);
-			// Global discount takes precedence over hardcoded mapping discount
-			const effectiveDiscount = globalDiscount ?? mapping.discount;
-			return { ...mapping, discount: effectiveDiscount };
-		}),
+		mappings: model.modelProviderMappings
+			.map((mapping) => {
+				const globalDiscount = getGlobalDiscount(
+					mapping.providerId,
+					model.id,
+					mapping.modelName,
+				);
+				// Global discount takes precedence over hardcoded mapping discount
+				const effectiveDiscount = globalDiscount ?? mapping.discount;
+				return { ...mapping, discount: effectiveDiscount };
+			})
+			.sort((a, b) => {
+				const aPriority = preferredProviderOrder.indexOf(a.providerId as never);
+				const bPriority = preferredProviderOrder.indexOf(b.providerId as never);
+
+				if (aPriority !== -1 || bPriority !== -1) {
+					if (aPriority === -1) {
+						return 1;
+					}
+					if (bPriority === -1) {
+						return -1;
+					}
+					return aPriority - bPriority;
+				}
+
+				return a.createdAt.getTime() - b.createdAt.getTime();
+			}),
 	}));
 
 	return c.json({ models: transformedModels });

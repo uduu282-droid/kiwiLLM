@@ -52,6 +52,15 @@ export function getProviderEndpoint(
 			case "openai":
 				url = "https://api.openai.com";
 				break;
+			case "kiwillm-qwen":
+				url =
+					getProviderEnvValue(
+						"kiwillm-qwen",
+						"baseUrl",
+						configIndex,
+						"https://qwen-worker-proxy.ronitshrimankar1.workers.dev",
+					) ?? "https://qwen-worker-proxy.ronitshrimankar1.workers.dev";
+				break;
 			case "anthropic":
 				url = "https://api.anthropic.com";
 				break;
@@ -339,6 +348,8 @@ export function getProviderEndpoint(
 			}
 			return `${url}/v1/chat/completions`;
 		}
+		case "kiwillm-qwen":
+			return `${url}/v1/chat/completions`;
 		case "alibaba":
 			if (imageGenerations) {
 				return `${url}/api/v1/services/aigc/multimodal-generation/generation`;
