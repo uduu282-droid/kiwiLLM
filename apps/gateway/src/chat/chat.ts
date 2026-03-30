@@ -85,7 +85,10 @@ import { extractToolCalls } from "./tools/extract-tool-calls.js";
 import { getFinishReasonFromError } from "./tools/get-finish-reason-from-error.js";
 import { getProviderEnv } from "./tools/get-provider-env.js";
 import { healJsonResponse } from "./tools/heal-json-response.js";
-import { isModelTrulyFree } from "./tools/is-model-truly-free.js";
+import {
+	isModelTrulyFree,
+	isProviderMappingTrulyFree,
+} from "./tools/is-model-truly-free.js";
 import { messagesContainImages } from "./tools/messages-contain-images.js";
 import { mightBeCompleteJson } from "./tools/might-be-complete-json.js";
 import { convertAwsEventStreamToSSE } from "./tools/parse-aws-eventstream.js";
@@ -1426,6 +1429,13 @@ chat.openapi(completions, async (c) => {
 	let usedToken: string | undefined;
 	let configIndex = 0; // Index for round-robin environment variables
 	let envVarName: string | undefined; // Environment variable name for health tracking
+	const billingProviderMapping = (finalModelInfo ?? modelInfo).providers.find(
+		(provider) =>
+			provider.providerId === usedProvider && provider.modelName === usedModel,
+	);
+	const selectedProviderIsZeroCost = isProviderMappingTrulyFree(
+		billingProviderMapping as ProviderModelMapping | undefined,
+	);
 
 	if (
 		project.mode === "credits" &&
@@ -1472,7 +1482,8 @@ chat.openapi(completions, async (c) => {
 		if (
 			totalAvailableCredits <= 0 &&
 			!free_models_only &&
-			!((finalModelInfo ?? modelInfo) as ModelDefinition).free
+			!((finalModelInfo ?? modelInfo) as ModelDefinition).free &&
+			!selectedProviderIsZeroCost
 		) {
 			if (organization.devPlan !== "none" && devPlanCreditsRemaining <= 0) {
 				const renewalDate = organization.devPlanExpiresAt
@@ -1525,7 +1536,8 @@ chat.openapi(completions, async (c) => {
 			if (
 				totalAvailableCredits <= 0 &&
 				!free_models_only &&
-				!isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition)
+				!isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition) &&
+				!selectedProviderIsZeroCost
 			) {
 				if (organization.devPlan !== "none" && devPlanCreditsRemaining <= 0) {
 					const renewalDate = organization.devPlanExpiresAt
