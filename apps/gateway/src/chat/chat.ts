@@ -1604,7 +1604,7 @@ chat.openapi(completions, async (c) => {
 		}
 	}
 
-	if (!usedToken) {
+	if (usedToken === undefined) {
 		throw new HTTPException(500, {
 			message: `No token`,
 		});
