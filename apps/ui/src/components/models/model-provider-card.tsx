@@ -686,4 +686,3 @@ export function ModelProviderCard({
 		</Card>
 	);
 }
-

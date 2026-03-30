@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React, { useMemo, type ReactNode, useRef, useState } from "react";
 
 import { ModelSelector } from "@/components/models/playground-model-selector";
+import { BrandMark } from "@/components/shared/brand-mark";
 import { Badge } from "@/lib/components/badge";
 import { Button } from "@/lib/components/button";
 import {
@@ -22,7 +23,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/lib/components/table";
-import { BrandMark } from "@/components/shared/brand-mark";
 import { useAppConfig } from "@/lib/config";
 import { formatContextSize } from "@/lib/utils";
 

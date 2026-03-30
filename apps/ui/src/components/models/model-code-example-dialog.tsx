@@ -235,4 +235,3 @@ const { text } = await generateText({
 		</Dialog>
 	);
 }
-

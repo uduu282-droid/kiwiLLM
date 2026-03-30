@@ -394,4 +394,3 @@ export function generateCategoryOgImage(categoryKey: string) {
 		ogSize,
 	);
 }
-
