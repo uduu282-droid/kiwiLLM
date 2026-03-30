@@ -21,9 +21,9 @@ import { useEffect, useState } from "react";
 
 import { AuthLink } from "@/components/shared/auth-link";
 import { BrandMark } from "@/components/shared/brand-mark";
+import { ModelSearch } from "@/components/shared/model-search";
 import { useUser } from "@/hooks/useUser";
 import { Avatar, AvatarFallback, AvatarImage } from "@/lib/components/avatar";
-import { ModelSearch } from "@/components/shared/model-search";
 import { Button } from "@/lib/components/button";
 import {
 	NavigationMenu,
@@ -38,9 +38,9 @@ import { cn } from "@/lib/utils";
 
 import { ThemeToggle } from "./theme-toggle";
 
+import type { PublicUser } from "@/lib/getUser";
 import type { Route } from "next";
 import type { ReactNode } from "react";
-import type { PublicUser } from "@/lib/getUser";
 
 function ListItem({
 	title,
@@ -98,11 +98,7 @@ function getUserInitials(user: PublicUser) {
 		.slice(0, 2);
 }
 
-function UserNavigation({
-	user,
-}: {
-	user: PublicUser;
-}) {
+function UserNavigation({ user }: { user: PublicUser }) {
 	const destination = user.onboardingCompleted ? "/dashboard" : "/onboarding";
 	const destinationLabel = user.onboardingCompleted
 		? "Dashboard"
@@ -117,7 +113,10 @@ function UserNavigation({
 				className="hidden nav:flex items-center gap-3 rounded-full border border-border/80 bg-background/80 px-2 py-1.5 text-sm transition-colors hover:bg-accent"
 			>
 				<Avatar className="size-8 border border-border/80">
-					<AvatarImage src={user.image ?? undefined} alt={user.name ?? user.email} />
+					<AvatarImage
+						src={user.image ?? undefined}
+						alt={user.name ?? user.email}
+					/>
 					<AvatarFallback className="text-xs font-semibold">
 						{getUserInitials(user)}
 					</AvatarFallback>
@@ -143,21 +142,7 @@ function UserNavigation({
 	);
 }
 
-function GuestNavigation({
-	showPlaceholder,
-}: {
-	showPlaceholder: boolean;
-}) {
-	if (showPlaceholder) {
-		return (
-			<div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit items-center">
-				<ThemeToggle />
-				<div className="hidden h-8 w-16 rounded-full bg-muted/70 nav:block" />
-				<div className="h-10 w-full rounded-md bg-muted/70 md:w-32" />
-			</div>
-		);
-	}
-
+function GuestNavigation() {
 	return (
 		<div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit items-center">
 			<ThemeToggle />
@@ -187,7 +172,7 @@ export const Navbar = ({
 	sticky?: boolean;
 }) => {
 	const config = useAppConfig();
-	const { user, isLoading } = useUser();
+	const { user } = useUser();
 	const currentUser = user
 		? {
 				id: user.id,
@@ -808,9 +793,7 @@ export const Navbar = ({
 								{currentUser ? (
 									<UserNavigation user={currentUser} />
 								) : (
-									<GuestNavigation
-										showPlaceholder={isLoading && !initialUser}
-									/>
+									<GuestNavigation />
 								)}
 							</div>
 						</div>

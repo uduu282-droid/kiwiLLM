@@ -1,427 +1,122 @@
 "use client";
-import { DiscordLogoIcon } from "@radix-ui/react-icons";
-import { GithubIcon } from "lucide-react";
-import Link from "next/link";
 
 import { BrandMark } from "@/components/shared/brand-mark";
 import { useAppConfig } from "@/lib/config";
-import { XIcon } from "@/lib/icons/XIcon";
-
-import { providers as providerDefinitions } from "@llmgateway/models";
 
 export default function Footer() {
 	const config = useAppConfig();
-	const filteredProviders = providerDefinitions.filter(
-		(p) => p.id !== "llmgateway",
-	);
 
 	return (
-		<footer className="relative py-12 bg-background">
-			{/* Gradient separator */}
-			<div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+		<footer className="relative overflow-hidden text-white">
+			<div aria-hidden className="absolute inset-0 opacity-80">
+				<div className="absolute left-1/2 top-0 h-[260px] w-[760px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.08)_0%,rgba(59,130,246,0.03)_34%,transparent_72%)] blur-[120px]" />
+			</div>
 
-			<div className="container mx-auto px-4">
-				<div className="flex flex-col md:flex-row md:justify-between md:items-start">
-					<div className="mb-6 md:mb-0">
-						<div className="flex items-center space-x-2">
-							<BrandMark className="h-8 w-8" />
-							<span className="font-display text-lg font-bold tracking-tight text-foreground">
-								KiwiLLM
-							</span>
-						</div>
-						<div className="flex items-center space-x-4 mt-4">
-							<a
-								href={config.githubUrl}
-								target="_blank"
-								rel="noopener noreferrer"
-								className="text-muted-foreground hover:text-foreground transition-colors"
-								aria-label="GitHub"
-							>
-								<GithubIcon className="h-5 w-5" />
-							</a>
-							<a
-								href={config.twitterUrl}
-								target="_blank"
-								rel="noopener noreferrer"
-								className="text-muted-foreground hover:text-foreground transition-colors"
-								aria-label="X"
-							>
-								<XIcon className="h-5 w-5" />
-							</a>
-							<a
-								href={config.discordUrl}
-								target="_blank"
-								rel="noopener noreferrer"
-								className="text-muted-foreground hover:text-foreground transition-colors"
-								aria-label="Discord"
-							>
-								<DiscordLogoIcon className="h-5 w-5" />
-							</a>
-						</div>
+			<div className="relative mx-auto max-w-[1800px] px-5 pb-10 pt-10 md:px-6 md:pb-12 md:pt-14">
+				<div className="grid gap-10 md:grid-cols-[1.1fr_0.55fr_0.45fr] md:gap-12">
+					<div className="flex items-center gap-3 text-white/92">
+						<BrandMark className="size-7" />
+						<span className="font-display text-xl font-semibold tracking-tight">
+							KiwiLLM
+						</span>
 					</div>
 
-					<div className="w-full md:w-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-8 text-muted-foreground">
-						<div>
-							<h3 className="font-display text-sm font-semibold mb-4 text-foreground">
-								Product
-							</h3>
-							<ul className="space-y-2">
-								<li>
-									<a
-										href="#features"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-									>
-										Features
-									</a>
-								</li>
-								<li>
-									<Link
-										href="/models"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Models
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/providers"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Providers
-									</Link>
-								</li>
-								<li>
-									<a
-										href={config.playgroundUrl}
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										rel="noopener noreferrer"
-										target="_blank"
-									>
-										Chat Playground
-									</a>
-								</li>
-								<li>
-									<Link
-										href="/changelog"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Changelog
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/models/compare"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Compare Models
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/enterprise"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Enterprise
-									</Link>
-								</li>
-							</ul>
-						</div>
+					<div className="space-y-4 text-[0.95rem] text-white/72">
+						<a
+							href={config.docsUrl ?? "/"}
+							className="block transition-colors duration-200 ease-out hover:text-white"
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							Documentation
+						</a>
+						<a
+							href="#features"
+							className="block transition-colors duration-200 ease-out hover:text-white"
+						>
+							Product
+						</a>
+						<a
+							href="/pricing"
+							className="block transition-colors duration-200 ease-out hover:text-white"
+						>
+							Pricing
+						</a>
+						<a
+							href="/changelog"
+							className="block transition-colors duration-200 ease-out hover:text-white"
+						>
+							Changelog
+						</a>
+					</div>
 
-						<div>
-							<h3 className="font-display text-sm font-semibold mb-4 text-foreground">
-								Resources
-							</h3>
-							<ul className="space-y-2">
-								<li>
-									<Link
-										href="/templates"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch
-									>
-										Templates
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/agents"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch
-									>
-										Agents
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/mcp"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch
-									>
-										MCP Server
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/blog"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-									>
-										Blog
-									</Link>
-								</li>
-								<li>
-									<a
-										href={config.docsUrl ?? ""}
-										target="_blank"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-									>
-										Documentation
-									</a>
-								</li>
-								<li>
-									<Link
-										href={"/integrations" as any}
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch
-									>
-										Integrations
-									</Link>
-								</li>
-								<li>
-									<Link
-										href={"/guides" as any}
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch
-									>
-										Guides
-									</Link>
-								</li>
-								<li>
-									<Link
-										href={"/brand" as any}
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch
-									>
-										Brand Assets
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/cost-simulator"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch
-									>
-										Cost Simulator
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/referrals"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-									>
-										Referral Program
-									</Link>
-								</li>
-								<li>
-									<a
-										href={config.githubUrl ?? ""}
-										target="_blank"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-									>
-										GitHub
-									</a>
-								</li>
-								<li>
-									<a
-										href="mailto:contact@llmgateway.io"
-										target="_blank"
-										rel="noreferrer noopener"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-									>
-										Contact Us
-									</a>
-								</li>
-							</ul>
-						</div>
-
-						<div>
-							<h3 className="font-display text-sm font-semibold mb-4 text-foreground">
-								Community
-							</h3>
-							<ul className="space-y-2">
-								<li>
-									<a
-										href={config.twitterUrl}
-										target="_blank"
-										rel="noopener noreferrer"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-									>
-										Twitter
-									</a>
-								</li>
-								<li>
-									<a
-										href={config.discordUrl}
-										target="_blank"
-										rel="noopener noreferrer"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-									>
-										Discord
-									</a>
-								</li>
-							</ul>
-						</div>
-
-						<div>
-							<h3 className="font-display text-sm font-semibold mb-4 text-foreground">
-								Compare
-							</h3>
-							<ul className="space-y-2">
-								<li>
-									<Link
-										href="/compare/open-router"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										OpenRouter
-									</Link>
-								</li>
-								<li>
-									<Link
-										href={"/compare/litellm" as any}
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										LiteLLM
-									</Link>
-								</li>
-							</ul>
-						</div>
-
-						<div>
-							<h3 className="font-display text-sm font-semibold mb-4 text-foreground">
-								Models
-							</h3>
-							<ul className="space-y-2">
-								<li>
-									<Link
-										href="/models/text"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Text Generation
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/models/text-to-image"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Text to Image
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/models/image-to-image"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Image to Image
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/models/vision"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Vision
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/models/reasoning"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Reasoning
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/models/tools"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Tool Calling
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/models/web-search"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Web Search
-									</Link>
-								</li>
-								<li>
-									<Link
-										href="/models/discounted"
-										className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-										prefetch={true}
-									>
-										Discounted
-									</Link>
-								</li>
-							</ul>
-						</div>
-
-						<div>
-							<h3 className="font-display text-sm font-semibold mb-4 text-foreground">
-								Providers
-							</h3>
-							<ul className="space-y-2">
-								{filteredProviders.map((provider) => (
-									<li key={provider.id}>
-										<Link
-											href={`/providers/${provider.id}`}
-											className="text-sm hover:underline underline-offset-4 hover:text-foreground"
-											prefetch={true}
-										>
-											{provider.name}
-										</Link>
-									</li>
-								))}
-							</ul>
-						</div>
+					<div className="space-y-4 text-[0.95rem] text-white/72">
+						<a
+							href="/blog"
+							className="block transition-colors duration-200 ease-out hover:text-white"
+						>
+							Blog
+						</a>
+						<a
+							href="/about"
+							className="block transition-colors duration-200 ease-out hover:text-white"
+						>
+							About
+						</a>
+						<a
+							href="/legal/privacy"
+							className="block transition-colors duration-200 ease-out hover:text-white"
+						>
+							Privacy
+						</a>
+						<a
+							href="/legal/terms"
+							className="block transition-colors duration-200 ease-out hover:text-white"
+						>
+							Terms
+						</a>
 					</div>
 				</div>
 
-				{/* Bottom bar */}
-				<div className="border-t border-border/50 pt-8 mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-					<p className="text-muted-foreground text-sm">
-						&copy; {new Date().getFullYear()} KiwiLLM. All rights reserved.
-					</p>
-					<div className="flex items-center gap-6">
-						<Link
+				<div className="pointer-events-none mt-12 -mx-12 select-none overflow-hidden md:-mx-24">
+					<h2 className="font-display text-center text-[clamp(9.5rem,28vw,24rem)] font-semibold leading-[0.84] tracking-[-0.06em] text-white/[0.84]">
+						KiwiLLM
+					</h2>
+				</div>
+
+				<div className="mt-10 flex flex-col gap-5 text-sm text-white/58 sm:flex-row sm:items-center sm:justify-between">
+					<div className="flex items-center gap-3 text-white/74">
+						<BrandMark className="size-5" />
+						<span className="font-medium">KiwiLLM</span>
+					</div>
+
+					<div className="flex flex-wrap items-center gap-x-6 gap-y-3 sm:justify-end">
+						<a
+							href="/about"
+							className="transition-colors duration-200 ease-out hover:text-white"
+						>
+							About KiwiLLM
+						</a>
+						<a
+							href={config.docsUrl ?? "/"}
+							className="transition-colors duration-200 ease-out hover:text-white"
+							target="_blank"
+							rel="noopener noreferrer"
+						>
+							Documentation
+						</a>
+						<a
 							href="/legal/privacy"
-							className="text-sm text-muted-foreground hover:underline underline-offset-4 hover:text-foreground"
-							prefetch={true}
+							className="transition-colors duration-200 ease-out hover:text-white"
 						>
-							Privacy Policy
-						</Link>
-						<Link
+							Privacy
+						</a>
+						<a
 							href="/legal/terms"
-							className="text-sm text-muted-foreground hover:underline underline-offset-4 hover:text-foreground"
-							prefetch={true}
+							className="transition-colors duration-200 ease-out hover:text-white"
 						>
-							Terms of Use
-						</Link>
+							Terms
+						</a>
 					</div>
 				</div>
 			</div>

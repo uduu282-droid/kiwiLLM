@@ -350,18 +350,7 @@ const tier2Features = features.slice(3);
 
 export default function Features() {
 	return (
-		<section id="features" className="relative py-24 md:py-32 overflow-hidden">
-			{/* Dot grid background */}
-			<div
-				className="absolute inset-0 pointer-events-none"
-				style={{
-					backgroundImage:
-						"radial-gradient(circle, var(--border) 1px, transparent 1px)",
-					backgroundSize: "20px 20px",
-					opacity: 0.4,
-				}}
-			/>
-
+		<section id="features" className="relative overflow-hidden py-24 md:py-32">
 			<div className="container relative mx-auto px-4">
 				<div className="mb-16">
 					<p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-4">

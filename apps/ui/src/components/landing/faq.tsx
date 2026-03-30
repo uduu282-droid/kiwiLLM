@@ -47,7 +47,7 @@ const faqSchema = {
 
 export function Faq() {
 	return (
-		<section className="w-full py-20 md:py-32 bg-background" id="faq">
+		<section className="w-full py-20 md:py-32" id="faq">
 			<script
 				type="application/ld+json"
 				// eslint-disable-next-line @eslint-react/dom/no-dangerously-set-innerhtml
@@ -219,4 +219,3 @@ export function Faq() {
 		</section>
 	);
 }
-

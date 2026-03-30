@@ -7,6 +7,7 @@ import { PostHogProvider } from "posthog-js/react";
 import { Suspense, useMemo, useEffect } from "react";
 import { Toaster as SonnerToaster } from "sonner";
 
+import { SmoothScrollProvider } from "@/components/providers/smooth-scroll-provider";
 import { SupabaseAuthProvider } from "@/components/providers/supabase-auth-provider";
 import { ReferralHandler } from "@/components/referral-handler";
 import { Toaster } from "@/lib/components/toaster";
@@ -81,35 +82,37 @@ export function Providers({ children, config }: ProvidersProps) {
 
 	return (
 		<AppConfigProvider config={config}>
-			<ThemeProvider
-				attribute="class"
-				defaultTheme="system"
-				enableSystem
-				storageKey="theme"
-			>
-				<SupabaseAuthProvider>
-					<QueryClientProvider client={queryClient}>
-						{config.posthogKey ? (
-							<PostHogProvider
-								apiKey={config.posthogKey}
-								options={posthogOptions}
-							>
-								{children}
-							</PostHogProvider>
-						) : (
-							children
-						)}
-						{process.env.NODE_ENV === "development" && (
-							<ReactQueryDevtools buttonPosition="bottom-right" />
-						)}
-					</QueryClientProvider>
-				</SupabaseAuthProvider>
-				<Toaster />
-				<SonnerToaster richColors position="bottom-right" />
-				<Suspense>
-					<ReferralHandler />
-				</Suspense>
-			</ThemeProvider>
+			<SmoothScrollProvider>
+				<ThemeProvider
+					attribute="class"
+					defaultTheme="system"
+					enableSystem
+					storageKey="theme"
+				>
+					<SupabaseAuthProvider>
+						<QueryClientProvider client={queryClient}>
+							{config.posthogKey ? (
+								<PostHogProvider
+									apiKey={config.posthogKey}
+									options={posthogOptions}
+								>
+									{children}
+								</PostHogProvider>
+							) : (
+								children
+							)}
+							{process.env.NODE_ENV === "development" && (
+								<ReactQueryDevtools buttonPosition="bottom-right" />
+							)}
+						</QueryClientProvider>
+					</SupabaseAuthProvider>
+					<Toaster />
+					<SonnerToaster richColors position="bottom-right" />
+					<Suspense>
+						<ReferralHandler />
+					</Suspense>
+				</ThemeProvider>
+			</SmoothScrollProvider>
 		</AppConfigProvider>
 	);
 }

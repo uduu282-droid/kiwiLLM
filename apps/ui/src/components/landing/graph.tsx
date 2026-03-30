@@ -4,6 +4,7 @@ import { MonitorSmartphone, HelpCircle, Plus } from "lucide-react";
 import Link from "next/link";
 import React, { useId, useRef } from "react";
 
+import { BrandMark } from "@/components/shared/brand-mark";
 import { Button } from "@/lib/components/button";
 import {
 	Tooltip,
@@ -11,7 +12,6 @@ import {
 	TooltipTrigger,
 	TooltipContent,
 } from "@/lib/components/tooltip";
-import { BrandMark } from "@/components/shared/brand-mark";
 import { cn } from "@/lib/utils";
 
 import { ProviderIcons } from "@llmgateway/shared/components";
@@ -74,12 +74,7 @@ export function Graph() {
 	];
 
 	return (
-		<div className="relative w-full py-28 md:py-36 px-4 overflow-hidden">
-			{/* Gradient background */}
-			<div className="absolute inset-0 bg-gradient-to-b from-background via-surface-elevated to-background" />
-			{/* Noise texture */}
-			<div className="absolute inset-0 bg-noise" />
-
+		<div className="relative w-full overflow-hidden px-4 py-28 md:py-36">
 			<div className="relative">
 				{/* Header */}
 				<div className="container mx-auto px-4">

@@ -49,15 +49,22 @@ export default async function Home({
 	const user = await getUser();
 
 	return (
-		<>
-			<HeroRSC initialUser={user} />
-			<Features />
-			<Graph />
-			<CodeExample />
-			<Testimonials />
-			<Faq />
-			<CallToAction />
-			<Footer />
-		</>
+		<div className="relative overflow-hidden bg-[#050608] text-foreground">
+			<div aria-hidden className="pointer-events-none absolute inset-0">
+				<div className="absolute -left-[10%] top-[6%] h-[540px] w-[540px] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.08)_0%,rgba(59,130,246,0.03)_36%,transparent_72%)] blur-[140px]" />
+				<div className="absolute right-[-8%] top-[18%] h-[720px] w-[720px] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.06)_0%,rgba(59,130,246,0.02)_34%,transparent_72%)] blur-[180px]" />
+				<div className="absolute left-1/2 top-[38%] h-[680px] w-[1280px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0.015)_28%,transparent_72%)] blur-[180px]" />
+			</div>
+			<div className="relative z-10">
+				<HeroRSC initialUser={user} />
+				<Features />
+				<Graph />
+				<CodeExample />
+				<Testimonials />
+				<Faq />
+				<CallToAction />
+				<Footer />
+			</div>
+		</div>
 	);
 }
