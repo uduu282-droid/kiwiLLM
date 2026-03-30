@@ -30,6 +30,7 @@ export function getProviderHeaders(
 		case "google-ai-studio":
 		case "google-vertex":
 		case "kiwillm-qwen":
+		case "kiwillm-kimi":
 			return {};
 		case "obsidian":
 			return {

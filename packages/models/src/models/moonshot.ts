@@ -100,6 +100,21 @@ export const moonshotModels = [
 		releasedAt: new Date("2025-11-06"),
 		providers: [
 			{
+				test: "skip",
+				providerId: "kiwillm-kimi",
+				modelName: "kimi-k2-thinking",
+				inputPrice: 0,
+				outputPrice: 0,
+				requestPrice: 0,
+				contextSize: 262144,
+				maxOutput: 262144,
+				reasoning: true,
+				streaming: true,
+				vision: false,
+				tools: true,
+				jsonOutput: true,
+			},
+			{
 				providerId: "moonshot",
 				modelName: "kimi-k2-thinking",
 				inputPrice: 0.6 / 1e6,
@@ -179,6 +194,26 @@ export const moonshotModels = [
 		family: "moonshot",
 		releasedAt: new Date("2026-01-26"),
 		providers: [
+			{
+				test: "skip",
+				providerId: "kiwillm-kimi",
+				modelName: "kimi-k2.5",
+				inputPrice: 0,
+				outputPrice: 0,
+				requestPrice: 0,
+				contextSize: 262144,
+				maxOutput: 32768,
+				streaming: true,
+				vision: true,
+				tools: true,
+				jsonOutput: true,
+				supportedParameters: [
+					"max_tokens",
+					"response_format",
+					"tools",
+					"tool_choice",
+				],
+			},
 			{
 				providerId: "moonshot",
 				modelName: "kimi-k2.5",

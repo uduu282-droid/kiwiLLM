@@ -77,6 +77,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-kimi",
+		name: "KiwiLLM Kimi",
+		description:
+			"KiwiLLM-hosted Moonshot Kimi models exposed through our OpenAI-compatible worker.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_KIMI_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#111827",
+		website: "https://kimi-k2.qwen4346.workers.dev",
+		announcement: null,
+	},
+	{
 		id: "openai",
 		name: "OpenAI",
 		description:
