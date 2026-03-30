@@ -16,7 +16,7 @@ export async function GET(
 	return generateOGImage({
 		title: page.data.title,
 		description: page.data.description,
-		site: "LLM Gateway",
+		site: "KiwiLLM",
 		icon: (
 			<svg
 				fill="none"

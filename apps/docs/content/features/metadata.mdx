@@ -1,25 +1,25 @@
 ---
 title: Metadata
-description: Send additional context and metadata to LLM Gateway using custom headers.
+description: Attach request metadata with custom headers for filtering and analytics.
 icon: Braces
 ---
 
 # Metadata
 
-LLM Gateway supports sending additional metadata with your requests using custom headers. This allows you to include information like user sessions, application versions, tenant IDs, or other contextual data that can be useful for analytics and monitoring.
+KiwiLLM lets you send additional request metadata using custom headers. This is useful when you want to attach business context like tenant IDs, app versions, user identifiers, or feature names to every request.
 
-Later, you can filter by specific values to return, such as for a specific user or session. Additionally, in the future, you will be able to segment your analytics and monitoring based on this metadata. For example, you could show cost and latency breakdowns per user, application, country, feature, or any other dimension you want to track.
+That metadata can then be used for filtering, analysis, and internal reporting.
 
-## Custom Headers
+## Header format
 
-You can include custom headers with the `X-LLMGateway-` prefix to send metadata alongside your LLM requests:
+Use the `X-KiwiLLM-` prefix:
 
 ```bash
-curl -X POST https://api.llmgateway.io/v1/chat/completions \
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
-  -H "X-LLMGateway-Country: US" \
-  -H "X-LLMGateway-User-ID: 9403f741-a524-4b18-b1b2-dbb71cdff2a4" \
+  -H "X-KiwiLLM-Country: US" \
+  -H "X-KiwiLLM-User-ID: 9403f741-a524-4b18-b1b2-dbb71cdff2a4" \
   -d '{
     "model": "gpt-4o",
     "messages": [
@@ -31,47 +31,62 @@ curl -X POST https://api.llmgateway.io/v1/chat/completions \
   }'
 ```
 
-## Best Practices
+## Good metadata examples
 
-### Header Naming
+- `X-KiwiLLM-Tenant-ID`
+- `X-KiwiLLM-User-ID`
+- `X-KiwiLLM-App-Version`
+- `X-KiwiLLM-Feature`
+- `X-KiwiLLM-Region`
 
-- Use the `X-LLMGateway-` prefix for all custom metadata
-- Use descriptive, consistent naming conventions
-- Avoid special characters; use hyphens to separate words
-
-### Data Privacy
-
-- Be mindful of sensitive data in headers
-- Consider hashing or anonymizing user identifiers
-- Follow your organization's data privacy policies
-
-### Performance
-
-- Keep header values reasonably short
-- Avoid sending unnecessary metadata that won't be used for analytics
-- Consider the impact on request size, especially for high-volume applications
-
-## Example: Multi-tenant Application
-
-For a multi-tenant application, you might use metadata headers like this:
+## Multi-tenant example
 
 ```bash
-curl -X POST https://api.llmgateway.io/v1/chat/completions \
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
-  -H "X-LLMGateway-Tenant-ID: acme-corp" \
-  -H "X-LLMGateway-User-ID: user-12345" \
-  -H "X-LLMGateway-App-Version: 2.1.4" \
-  -H "X-LLMGateway-Feature: chat-assistant" \
+  -H "X-KiwiLLM-Tenant-ID: acme-corp" \
+  -H "X-KiwiLLM-User-ID: user-12345" \
+  -H "X-KiwiLLM-App-Version: 2.1.4" \
+  -H "X-KiwiLLM-Feature: chat-assistant" \
   -d '{
     "model": "gpt-4o",
     "messages": [
       {
         "role": "user",
-        "content": "Summarize this document..."
+        "content": "Summarize this document."
       }
     ]
   }'
 ```
 
-This allows you to track usage and costs per tenant, user, application version, and feature, providing detailed insights into how your LLM integration is being used across your platform.
+## Best practices
+
+### Keep naming consistent
+
+- use clear names
+- prefer hyphen-separated keys
+- avoid one-off labels that are hard to aggregate later
+
+### Be careful with sensitive data
+
+- avoid raw secrets
+- hash or anonymize personal identifiers when appropriate
+- follow your own privacy and compliance rules
+
+### Keep values useful
+
+Only send metadata you will actually use. Good metadata helps answer questions like:
+
+- which tenant generated the most spend?
+- which feature is driving traffic?
+- which app version has the worst latency?
+
+## Recommended use cases
+
+- cost allocation by tenant or customer
+- debugging traffic from a specific app version
+- internal analytics by product feature
+- filtering logs for one user, team, or region
+
+Metadata is most useful when it reflects stable dimensions you already care about in your product analytics.

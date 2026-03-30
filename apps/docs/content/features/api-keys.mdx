@@ -1,128 +1,60 @@
 ---
-title: API Keys & IAM Rules
-description: Comprehensive guide to API key management and Identity Access Management (IAM) rules for fine-grained access control
+title: API Keys and IAM Rules
+description: Create, manage, and constrain KiwiLLM API keys for projects and teams.
 icon: Key
 ---
 
-import { Tabs, Tab } from "fumadocs-ui/components/tabs";
-import { Callout } from "fumadocs-ui/components/callout";
+# API Keys and IAM Rules
 
-# API Keys & IAM Rules
+API keys are how your apps authenticate requests to KiwiLLM. Each key belongs to a project and can be managed independently for usage, access, and lifecycle.
 
-API keys are the primary method for authenticating with the LLM Gateway. This guide covers creating API keys, managing them, and configuring IAM rules for fine-grained access control.
+## What API keys support
 
-## Overview
+- Create multiple keys per project
+- Revoke or disable keys without deleting the project
+- Track usage per key
+- Apply IAM rules to models, providers, and pricing access
+- Set usage limits when you want a hard cap
 
-LLM Gateway provides comprehensive API key management with the following features:
+## Create an API key
 
-- **Basic API Key Management**: Create, list, update, and delete API keys
-- **Usage Limits**: Set spending limits on individual API keys
-- **IAM Rules**: Fine-grained access control for models, providers, and pricing
-- **Usage Tracking**: Monitor API key usage and costs
-- **Status Management**: Enable/disable keys without deletion
+Today, the main way to create keys is from the dashboard:
 
-## Creating API Keys
-
-### Via Dashboard
-
-At this time, API keys can only be created via the dashboard.
-
-1. Navigate to your project in the LLM Gateway dashboard
-2. Go to the **API Keys** section
+1. Open your project in [app.kiwillm.in](https://app.kiwillm.in)
+2. Go to **API Keys**
 3. Click **Create API Key**
-4. Provide a description for your key
+4. Give the key a name or description
 5. Optionally set a usage limit
-6. Click **Create**
+6. Save the key and copy it immediately
 
-<Callout type="warning">
-	API keys are shown in full only once during creation. Make sure to copy and
-	store them securely.
-</Callout>
+API keys are shown in full only once when they are created, so store them before closing the dialog.
 
-## Using API Keys
+## Use an API key
 
-Once you have an API key, use it in the `Authorization` header of your requests:
+Send the key in the `Authorization` header:
 
 ```bash
-curl -X POST "https://api.llmgateway.io/v1/chat/completions" \
-  -H "Authorization: Bearer llmgtwy_your_api_key_here" \
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer kiwillm_your_api_key_here" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o",
-    "messages": [{"role": "user", "content": "Hello!"}]
+    "messages": [{"role": "user", "content": "Hello from KiwiLLM"}]
   }'
 ```
 
-## API Key Management
+## Lifecycle and limits
 
-## Disabling/Enabling API Keys
+Keys can be active, disabled, or deleted. Disabled keys can be re-enabled later, while deleted keys should be treated as permanently unusable.
 
-You can disable an API key to stop it from being used, but the key is not deleted and can be re-enabled later.
+Usage is tracked per key in the dashboard. If you configure a usage limit, KiwiLLM rejects new requests once that limit is reached.
 
-## Usage Limits
+## IAM rules
 
-Usage is tracked per API key which is shown on the API Keys page. Usage includes both costs from LLM Gateway credits and usage from your own provider keys when applicable, giving you complete visibility into total spending per key.
+IAM rules let you restrict:
 
-You can set a maximum usage limit for each API key. When the limit is reached, requests using that key will return an error.
+- which models a key can access
+- which providers a key can access
+- whether a key can use free or paid models
 
-## IAM Rules
-
-IAM (Identity Access Management) rules provide fine-grained access control over what models, providers, and pricing tiers an API key can access.
-
-### Rule Types
-
-#### Model Access Rules
-
-Control access to specific models:
-
-- **Allow Models**: Only allow access to specific models
-- **Deny Models**: Block access to specific models
-
-#### Provider Access Rules
-
-Control access to specific providers:
-
-- **Allow Providers**: Only allow access to specific providers
-- **Deny Providers**: Block access to specific providers
-
-#### Pricing Rules
-
-Control access based on model pricing:
-
-- **Allow Pricing**: Set constraints on what pricing tiers are allowed
-- **Deny Pricing**: Block specific pricing tiers
-- **Free vs Paid**: Allow or deny access to free vs paid models
-
-## Error Handling
-
-When API keys encounter IAM rule violations, the API returns specific error messages:
-
-```json
-{
-	"error": true,
-	"status": 403,
-	"message": "Access denied: Model gpt-4 is not in the allowed models list"
-}
-```
-
-Common error scenarios:
-
-- Model not allowed by IAM rules
-- Provider blocked by IAM rules
-- Pricing limits exceeded
-- API key disabled or deleted
-- Usage limit reached
-
-## Migration from Legacy Keys
-
-If you have existing API keys without IAM rules:
-
-1. **Backward Compatibility**: Existing keys continue to work without restrictions
-2. **Gradual Migration**: Add IAM rules incrementally
-3. **Testing**: Test IAM rules in development before applying to production
-4. **Monitoring**: Monitor for access denied errors after implementing rules
-
-<Callout type="info">
-	API keys without IAM rules have unrestricted access to all models and
-	providers.
-</Callout>
+Older keys without IAM rules continue to work. If you add IAM policies to an existing project, roll them out gradually and monitor denied requests before tightening access further.

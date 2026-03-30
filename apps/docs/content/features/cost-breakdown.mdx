@@ -1,6 +1,6 @@
 ---
 title: Cost Breakdown
-description: Get real-time cost information for each API request directly in the response.
+description: Inspect request cost directly in KiwiLLM API responses.
 icon: DollarSign
 ---
 
@@ -8,33 +8,19 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 # Cost Breakdown
 
-LLM Gateway provides real-time cost information for each API request directly in the response's `usage` object. This allows you to track costs programmatically without needing to query the dashboard.
+KiwiLLM includes cost information directly in API responses so you can measure usage programmatically without polling the dashboard.
 
 <Callout type="info">
-	Cost breakdown is available for all users on both hosted and self-hosted
-	deployments.
+	Cost fields are available on both hosted and self-hosted deployments when the
+	model/provider path supports pricing metadata.
 </Callout>
 
-## Response Format
+## Response format
 
-When cost breakdown is enabled, your API responses will include additional cost fields in the `usage` object:
+Cost data appears inside the `usage` object:
 
 ```json
 {
-	"id": "chatcmpl-123",
-	"object": "chat.completion",
-	"created": 1234567890,
-	"model": "openai/gpt-4o",
-	"choices": [
-		{
-			"index": 0,
-			"message": {
-				"role": "assistant",
-				"content": "Hello! How can I help you today?"
-			},
-			"finish_reason": "stop"
-		}
-	],
 	"usage": {
 		"prompt_tokens": 10,
 		"completion_tokens": 15,
@@ -49,166 +35,62 @@ When cost breakdown is enabled, your API responses will include additional cost 
 }
 ```
 
-## Cost Fields
+## Cost fields
 
-| Field                   | Description                                                                        |
-| ----------------------- | ---------------------------------------------------------------------------------- |
-| `cost_usd_total`        | Total inference cost for the request in USD (excludes storage)                     |
-| `cost_usd_input`        | Cost for input/prompt tokens in USD                                                |
-| `cost_usd_output`       | Cost for output/completion tokens in USD                                           |
-| `cost_usd_cached_input` | Cost for cached input tokens in USD (discounted rate)                              |
-| `cost_usd_request`      | Per-request cost in USD (for models with request-based pricing)                    |
-| `cost_usd_data_storage` | LLM Gateway storage cost in USD ($0.01 per 1M tokens, only when retention enabled) |
+| Field                   | Meaning                                                |
+| ----------------------- | ------------------------------------------------------ |
+| `cost_usd_total`        | Total inference cost in USD                            |
+| `cost_usd_input`        | Input token cost                                       |
+| `cost_usd_output`       | Output token cost                                      |
+| `cost_usd_cached_input` | Cached input token cost, when applicable               |
+| `cost_usd_request`      | Per-request pricing cost for models that bill that way |
+| `cost_usd_data_storage` | Storage cost when data retention is enabled            |
 
-<Callout type="info">
-	**Note:** `cost_usd_total` includes only provider/inference costs. Data
-	storage costs (`cost_usd_data_storage`) are billed separately by LLM Gateway
-	when data retention is enabled in organization policies.
-</Callout>
+## Important distinction
 
-## Streaming Responses
+`cost_usd_total` tracks inference cost. Storage cost is separate and only appears when retention-related storage is in play.
 
-Cost information is also available in streaming responses. The cost fields are included in the final usage chunk sent before the `[DONE]` message:
+## Streaming
 
-```
-data: {"id":"chatcmpl-123","object":"chat.completion.chunk","choices":[...],"usage":{"prompt_tokens":10,"completion_tokens":15,"total_tokens":25,"cost_usd_total":0.000125,"cost_usd_input":0.000025,"cost_usd_output":0.0001}}
+Streaming responses include the cost fields in the final usage chunk before `[DONE]`.
 
-data: [DONE]
-```
+## Example with the OpenAI SDK
 
-## Example: Tracking Costs in Code
-
-Here's an example of how to track costs programmatically using the cost breakdown feature:
-
-```typescript
+```ts
 import OpenAI from "openai";
 
 const client = new OpenAI({
-	apiKey: process.env.LLM_GATEWAY_API_KEY,
-	baseURL: "https://api.llmgateway.io/v1",
+	apiKey: process.env.KIWILLM_API_KEY,
+	baseURL: "https://api.kiwillm.in/v1",
 });
 
-async function trackCosts() {
-	const response = await client.chat.completions.create({
-		model: "gpt-4o",
-		messages: [{ role: "user", content: "Hello!" }],
-	});
+const response = await client.chat.completions.create({
+	model: "gpt-4o",
+	messages: [{ role: "user", content: "Hello!" }],
+});
 
-	const usage = response.usage as any;
+const usage = response.usage;
 
-	if (usage.cost_usd_total !== undefined) {
-		console.log(`Request cost: $${usage.cost_usd_total.toFixed(6)}`);
-		console.log(`  Input: $${usage.cost_usd_input.toFixed(6)}`);
-		console.log(`  Output: $${usage.cost_usd_output.toFixed(6)}`);
-
-		if (usage.cost_usd_cached_input > 0) {
-			console.log(`  Cached: $${usage.cost_usd_cached_input.toFixed(6)}`);
-		}
-	}
-
-	return response;
-}
+console.log("total", usage?.cost_usd_total);
+console.log("input", usage?.cost_usd_input);
+console.log("output", usage?.cost_usd_output);
 ```
 
-## Use Cases
+## Common use cases
 
-### Budget Monitoring
+- budget monitoring
+- per-user or per-project allocation
+- model comparison
+- provider comparison
+- automated cost reporting
 
-Track costs in real-time and implement budget limits in your application:
+## Retention and storage cost
 
-```typescript
-let totalSpent = 0;
-const BUDGET_LIMIT = 10.0; // $10 budget
+When data retention is enabled, KiwiLLM may store request and response payloads for observability and debugging. That storage cost is reported separately from inference cost so your accounting stays clear.
 
-async function makeRequest(messages: Message[]) {
-	const response = await client.chat.completions.create({
-		model: "gpt-4o",
-		messages,
-	});
-
-	const cost = (response.usage as any).cost_usd_total || 0;
-	totalSpent += cost;
-
-	if (totalSpent > BUDGET_LIMIT) {
-		throw new Error(`Budget exceeded: $${totalSpent.toFixed(2)}`);
-	}
-
-	return response;
-}
-```
-
-### Per-User Cost Allocation
-
-Track costs per user for billing or analytics:
-
-```typescript
-const userCosts: Map<string, number> = new Map();
-
-async function makeRequestForUser(userId: string, messages: Message[]) {
-	const response = await client.chat.completions.create({
-		model: "gpt-4o",
-		messages,
-	});
-
-	const cost = (response.usage as any).cost_usd_total || 0;
-	const currentCost = userCosts.get(userId) || 0;
-	userCosts.set(userId, currentCost + cost);
-
-	return response;
-}
-```
-
-### Cost Analytics
-
-Aggregate costs by model, time period, or any other dimension:
-
-```typescript
-interface CostEntry {
-	timestamp: Date;
-	model: string;
-	inputCost: number;
-	outputCost: number;
-	totalCost: number;
-}
-
-const costLog: CostEntry[] = [];
-
-async function loggedRequest(model: string, messages: Message[]) {
-	const response = await client.chat.completions.create({
-		model,
-		messages,
-	});
-
-	const usage = response.usage as any;
-
-	costLog.push({
-		timestamp: new Date(),
-		model: response.model,
-		inputCost: usage.cost_usd_input || 0,
-		outputCost: usage.cost_usd_output || 0,
-		totalCost: usage.cost_usd_total || 0,
-	});
-
-	return response;
-}
-```
-
-## Data Storage Costs
-
-When data retention is enabled in organization policies, LLM Gateway stores full request and response payloads for the configured retention period. This storage incurs a small additional cost:
-
-- **Rate**: $0.01 per 1 million tokens
-- **Applies to**: Input, cached, output, and reasoning tokens
-- **When charged**: Only when retention level is set to "Retain All Data"
-- **Billing mode**: In API keys mode, only storage costs are deducted from credits (inference costs are billed to your provider keys)
-
-Storage costs are displayed separately from inference costs in the dashboard and usage breakdown to maintain transparency between provider costs and LLM Gateway platform costs.
+If you are using hosted KiwiLLM with credits and retention enabled, make sure you monitor storage-related spend as well as inference spend.
 
 <Callout type="success">
-	Enable [auto top-up](/dashboard) in billing settings to prevent request
-	failures when storage costs deplete your credits.
+	Cost breakdown is one of the easiest ways to build usage caps, alerts, and
+	internal chargeback logic on top of KiwiLLM.
 </Callout>
-
-## Self-Hosted Deployments
-
-If you're running a self-hosted LLM Gateway deployment, cost breakdown is always included in API responses regardless of plan. This allows you to track internal costs and allocate them across teams or projects.

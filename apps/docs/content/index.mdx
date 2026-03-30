@@ -1,37 +1,40 @@
 ---
 title: Overview
-description: Introduction to LLM Gateway, an open-source API gateway for LLMs.
+description: Introduction to KiwiLLM, a unified API for routing, managing, and observing LLM usage.
 icon: Notebook
 ---
 
-# LLM Gateway
+# KiwiLLM Docs
 
-LLM Gateway is an open-source API gateway for Large Language Models (LLMs). It acts as a middleware between your applications and various LLM providers, allowing you to:
+KiwiLLM gives you one API for 200+ models across major providers, plus the dashboarding and controls you need to run LLM traffic in production.
+
+Use it to:
 
 - Route requests to multiple LLM providers (OpenAI, Anthropic, Google AI Studio, and others)
-- Manage API keys for different providers in one place
-- Track token usage and costs across all your LLM interactions
-- Analyze performance metrics to optimize your LLM usage
+- Manage project API keys and provider keys in one place
+- Track requests, tokens, latency, and cost across all your usage
+- Compare models and providers without rewriting your application code
+- Run hosted or self-hosted depending on your deployment needs
 
-## Analyzing Your LLM Requests
+## What KiwiLLM Tracks
 
-LLM Gateway provides detailed insights into your LLM usage:
+KiwiLLM gives you production visibility into every request:
 
-- **Usage Metrics**: Track the number of requests, tokens used, and response times
-- **Cost Analysis**: Monitor spending across different models and providers
-- **Performance Tracking**: Identify patterns and optimize your prompts based on actual usage data
-- **Breakdown by Model**: Compare different models' performance and cost-effectiveness
+- **Usage metrics**: Requests, tokens, and latency
+- **Cost breakdown**: Spend by model, provider, project, and key
+- **Routing visibility**: See which provider served each request
+- **Operational insight**: Use the dashboard to debug, optimize, and compare
 
-All this data is automatically collected and presented in an intuitive dashboard, helping you make informed decisions about your LLM strategy.
+Everything is surfaced in the dashboard so you can make routing and cost decisions with real data instead of guesswork.
 
 ## Getting Started
 
-Using LLM Gateway is simple. Just swap out your current LLM provider URL with the LLM Gateway API endpoint:
+The fastest way to start is to point your OpenAI-compatible client at the KiwiLLM API:
 
 ```bash
-curl -X POST https://api.llmgateway.io/v1/chat/completions \
+curl -X POST https://api.kiwillm.in/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
   -d '{
   "model": "gpt-4o",
   "messages": [
@@ -40,13 +43,13 @@ curl -X POST https://api.llmgateway.io/v1/chat/completions \
 }'
 ```
 
-LLM Gateway maintains compatibility with the OpenAI API format, making migration seamless.
+KiwiLLM is OpenAI-compatible, so most migrations are a base URL swap plus a new API key.
 
 ## Hosted vs. Self-Hosted
 
-You can use LLM Gateway in two ways:
+You can use KiwiLLM in two ways:
 
-- **Hosted Version**: For immediate use without setup, visit [llmgateway.io](https://llmgateway.io) to create an account and get an API key.
-- **Self-Hosted**: Deploy LLM Gateway on your own infrastructure for complete control over your data and configuration.
+- **Hosted**: Use [app.kiwillm.in](https://app.kiwillm.in) for the fastest setup.
+- **Self-hosted**: Run the stack on your own infrastructure for full control over data, routing, and provider configuration.
 
-The self-hosted version offers additional customization options and ensures your LLM traffic never leaves your infrastructure if desired.
+If you want to go deeper, continue with the [Quickstart](/quick-start) or jump to [Self-Host](/self-host).

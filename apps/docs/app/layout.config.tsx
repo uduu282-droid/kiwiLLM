@@ -27,14 +27,14 @@ export const baseOptions: BaseLayoutProps = {
 						fill="currentColor"
 					/>
 				</svg>
-				LLM Gateway
+				KiwiLLM
 			</>
 		),
 	},
 	links: [
 		{
 			text: "Dashboard",
-			url: "https://llmgateway.io/dashboard",
+			url: "https://app.kiwillm.in/dashboard",
 			active: "none",
 		},
 	],

@@ -1,6 +1,6 @@
 ---
-title: N8n Integration
-description: Connect n8n workflow automation to LLM Gateway for AI-powered workflows
+title: n8n Integration
+description: Connect n8n to KiwiLLM through the OpenAI-compatible API.
 image: guides/n8n/overview.png
 icon: N8n
 ---
@@ -8,74 +8,61 @@ icon: N8n
 import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Callout } from "fumadocs-ui/components/callout";
 
-n8n is a powerful workflow automation tool that can be enhanced with AI capabilities through LLM Gateway. This guide shows how to integrate LLM Gateway into your n8n workflows.
+n8n works well with KiwiLLM because KiwiLLM exposes OpenAI-compatible endpoints that can be used from the OpenAI credential and model nodes.
 
-![n8n workflow with LLM Gateway](/guides/n8n/overview.png)
+![n8n workflow with KiwiLLM](/guides/n8n/overview.png)
 
 ## Prerequisites
 
-- An LLM Gateway account with an API key
-- n8n instance (self-hosted or cloud)
-- Basic understanding of n8n workflows
+- a KiwiLLM API key
+- an n8n instance
 
 ## Setup
 
-The easiest way to use LLM Gateway with n8n is through the OpenAI node with custom configuration.
-
 <Steps>
 <Step>
-### Add OpenAI Credentials
+### Create OpenAI credentials in n8n
 
-1. In n8n, go to **Settings** → **Credentials**
+Use:
 
-![n8n credentials](/guides/n8n/credential-1.png)
-
-2. Click **Add Credential** → **OpenAI**
-
-![n8n credentials](/guides/n8n/credential-2.png)
-
-3. Configure as follows:
-   - **API Key**: Your LLM Gateway API key
-   - **Base URL**: `https://api.llmgateway.io/v1`
-   - **Organization ID**: Leave blank
-
-![n8n credentials](/guides/n8n/credential-3.png)
-
-</Step>
-<Step>
-### Configure OpenAI Node
-
-1. Add an **AI Agent** node to your workflow
-2. Add a **Chat Model** edge to the node
-
-![n8n credentials](/guides/n8n/node-1.png)
-
-3. Configure the node to use the LLMGateway provider
-
-![n8n credentials](/guides/n8n/node-2.png)
-
-<Callout type="warning">
-	Note: You have to toggle off the responses API. LLMGateway does not support
-	it.
-</Callout>
-
-![responses api](/guides/n8n/responses-api.png)
-
-    4. Select your desired options
-
-- **Model**: Use any [LLMGateway model](https://llmgateway.io/models) ID (e.g., `gpt-5`)
-- **Options**: Optionally, configure LLM parameters
-
-![n8n credentials](/guides/n8n/model.png)
+- **API Key**: your KiwiLLM API key
+- **Base URL**: `https://api.kiwillm.in/v1`
+- **Organization ID**: leave blank unless your setup specifically requires it
 
 </Step>
 
 <Step>
-### Test Workflow
+### Attach the credential to your AI node
 
-Finally, try running your workflow with a test prompt.
+Use the OpenAI-compatible model node or AI agent flow in n8n and attach the credential you just created.
 
-![n8n credentials](/guides/n8n/test.png)
+</Step>
+
+<Step>
+### Choose a model
+
+Pick a KiwiLLM model ID, such as:
+
+- `gpt-5`
+- `gpt-4o`
+- `claude-sonnet-4-5`
+- `gemini-2.5-pro`
+
+</Step>
+
+<Step>
+### Test the workflow
+
+Run a simple prompt through the workflow to confirm requests succeed.
 
 </Step>
 </Steps>
+
+## Important note
+
+Some n8n configurations assume OpenAI’s newer Responses API. If your workflow fails, switch back to chat-completions-style usage and use the standard OpenAI-compatible path through KiwiLLM.
+
+<Callout type="warning">
+	Start with a plain chat completion workflow first. Once that works, layer in
+	tools, structured outputs, or multi-step agent behavior.
+</Callout>

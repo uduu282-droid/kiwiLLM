@@ -1,6 +1,6 @@
 ---
 title: Rate Limits
-description: Understanding rate limits for free and paid models on LLMGateway.
+description: Understand how KiwiLLM rate limits free and paid traffic.
 icon: Timer
 ---
 
@@ -8,41 +8,42 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 # Rate Limits
 
-LLMGateway implements rate limits to ensure fair usage and optimal performance for all users. The rate limits differ based on your account status and the type of models you're using.
+KiwiLLM applies rate limits to protect shared infrastructure and keep access fair across users.
 
-## Free Models
+## Free models
 
-Free models (models with zero input and output pricing) have rate limits that depend on your account's credit status:
+Free models typically use tighter limits than paid usage.
 
-### Base Rate Limits
+### Base limit
 
-For organizations with **zero credits**:
+For organizations with no paid credit history:
 
-- **5 requests per 10 minutes**
-- Applies to all free model requests
-- Resets every 10 minutes
+- `5 requests per 10 minutes`
 
-### Elevated Rate Limits
+### Elevated limit
 
-For organizations that have **purchased at least some credits**:
+For organizations that have added credits:
 
-- **20 requests per minute**
-- Applies to all free model requests
-- Resets every minute
+- `20 requests per minute`
 
 <Callout type="info">
-	When using free models with elevated limits, your credits will **not** be
-	deducted. The elevated rate limits are simply a benefit for users who have
-	added credits to their account.
+	Elevated limits for free models do not mean those requests are billed. It is a
+	rate-limit tier change, not a hidden charge.
 </Callout>
 
-## Paid Models
+## Paid models
 
-**Paid AI models are not currently rate limited.** You can make as many requests as needed to paid models, subject only to your account's credit balance and any provider-specific limits.
+Paid models are generally constrained by:
 
-## Rate Limit Headers
+- your account balance or billing mode
+- upstream provider limits
+- any product-level fairness or safety controls
 
-All API responses include rate limit information in the headers:
+They are not described by the same simple free-model limit bucket.
+
+## Rate limit headers
+
+Responses can include headers like:
 
 ```http
 X-RateLimit-Limit: 20
@@ -50,13 +51,15 @@ X-RateLimit-Remaining: 19
 X-RateLimit-Reset: 1640995200
 ```
 
-- `X-RateLimit-Limit`: Maximum number of requests allowed in the current window
-- `X-RateLimit-Remaining`: Number of requests remaining in the current window
-- `X-RateLimit-Reset`: Unix timestamp when the rate limit window resets
+These tell you:
 
-## Rate Limit Exceeded
+- the current limit
+- how many requests remain
+- when the window resets
 
-When you exceed your rate limit, you'll receive a `429 Too Many Requests` response:
+## Exceeded limit response
+
+If you exceed the active limit, KiwiLLM returns `429 Too Many Requests`.
 
 ```json
 {
@@ -68,30 +71,9 @@ When you exceed your rate limit, you'll receive a `429 Too Many Requests` respon
 }
 ```
 
-## Best Practices
+## Best practices
 
-### Upgrading Your Limits
-
-To unlock elevated rate limits for free models:
-
-1. Add credits to your account through the dashboard
-2. Your rate limits will automatically increase to 20 requests per minute
-3. Free model usage will still not deduct from your credits
-
-### Handling Rate Limits
-
-- Implement exponential backoff when you receive 429 responses
-- Monitor the `X-RateLimit-Remaining` header to avoid hitting limits
-- Consider using paid models for high-volume applications
-
-### Cost Optimization
-
-- Use free models for development and testing
-- Switch to paid models for production workloads requiring higher throughput
-- Monitor your usage patterns through the dashboard
-
-<Callout type="success">
-	Adding even a small amount of credits to your account (e.g., $5) will
-	immediately upgrade your free model rate limits from 5 requests per 10 minutes
-	to 20 requests per minute.
-</Callout>
+- use backoff and retry logic for `429`s
+- monitor the remaining quota headers
+- use paid models for higher-throughput production traffic
+- top up credits if you want the higher free-tier allowance

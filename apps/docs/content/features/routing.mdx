@@ -1,6 +1,6 @@
 ---
 title: Routing
-description: Learn how LLMGateway intelligently routes your requests to the best available models and providers.
+description: Control how KiwiLLM selects models, providers, retries, and fallbacks.
 icon: Route
 ---
 
@@ -8,369 +8,145 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 # Routing
 
-LLMGateway provides flexible and intelligent routing options to help you get the best performance and cost efficiency from your AI applications. Whether you want to use specific models, providers, or let our system automatically optimize your requests, we've got you covered.
+KiwiLLM supports three routing styles:
 
-LLMGateway also includes **automatic retry and fallback** — if a provider fails, your request is seamlessly retried on the next best provider, all within the same API call.
+1. **Model routing** to the best provider for a model
+2. **Provider-specific routing** when you want a fixed upstream
+3. **Auto routing** when you want KiwiLLM to choose the model for you
 
-## Model Selection
+## Model routing
 
-### Any Model Name
-
-You can use any model name from our [models page](https://llmgateway.io/models) or discover available models programmatically through the [/v1/models endpoint](/v1_models).
+If you send only a model ID, KiwiLLM routes the request to the best available provider for that model.
 
 ```bash
-curl -X POST "https://api.llmgateway.io/v1/chat/completions" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o",
-    "messages": [{"role": "user", "content": "Hello!"}]
+    "messages": [{ "role": "user", "content": "Hello!" }]
   }'
 ```
 
-### Model ID Routing
+This is the best default for most production workloads because it lets KiwiLLM optimize for reliability, latency, and cost without changing your application code.
 
-Choose a specific model ID to route to the **best available provider** for that model. LLMGateway's smart routing algorithm considers multiple factors to find the optimal provider across all configured options.
+## Provider-specific routing
 
-#### Smart Routing Algorithm
-
-When you use a model ID without a provider prefix, LLMGateway's intelligent routing system analyzes multiple factors to select the best provider:
-
-**Weighted Scoring System** (based on last 5 minutes of metrics):
-
-- **Uptime (50%)** - Prioritizes providers with high reliability and low error rates
-- **Throughput (20%)** - Favors providers with higher tokens per second generation speed
-- **Price (20%)** - Considers cost efficiency while maintaining quality
-- **Latency (10%)** - Considers time to first token (only applied for streaming requests)
-
-The algorithm calculates a weighted score for each available provider and selects the one with the lowest (best) score. All metrics are normalized to ensure fair comparison across providers.
-
-**Latency Weight for Non-Streaming Requests**:
-
-For non-streaming requests, the latency weight (10%) is redistributed proportionally to the other factors since time-to-first-token is less relevant when waiting for the complete response.
-
-**Exponential Uptime Penalty**:
-
-Providers with uptime below 95% receive an additional exponential penalty that increases rapidly as uptime drops:
-
-- 95-100% uptime: No penalty
-- 90% uptime: ~0.07 penalty
-- 80% uptime: ~0.62 penalty
-- 70% uptime: ~1.73 penalty
-- 50% uptime: ~5.61 penalty
-
-This ensures providers experiencing significant issues are strongly deprioritized while minor fluctuations have minimal impact.
-
-**Epsilon-Greedy Exploration** (1% of requests):
-
-To solve the "cold start problem" where new or unused providers never get traffic to build up metrics, the system randomly explores different providers 1% of the time. This ensures:
-
-- All providers periodically receive traffic
-- New providers can prove their reliability
-- The system adapts to changing provider performance
-- You benefit from improved routing decisions over time
-
-**Routing Metadata**:
-
-Every request includes detailed routing metadata in the logs, showing:
-
-- Available providers that were considered
-- Selected provider and selection reason
-- Scores for each provider (including uptime, throughput, latency, and price)
-
-This transparency allows you to understand and debug routing decisions.
-
-<Callout type="info">
-	Using model IDs without a provider prefix automatically routes to the optimal
-	provider based on reliability, speed, and cost. The system continuously learns
-	and adapts based on real-time performance metrics.
-</Callout>
-
-<Callout type="success">
-	Smart routing prioritizes reliability over cost, ensuring your requests are
-	routed to providers with proven uptime and performance, while still
-	considering cost efficiency.
-</Callout>
-
-### Provider-Specific Routing
-
-To use a specific provider without any fallbacks, prefix the model name with the provider name followed by a slash:
+If you want a specific upstream, prefix the model with the provider name:
 
 ```bash
-# Use OpenAI specifically
-curl -X POST "https://api.llmgateway.io/v1/chat/completions" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "openai/gpt-4o",
-    "messages": [{"role": "user", "content": "Hello!"}]
-  }'
-
-# Use DeepSeek provider specifically
-curl -X POST "https://api.llmgateway.io/v1/chat/completions" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "deepseek/deepseek-v3.2",
-    "messages": [{"role": "user", "content": "Hello!"}]
+    "messages": [{ "role": "user", "content": "Hello!" }]
   }'
 ```
 
-#### Low-Uptime Protection
-
-When you specify a provider explicitly, LLMGateway checks the provider's recent uptime (last 5 minutes). If the uptime falls below 90%, the system automatically routes your request to the best available alternative provider to ensure reliability. This protects your application from providers experiencing temporary issues.
+You can use this pattern with built-in providers and custom providers.
 
 <Callout type="info">
-	If the requested provider has low uptime but no alternative providers are
-	available for that model, the request will still be sent to the originally
-	requested provider.
+	Use provider-specific routing when you need deterministic upstream behavior
+	for testing, benchmarking, or vendor-specific capabilities.
 </Callout>
 
-#### Disabling Fallback with X-No-Fallback Header
+## Automatic fallback
 
-If you need to bypass this protection and always use the exact provider you specified regardless of its current uptime, you can use the `X-No-Fallback` header:
+When KiwiLLM controls routing, failed providers can be retried automatically on the next best provider for the same model.
+
+Retries are typically triggered by:
+
+- upstream `5xx` errors
+- connection failures
+- timeouts
+
+Retries are not used for client-side request errors like `400`, `401`, or `422`.
+
+```text
+Request -> Provider A fails -> Provider B succeeds -> Response
+```
+
+Both standard and streaming completions support fallback.
+
+## Disabling fallback
+
+If you need to force the exact provider you requested, send the `X-No-Fallback: true` header:
 
 ```bash
-# Force use of a specific provider even if it has low uptime
-curl -X POST "https://api.llmgateway.io/v1/chat/completions" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
   -H "Content-Type: application/json" \
   -H "X-No-Fallback: true" \
   -d '{
     "model": "openai/gpt-4o",
-    "messages": [{"role": "user", "content": "Hello!"}]
+    "messages": [{ "role": "user", "content": "Hello!" }]
   }'
 ```
 
-<Callout type="warn">
-	Using `X-No-Fallback: true` disables automatic provider failover. Your
-	requests will be sent to the specified provider even if it is experiencing
-	issues, which may result in higher error rates.
+<Callout type="warning">
+	Disabling fallback means KiwiLLM will not fail over to another provider if the
+	selected upstream is degraded or unavailable.
 </Callout>
 
-When the `X-No-Fallback` header is used, the routing metadata in logs will include `noFallback: true` to indicate that fallback was disabled for that request.
+## Auto routing
 
-## Automatic Retry & Fallback
+Set `"model": "auto"` to let KiwiLLM select the model itself:
 
-When using model ID routing (without a provider prefix), LLMGateway automatically retries failed requests on alternate providers. This happens transparently within the same API call — your application receives the successful response as if nothing went wrong.
-
-### How Retry Works
-
-1. Your request is routed to the best available provider using the smart routing algorithm
-2. If that provider returns a server error (5xx), times out, or has a connection failure, the gateway marks the provider as failed
-3. The next best available provider is selected and the request is retried
-4. Up to **2 retries** are attempted before returning an error to the client
-
-```
-Request → Provider A (500 error) → Provider B (200 OK) → Response
+```bash
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "auto",
+    "messages": [{ "role": "user", "content": "Summarize this document." }]
+  }'
 ```
 
-Both streaming and non-streaming requests support automatic retry.
+Auto routing is useful when you want KiwiLLM to handle model selection based on request shape, context size, and available capabilities.
 
-### What Triggers a Retry
+### Free models only
 
-Retries are triggered by **server-side failures** only:
+You can restrict auto routing to zero-cost models by adding `free_models_only`:
 
-- **5xx errors** (500 Internal Server Error, 502 Bad Gateway, 503 Service Unavailable, etc.)
-- **Timeouts** (upstream provider took too long to respond)
-- **Connection failures** (network errors, DNS failures, etc.)
-
-Retries are **not** triggered by:
-
-- **4xx client errors** (400 Bad Request, 401 Unauthorized, 403 Forbidden, 422 Unprocessable Entity)
-- **Content filter responses** (Azure ResponsibleAI, etc.)
-
-### When Retry Is Disabled
-
-Automatic retry is disabled when:
-
-- The `X-No-Fallback: true` header is set
-- A specific provider is requested (e.g., `openai/gpt-4o`)
-- No alternative providers are available for the requested model
-- The maximum retry count (2) has been exhausted
-
-### Routing Transparency
-
-Every provider attempt — both failed and successful — is recorded in the `routing` array in the response metadata and activity logs:
-
-```json
-{
-	"metadata": {
-		"routing": [
-			{
-				"provider": "openai",
-				"model": "gpt-4o",
-				"status_code": 500,
-				"error_type": "server_error",
-				"succeeded": false
-			},
-			{
-				"provider": "azure",
-				"model": "gpt-4o",
-				"status_code": 200,
-				"error_type": "none",
-				"succeeded": true
-			}
-		]
-	}
-}
+```bash
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "auto",
+    "free_models_only": true,
+    "messages": [{ "role": "user", "content": "Hello!" }]
+  }'
 ```
 
-### Retried Log Tracking
+### Reasoning-aware routing
 
-Each provider attempt creates its own log entry. Failed attempts that were retried are marked with:
+If you set `reasoning_effort`, KiwiLLM restricts selection to reasoning-capable models:
 
-- **`retried: true`** — indicates this failed request was retried on another provider
-- **`retriedByLogId`** — the ID of the final successful log entry
+```bash
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "auto",
+    "reasoning_effort": "medium",
+    "messages": [{ "role": "user", "content": "Solve this step by step." }]
+  }'
+```
 
-This allows you to distinguish between unrecovered failures and failures that were transparently recovered via retry. In the dashboard, retried logs display a "Retried" badge with a link to the successful log.
+If you want to exclude reasoning models, set `no_reasoning: true`.
 
-### Impact on Provider Health
+## Best practices
 
-Failed attempts still count against the provider's uptime score, even when the request was successfully retried on another provider. This means:
-
-- A provider that keeps failing will see its uptime score drop
-- The exponential uptime penalty kicks in below 95% (see [Smart Routing Algorithm](#smart-routing-algorithm))
-- Future requests are automatically routed away from unreliable providers
-- Your application stays reliable without any code changes on your side
+- Use plain model IDs in most production traffic
+- Use provider-prefixed models for testing and debugging
+- Use `"model": "auto"` when you want KiwiLLM to optimize selection
+- Keep fallback enabled unless you have a strong reason to pin one provider
+- Review logs and cost data to understand how traffic is being routed
 
 <Callout type="success">
-	Automatic retry and fallback works together with smart routing to provide
-	self-healing behavior. Failing providers are automatically avoided, and your
-	requests are transparently recovered on reliable alternatives.
+	KiwiLLM is most valuable when you let it absorb provider outages and routing
+	decisions for you. Start with model routing, then tighten controls only where
+	you actually need them.
 </Callout>
-
-## Optimized Auto Routing
-
-Auto routing automatically selects the best model for your specific use case without you having to specify a model at all.
-
-### Current Implementation
-
-The auto routing system currently:
-
-- **Chooses cost-effective models** by default for optimal price-to-performance ratio
-- **Automatically scales to more powerful models** based on your request's context size
-- **Handles large contexts intelligently** by selecting models with appropriate context windows
-
-```bash
-# Let LLMGateway choose the optimal model
-curl -X POST "https://api.llmgateway.io/v1/chat/completions" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "auto",
-    "messages": [{"role": "user", "content": "Your request here..."}]
-  }'
-```
-
-### Free Models Only
-
-When using auto routing, you can restrict the selection to only free models (models with zero input and output pricing) by setting the `free_models_only` parameter to `true`:
-
-```bash
-# Auto route to free models only
-curl -X POST "https://api.llmgateway.io/v1/chat/completions" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "auto",
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "free_models_only": true
-  }'
-```
-
-<Callout type="success">
-	Adding even a small amount of credits to your account (e.g., $5) will
-	immediately upgrade your free model rate limits from 5 requests per 10 minutes
-	to 20 requests per minute.
-</Callout>
-
-<Callout type="info">
-	The `free_models_only` parameter only works with auto routing (`"model":
-	"auto"`). If no free models are available that meet your request requirements,
-	the API will return an error.
-</Callout>
-
-### Reasoning models only
-
-Just specify the `reasoning_effort` value and only a model which supports reasoning will be chosen. This parameter is not specific to the auto model.
-
-```bash
-# Auto route only to reasoning models
-curl -X POST "https://api.llmgateway.io/v1/chat/completions" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "auto",
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "reasoning_effort": "medium"
-  }'
-```
-
-### Exclude Reasoning Models
-
-When using auto routing, you can exclude reasoning models from selection by setting the `no_reasoning` parameter to `true`. This is useful when you want faster responses or need to avoid the additional cost and latency of reasoning models:
-
-```bash
-# Auto route excluding reasoning models
-curl -X POST "https://api.llmgateway.io/v1/chat/completions" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "auto",
-    "messages": [{"role": "user", "content": "Hello!"}],
-    "no_reasoning": true
-  }'
-```
-
-<Callout type="info">
-	The `no_reasoning` parameter only works with auto routing (`"model": "auto"`).
-	If no non-reasoning models are available that meet your request requirements,
-	the API will return an error.
-</Callout>
-
-<Callout type="success">
-	Auto routing analyzes your payload and automatically chooses between
-	cost-effective models for simple requests and more powerful models for complex
-	or large-context requests.
-</Callout>
-
-### Coming Soon: Advanced Optimization
-
-We're continuously improving our auto routing capabilities. Soon you'll benefit from:
-
-- **Tool call optimization**: Automatically select models that excel at function calling and structured outputs
-- **Content-aware routing**: Analyze message content to determine the best model for specific types of requests (coding, creative writing, analysis, etc.)
-- **Performance-based routing**: Route based on historical performance data for similar requests
-- **Multi-model orchestration**: Intelligently combine multiple models for complex workflows
-
-### How It Works
-
-1. **Request Analysis**: The system analyzes your request including message content, context size, and any special parameters
-2. **Model Selection**: Based on the analysis, it selects the most appropriate model considering cost, performance, and capabilities
-3. **Transparent Routing**: Your request is seamlessly routed to the chosen model and provider
-4. **Optimized Response**: You receive the best possible response while maintaining cost efficiency
-
-<Callout type="info">
-	Auto routing decisions are transparent in your usage logs, so you can always
-	see which model was selected for each request.
-</Callout>
-
-## Best Practices
-
-### For Development
-
-- Use specific model names during development and testing
-- Leverage auto routing for production workloads to optimize costs
-
-### For Production
-
-- Use auto routing (`"model": "auto"`) for the best balance of cost and performance
-- Monitor your usage patterns through the dashboard to understand routing decisions
-- Set up provider keys for multiple providers to maximize routing options
-
-### For Cost Optimization
-
-- Let auto routing handle model selection to automatically use the most cost-effective options
-- Use model IDs without provider prefixes to always get the cheapest available provider
-- Monitor your usage analytics to track cost savings from intelligent routing

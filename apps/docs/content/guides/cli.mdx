@@ -1,290 +1,77 @@
 ---
-title: LLM Gateway CLI
-description: Command-line tool for scaffolding and managing LLM Gateway projects
+title: KiwiLLM CLI
+description: Status and guidance for command-line workflows around KiwiLLM.
 icon: Terminal
 ---
 
-import { Step, Steps } from "fumadocs-ui/components/steps";
 import { Callout } from "fumadocs-ui/components/callout";
-import { Tabs, Tab } from "fumadocs-ui/components/tabs";
 
-The **LLM Gateway CLI** (`@llmgateway/cli`) is a command-line utility for scaffolding projects, managing AI applications, and discovering models.
+# KiwiLLM CLI
 
-## Installation
+KiwiLLM does not currently ship a public standalone CLI package in this repository.
 
-<Tabs items={["npx (Recommended)", "Global Install"]}>
-  <Tab value="npx (Recommended)">
-    Run commands directly without installation:
+If you are looking for a command-line way to work with KiwiLLM today, the practical options are:
 
-    ```bash
-    npx @llmgateway/cli init
-    ```
+- call the hosted API directly
+- use one of the editor or agent integrations from the other guides
+- clone and run the full repository locally for self-hosted development workflows
 
-  </Tab>
-  <Tab value="Global Install">
-    Install globally for faster access:
+## What to use right now
 
-    ```bash
-    npm install -g @llmgateway/cli
-    ```
+### API-first workflows
 
-    Then run commands directly:
-
-    ```bash
-    llmgateway init
-    ```
-
-  </Tab>
-</Tabs>
-
-## Quick Start
-
-<Steps>
-<Step>
-### Initialize a Project
-
-Create a new project from a template:
+Use the OpenAI-compatible API directly:
 
 ```bash
-npx @llmgateway/cli init
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-5",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hello from the command line."
+      }
+    ]
+  }'
 ```
 
-Or specify the template and name directly:
+### Local development
+
+If you want a local platform workflow, clone the repository and run the monorepo directly:
 
 ```bash
-npx @llmgateway/cli init --template image-generation --name my-ai-app
+git clone https://github.com/uduu282-droid/kiwiLLM.git
+cd kiwiLLM
+pnpm install
+docker compose up -d
+pnpm setup
+pnpm dev
 ```
 
-</Step>
+That gives you the local apps documented throughout this site, including:
 
-<Step>
-### Configure Authentication
+- UI
+- API
+- Gateway
+- Docs
 
-Login to save your API key locally:
+### Agent and editor tooling
 
-```bash
-npx @llmgateway/cli auth login
-```
+If your goal is a command-line or coding-assistant workflow, see:
 
-This opens a browser window to authenticate with LLM Gateway. Your credentials are stored in `~/.llmgateway/config.json`.
+- [Claude Code](/guides/claude-code)
+- [Cline](/guides/cline)
+- [Cursor](/guides/cursor)
+- [MCP](/guides/mcp)
+- [OpenCode](/guides/opencode)
 
-Alternatively, set the `LLMGATEWAY_API_KEY` environment variable which takes precedence over the config file.
+## Why this page exists
 
-</Step>
-
-<Step>
-### Start Development
-
-Navigate to your project and start the development server:
-
-```bash
-cd my-ai-app
-npx @llmgateway/cli dev
-```
-
-Or specify a custom port:
-
-```bash
-npx @llmgateway/cli dev --port 3000
-```
-
-</Step>
-</Steps>
-
-## Commands
-
-### `init`
-
-Initialize a new project from a template.
-
-```bash
-npx @llmgateway/cli init [options]
-```
-
-**Options:**
-
-- `--template <name>` — Template to use (e.g., `image-generation`, `weather-agent`)
-- `--name <name>` — Project name
-
-**Examples:**
-
-```bash
-# Interactive mode
-npx @llmgateway/cli init
-
-# With options
-npx @llmgateway/cli init --template image-generation --name my-app
-```
-
-### `list`
-
-Display available project templates.
-
-```bash
-npx @llmgateway/cli list
-```
-
-**Options:**
-
-- `--json` — Output in JSON format
-
-### `models`
-
-Browse and filter available AI models.
-
-```bash
-npx @llmgateway/cli models [options]
-```
-
-**Options:**
-
-- `--capability <type>` — Filter by capability (e.g., `chat`, `image`, `embedding`)
-- `--provider <name>` — Filter by provider (e.g., `openai`, `anthropic`, `google`)
-- `--search <term>` — Search models by name
-
-**Examples:**
-
-```bash
-# List all models
-npx @llmgateway/cli models
-
-# Filter by provider
-npx @llmgateway/cli models --provider openai
-
-# Search models
-npx @llmgateway/cli models --search gpt
-```
-
-### `add`
-
-Add tools or API routes to an existing project.
-
-```bash
-npx @llmgateway/cli add
-```
-
-**Tools available:**
-
-- `weather` — Weather lookup functionality
-- `search` — Web search capability
-- `calculator` — Mathematical operations
-
-**API routes available:**
-
-- `generate` — Text generation endpoint
-- `chat` — Chat completion endpoint
-
-### `auth`
-
-Manage API authentication.
-
-```bash
-# Login via browser
-npx @llmgateway/cli auth login
-
-# Check authentication status
-npx @llmgateway/cli auth status
-
-# Logout
-npx @llmgateway/cli auth logout
-```
-
-### `dev`
-
-Start the local development server.
-
-```bash
-npx @llmgateway/cli dev [options]
-```
-
-**Options:**
-
-- `--port <number>` — Port to run on (default: 3000)
-
-### `upgrade`
-
-Update LLM Gateway dependencies in your project.
-
-```bash
-npx @llmgateway/cli upgrade [options]
-```
-
-**Options:**
-
-- `--dry-run` — Show what would be updated without making changes
-
-### `docs`
-
-Open the documentation in your browser.
-
-```bash
-npx @llmgateway/cli docs
-```
-
-## Available Templates
-
-### Image Generation
-
-A full-stack application for AI image generation.
-
-- **Stack:** Next.js 16, React 19, TypeScript
-- **Features:** Multi-provider support (DALL-E, Stable Diffusion), unified API
-- **Use case:** Image generation apps, creative tools
-
-```bash
-npx @llmgateway/cli init --template image-generation
-```
-
-### QA Agent
-
-An AI-powered QA testing agent that uses browser automation to test your web app.
-
-- **Stack:** Next.js 16, React 19, TypeScript, Agent Browser
-- **Features:** Natural language testing, real-time action timeline, live browser preview
-- **Use case:** Automated QA testing, regression testing, user flow validation
-
-```bash
-npx @llmgateway/cli init --template qa-agent
-```
-
-### Weather Agent
-
-A CLI agent demonstrating tool calling capabilities.
-
-- **Stack:** TypeScript, AI SDK, OpenAI
-- **Features:** Tool calling, real-time data, natural language
-- **Use case:** Learning tool usage, building CLI agents
-
-```bash
-npx @llmgateway/cli init --template weather-agent
-```
-
-## Configuration
-
-The CLI stores configuration in `~/.llmgateway/config.json`:
-
-```json
-{
-	"apiKey": "llmgtwy_...",
-	"defaultTemplate": "image-generation"
-}
-```
-
-### Environment Variables
-
-The `LLMGATEWAY_API_KEY` environment variable takes precedence over the config file:
-
-```bash
-export LLMGATEWAY_API_KEY="llmgtwy_..."
-```
-
-## More Resources
-
-- [Agents](https://llmgateway.io/agents) — Pre-built AI agents
-- [Templates](https://llmgateway.io/templates) — Production-ready starter projects
-- [GitHub Repository](https://github.com/theopenco/llmgateway-templates) — Source code and issues
+Earlier docs referenced an older CLI concept that is not currently represented as a shipped package in this repository. This page is here to make the current state explicit so you do not waste time trying to install a package that is not part of the active codebase.
 
 <Callout type="info">
-	Need help or want to request a feature? Open an issue on
-	[GitHub](https://github.com/theopenco/llmgateway-templates/issues).
+	If a public KiwiLLM CLI is released later, this page should become the source
+	of truth for installation, commands, templates, and authentication flow.
 </Callout>

@@ -10,9 +10,9 @@ export async function GET() {
 		return `- [${page.data.title}](${page.url})${page.data.description ? `: ${page.data.description}` : ""}`;
 	});
 
-	const content = `# LLM Gateway Documentation
+	const content = `# KiwiLLM Documentation
 
-> Documentation for LLM Gateway - a full-stack LLM API gateway
+> Documentation for KiwiLLM - a full-stack LLM API gateway
 
 ## Docs
 

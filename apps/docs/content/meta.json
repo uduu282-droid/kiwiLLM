@@ -1,6 +1,6 @@
 {
-	"title": "LLM Gateway",
-	"description": "LLM Gateway Documentation",
+	"title": "KiwiLLM",
+	"description": "KiwiLLM Documentation",
 	"icon": "Building",
 	"root": true,
 	"pages": [

@@ -54,11 +54,17 @@ export default async function Page(props: {
 		notFound();
 	}
 
-	const time = await getGithubLastEdit({
-		owner: "theopenco",
-		repo: "llmgateway",
-		path: `apps/docs/content/${page.path}`,
-	});
+	let lastUpdate: Date | undefined;
+	try {
+		lastUpdate =
+			(await getGithubLastEdit({
+				owner: "uduu282-droid",
+				repo: "kiwiLLM",
+				path: `apps/docs/content/${page.path}`,
+			})) ?? undefined;
+	} catch {
+		lastUpdate = undefined;
+	}
 
 	const MDXContent = page.data.body;
 
@@ -69,7 +75,7 @@ export default async function Page(props: {
 			tableOfContent={{
 				style: "clerk",
 			}}
-			lastUpdate={time ? new Date(time) : new Date()}
+			lastUpdate={lastUpdate ?? new Date()}
 		>
 			<div className="flex flex-row gap-2 items-center border-b pt-2 pb-6">
 				<LLMCopyButton
@@ -81,7 +87,7 @@ export default async function Page(props: {
 					markdownUrl={
 						page.url === "/" ? "/llms.mdx/index" : `/llms.mdx${page.url}`
 					}
-					githubUrl={`https://github.com/theopenco/llmgateway/blob/main/apps/docs/content/${page.path}`}
+					githubUrl={`https://github.com/uduu282-droid/kiwiLLM/blob/main/apps/docs/content/${page.path}`}
 				/>
 			</div>
 			<DocsTitle>{page.data.title}</DocsTitle>
@@ -99,7 +105,7 @@ export default async function Page(props: {
 					"use server";
 					posthog.capture("on_rate_docs", feedback);
 					return await Promise.resolve({
-						githubUrl: `https://github.com/theopenco/llmgateway/blob/main/apps/docs/content${url}.mdx`,
+						githubUrl: `https://github.com/uduu282-droid/kiwiLLM/blob/main/apps/docs/content${url}.mdx`,
 					});
 				}}
 			/>

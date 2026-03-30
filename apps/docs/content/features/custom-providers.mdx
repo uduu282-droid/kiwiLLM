@@ -1,6 +1,6 @@
 ---
 title: Custom Providers
-description: Learn how to integrate custom OpenAI-compatible providers with LLMGateway for enhanced flexibility and control.
+description: Connect your own OpenAI-compatible upstreams to KiwiLLM.
 icon: Columns3Cog
 ---
 
@@ -8,73 +8,121 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 # Custom Providers
 
-LLMGateway supports integrating custom OpenAI-compatible providers, allowing you to use any API that follows the OpenAI chat completions format. This feature is perfect for:
+KiwiLLM lets you register custom OpenAI-compatible providers so you can route traffic to private models, internal gateways, or third-party services that are not built in by default.
 
-- Private or self-hosted LLM deployments
-- Specialized AI providers not natively supported
-- Internal AI services within your organization
-- Testing against different model endpoints
+Typical use cases:
+
+- self-hosted or on-prem model endpoints
+- internal company inference services
+- OpenAI-compatible proxies
+- experimental providers you want to test before wider rollout
+
+## What counts as compatible
+
+Your upstream should behave like an OpenAI-style chat completions API.
+
+At minimum, it should support:
+
+- a base URL
+- bearer-token authentication, if required
+- OpenAI-style `/v1/chat/completions` requests and responses
 
 <Callout type="info">
-	Custom providers must be OpenAI-compatible, supporting the
-	`/v1/chat/completions` endpoint format.
+	KiwiLLM does not need the upstream to be one of the built-in providers. It
+	just needs a stable OpenAI-compatible interface.
 </Callout>
 
-## Quick Setup
+## Setup flow
 
-### 1. Add a Custom Provider Key
+### 1. Add the provider in the dashboard
 
-Navigate to your organization's provider settings and add a custom provider via the UI.
-Provide a lowercase name, OpenAI-compatible base URL, and API token for the custom provider.
+In your organization settings, add a custom provider key and supply:
 
-### 2. Make Requests
+- a lowercase provider name
+- the upstream base URL
+- the upstream API token, if the service requires one
 
-Once configured, make requests using the format `{customName}/{modelName}`:
+### 2. Route requests using the provider prefix
+
+Once configured, call the provider with:
+
+```text
+{providerName}/{modelName}
+```
+
+Example:
 
 ```bash
-curl -X POST "https://api.llmgateway.io/v1/chat/completions" \
-  -H "Authorization: Bearer $LLM_GATEWAY_API_KEY" \
+curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
+  -H "Authorization: Bearer $KIWILLM_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "mycompany/custom-gpt-4",
     "messages": [
       {
         "role": "user",
-        "content": "Hello from my custom provider!"
+        "content": "Hello from our custom provider."
       }
     ]
   }'
 ```
 
-## Configuration Requirements
+## Naming rules
 
-### Custom Provider Name
+Custom provider names must use lowercase letters only.
 
-- **Format**: Lowercase letters only (`a-z`)
-- **Examples**: `mycompany`, `internal`, `testing`
-- **Invalid**: `MyCompany`, `my-company`, `my_company`, `123test`
+Valid examples:
 
-<Callout type="warn">
-	The custom provider name must match the regex pattern `/^[a-z]+$/` exactly.
+- `mycompany`
+- `internal`
+- `testing`
+
+Invalid examples:
+
+- `MyCompany`
+- `my-company`
+- `my_company`
+- `123test`
+
+## Base URL behavior
+
+Use the upstream base URL, not the full chat completions path.
+
+Example:
+
+```text
+https://api.example.com
+```
+
+KiwiLLM will construct the final request path from there.
+
+## Tokens and auth
+
+If your upstream requires bearer auth, store that token in the custom provider config.
+
+If your upstream is intentionally no-auth, KiwiLLM can still route to it as long as the provider is configured accordingly.
+
+## What you still get
+
+Custom providers still benefit from the rest of KiwiLLM:
+
+- API key auth for your users
+- usage logs
+- cost tracking, when pricing is configured
+- request history
+- project-level governance
+- consistent OpenAI-compatible client usage
+
+## Best practices
+
+- start with one or two models first
+- verify request and response compatibility before broader rollout
+- keep provider names short and stable
+- document internal providers clearly for your team
+- add health checks or fallback policies if the upstream is business-critical
+
+<Callout type="warning">
+	KiwiLLM cannot guarantee compatibility if the upstream only partially matches
+	the OpenAI schema. Test streaming, tool calls, and response shapes before
+	exposing a custom provider to production traffic.
 </Callout>
-
-### Base URL
-
-- Must be a valid HTTPS URL
-- Should point to your provider's base endpoint
-- LLMGateway will append `/v1/chat/completions` automatically
-- **Example**: `https://api.example.com` → `https://api.example.com/v1/chat/completions`
-
-### API Token
-
-- Provider-specific authentication token
-- Used in the `Authorization: Bearer {token}` header
-
-<Callout type="info">
-	Unlike built-in providers, custom provider models are not validated, giving
-	you complete flexibility.
-</Callout>
-
-## Supported Features
-
-Custom providers inherit full LLMGateway functionality.

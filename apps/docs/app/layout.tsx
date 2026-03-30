@@ -22,10 +22,10 @@ const mono = Geist_Mono({
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-	metadataBase: new URL("https://llmgateway.io"),
-	title: "LLM Gateway Documentation",
+	metadataBase: new URL(process.env.DOCS_URL ?? "https://kiwillm.in"),
+	title: "KiwiLLM Documentation",
 	description:
-		"LLM Gateway Documentation - Route, manage, and analyze your LLM requests across multiple providers with a unified API interface.",
+		"KiwiLLM documentation - route, manage, and analyze LLM traffic across providers with one API.",
 	icons: {
 		icon: "/favicon/favicon.ico?v=2",
 	},

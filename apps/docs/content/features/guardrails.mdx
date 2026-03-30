@@ -1,6 +1,6 @@
 ---
 title: Guardrails
-description: Protect your LLM usage with content guardrails that detect and block harmful content
+description: Scan requests for risky content before they reach the model.
 icon: Shield
 ---
 
@@ -8,143 +8,62 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 # Guardrails
 
-Guardrails protect your organization by automatically detecting and blocking harmful content in LLM requests before they reach the model.
+Guardrails help you inspect and control risky content before it reaches an upstream model.
 
-<Callout type="info">
-	Guardrails are available on the [**Enterprise
-	plan**](https://llmgateway.io/enterprise).
+They are useful for organizations that want additional protection around:
+
+- prompt injection attempts
+- jailbreak patterns
+- secrets and credentials
+- personally identifiable information
+- restricted terms or sensitive internal topics
+
+## How guardrails work
+
+At a high level:
+
+1. a request reaches KiwiLLM
+2. content is checked against enabled rules
+3. KiwiLLM decides whether to block, redact, or allow the request
+4. the action is logged for review
+
+## Common rule types
+
+- prompt injection detection
+- jailbreak detection
+- PII detection
+- secrets detection
+- blocked terms
+- custom regex patterns
+- file-type restrictions
+
+## Available actions
+
+| Action   | Result                                         |
+| -------- | ---------------------------------------------- |
+| `block`  | Reject the request before it reaches the model |
+| `redact` | Remove or mask matched content and continue    |
+| `warn`   | Log the event but allow the request            |
+
+## Recommended rollout
+
+Start in `warn` mode first. That gives you a chance to learn what real traffic looks like before you begin blocking or redacting requests in production.
+
+Then:
+
+1. review violations
+2. tune noisy rules
+3. promote high-confidence rules to `block` or `redact`
+
+## Good use cases
+
+- preventing prompt injection in internal copilots
+- masking emails, phone numbers, or secrets
+- blocking uploads or prompts that contain forbidden patterns
+- adding policy checks before sensitive tool-enabled agents run
+
+<Callout type="warning">
+	Guardrails work best as a layered control. They reduce risk, but they should
+	not be the only safety mechanism in an application that handles sensitive
+	workflows.
 </Callout>
-
-## Overview
-
-Guardrails run on every API request, scanning message content for:
-
-- Security threats (prompt injection, jailbreak attempts)
-- Sensitive data (PII, secrets, credentials)
-- Policy violations (blocked terms, restricted topics)
-
-When a violation is detected, you control what happens: block the request, redact the content, or log a warning.
-
-## System Rules
-
-Built-in rules protect against common threats:
-
-### Prompt Injection Detection
-
-Detects attempts to override or manipulate system instructions. Common patterns include:
-
-- "Ignore all previous instructions"
-- "You are now a different AI"
-- Hidden instructions in encoded text
-
-### Jailbreak Detection
-
-Identifies attempts to bypass safety measures:
-
-- DAN (Do Anything Now) prompts
-- Roleplay-based bypasses
-- Instruction override attempts
-
-### PII Detection
-
-Identifies personal information:
-
-- Email addresses
-- Phone numbers
-- Social Security Numbers
-- Credit card numbers
-- IP addresses
-
-When the action is set to **redact**, PII is replaced with placeholders like `[EMAIL_REDACTED]`.
-
-### Secrets Detection
-
-Detects credentials and API keys:
-
-- AWS access keys and secrets
-- Generic API keys
-- Passwords in common formats
-- Private keys
-
-### File Type Restrictions
-
-Control which file types can be uploaded:
-
-- Configure allowed MIME types
-- Set maximum file size limits
-- Block potentially dangerous file types
-
-### Document Leakage Prevention
-
-Detects attempts to extract confidential documents or internal data.
-
-## Configurable Actions
-
-For each rule, choose how to respond:
-
-| Action     | Behavior                                            |
-| ---------- | --------------------------------------------------- |
-| **Block**  | Reject the request with a content policy error      |
-| **Redact** | Remove or mask the sensitive content, then continue |
-| **Warn**   | Log the violation but allow the request to proceed  |
-
-## Custom Rules
-
-Create organization-specific rules for your use case:
-
-### Blocked Terms
-
-Prevent specific words or phrases from being used:
-
-- Match type: exact, contains, or regex
-- Case-sensitive matching option
-- Multiple terms per rule
-
-### Custom Regex
-
-Match patterns unique to your organization:
-
-- Internal project codenames
-- Customer identifiers
-- Domain-specific sensitive data
-
-### Topic Restrictions
-
-Block content related to specific topics:
-
-- Define restricted topics
-- Keyword-based detection
-
-## Security Events Dashboard
-
-Monitor all guardrail violations with a dedicated dashboard:
-
-- **Total violations** — Overall count and trends
-- **By action** — Breakdown of blocked, redacted, and warned
-- **By category** — Which rules are being triggered
-- **Detailed logs** — Individual violations with timestamps and matched patterns
-
-## How It Works
-
-```
-Request → Guardrails Check → Action Based on Rules → Forward to Model (if allowed)
-                ↓
-           Log Violation
-```
-
-1. **Request received** — API request comes in with messages
-2. **Content scanned** — All text content is checked against enabled rules
-3. **Violations detected** — Matches are identified and logged
-4. **Action taken** — Based on rule configuration (block/redact/warn)
-5. **Request proceeds** — If not blocked, the (potentially redacted) request continues
-
-## Best Practices
-
-1. **Start with warnings** — Enable rules in warn mode first to understand your traffic patterns
-2. **Review violations** — Check the Security Events dashboard regularly
-3. **Tune custom rules** — Adjust blocked terms and regex patterns based on false positives
-4. **Layer defenses** — Use multiple rule types together for comprehensive protection
-
-## Get Started
-
-Guardrails are an Enterprise feature. [Contact us](https://llmgateway.io/enterprise) to enable Enterprise for your organization.

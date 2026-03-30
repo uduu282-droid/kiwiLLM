@@ -1,45 +1,58 @@
 ---
 title: API Keys
-description: Create and manage API keys for authenticating with LLM Gateway
+description: Create and manage the API keys used to call KiwiLLM.
 icon: Key
 ---
 
 import { ThemedImage } from "@/components/themed-image";
 
-The API Keys page lets you create, view, and manage the API keys used to authenticate requests to LLM Gateway.
+The API Keys page is where you create, review, and manage the keys your apps use to authenticate with KiwiLLM.
 
 <ThemedImage alt="API Keys" basePath="/learn/api-keys" />
 
-## Creating an API Key
+## Creating a key
 
-Click the **Create API Key** button to generate a new key. The number of keys you can create depends on your plan:
+Click **Create API Key** and give the key a name that reflects its purpose, such as:
 
-- **Free** — Limited number of keys
-- **Pro** — Higher key limit
-- **Enterprise** — Custom limits
+- production
+- development
+- CI
+- staging
 
-When creating a key, you can assign it a name to help identify its purpose (e.g., "Production", "Development", "CI/CD").
+New hosted keys use the KiwiLLM prefix:
 
-## API Keys List
+```text
+kiwillm_...
+```
 
-Each key in the list shows:
+## What the table shows
 
-| Field         | Description                                                    |
-| ------------- | -------------------------------------------------------------- |
-| **Name**      | The label you assigned to the key                              |
-| **Key**       | A masked preview of the key (only last few characters visible) |
-| **Created**   | When the key was created                                       |
-| **Last used** | When the key was last used in a request                        |
+Each row typically includes:
 
-## Actions
+- key name
+- masked key preview
+- status
+- created date
+- creator
+- usage and usage limit
+- IAM rules, if configured
 
-For each API key you can:
+## Common actions
 
-- **View** — See the full key (only available once after creation)
-- **Edit** — Update the key name
-- **Rotate** — Generate a new key value while keeping the same configuration
-- **Delete** — Permanently remove the key
+From this page, you can usually:
 
-## Plan Limits
+- create a key
+- rename a key
+- disable or delete a key
+- adjust limits
+- review IAM restrictions
 
-The page shows your current key count vs. the maximum allowed by your plan. If you've reached your limit, the Create button will be disabled and you'll need to upgrade your plan or delete unused keys.
+Delete behavior is generally safer than hard removal because platforms often preserve audit history even after a key is no longer usable.
+
+## Best practices
+
+- use separate keys for production and development
+- avoid sharing one key across unrelated systems
+- name keys clearly so logs stay readable
+- remove unused keys instead of letting them accumulate
+- add IAM rules when a key should be restricted to specific usage

@@ -17,8 +17,8 @@ const docsOptions: DocsLayoutProps = {
 			type: "custom",
 			children: (
 				<GithubInfo
-					owner="theopenco"
-					repo="llmgateway"
+					owner="uduu282-droid"
+					repo="kiwiLLM"
 					token={process.env.GITHUB_TOKEN}
 					className="lg:-mx-2"
 				/>
