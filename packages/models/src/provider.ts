@@ -32,8 +32,13 @@ export function getProviderEnvConfig(
 export function hasProviderEnvironmentToken(
 	provider: Provider | string,
 ): boolean {
-	const envVar = getProviderEnvVar(provider);
-	return envVar ? Boolean(process.env[envVar]) : false;
+	const config = getProviderEnvConfig(provider);
+	if (!config) {
+		return false;
+	}
+
+	const envVar = config.required.apiKey;
+	return envVar ? Boolean(process.env[envVar]) : true;
 }
 
 export function getProviderEnvValue(

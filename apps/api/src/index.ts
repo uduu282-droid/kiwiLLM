@@ -17,6 +17,7 @@ import { HealthChecker } from "@llmgateway/shared";
 
 import { allowedOrigins, redisClient } from "./auth/config.js";
 import { authHandler } from "./auth/handler.js";
+import { proxyV1Request } from "./lib/proxy-v1.js";
 import { tracingMiddleware } from "./middleware/tracing.js";
 import { beacon } from "./routes/beacon.js";
 import { routes } from "./routes/index.js";
@@ -232,6 +233,9 @@ app.route("/", referral);
 app.route("/internal", internalModels);
 
 app.route("/public/discounts", publicDiscounts);
+
+app.use("/v1", proxyV1Request);
+app.use("/v1/*", proxyV1Request);
 
 app.doc("/json", config);
 

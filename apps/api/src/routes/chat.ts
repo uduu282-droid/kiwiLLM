@@ -2,16 +2,13 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 
+import { getInternalGatewayUrl } from "@/lib/gateway-url.js";
+
 import { logger } from "@llmgateway/logger";
 
 import type { ServerTypes } from "@/vars.js";
 
 const chat = new OpenAPIHono<ServerTypes>();
-const isHosted = process.env.HOSTED === "true";
-const gatewayUrl =
-	process.env.GATEWAY_URL ??
-	process.env.PUBLIC_GATEWAY_URL ??
-	(isHosted ? "https://api.kiwillm.in" : "http://localhost:4001");
 
 const chatCompletionSchema = z.object({
 	messages: z.array(
@@ -48,10 +45,21 @@ chat.openapi(completionRoute, async (c) => {
 	try {
 		const body = c.req.valid("json");
 		const { messages, model, stream, apiKey } = body;
+		const gatewayUrl = getInternalGatewayUrl();
 
 		// Require user to provide their own API key
 		if (!apiKey) {
 			return c.json({ error: "API key is required" }, 400);
+		}
+
+		if (!gatewayUrl) {
+			return c.json(
+				{
+					error:
+						"Gateway upstream is not configured. Set INTERNAL_GATEWAY_URL on the API service.",
+				},
+				503,
+			);
 		}
 		const authToken = apiKey;
 

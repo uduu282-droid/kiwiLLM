@@ -11,7 +11,7 @@ import {
 export interface ProviderEnvResult {
 	token: string;
 	configIndex: number;
-	envVarName: string;
+	envVarName: string | undefined;
 }
 
 /**
@@ -22,6 +22,14 @@ export interface ProviderEnvResult {
  */
 export function getProviderEnv(usedProvider: Provider): ProviderEnvResult {
 	const envVar = getProviderEnvVar(usedProvider);
+	const config = getProviderEnvConfig(usedProvider);
+	if (!config?.required.apiKey) {
+		return {
+			token: "",
+			configIndex: 0,
+			envVarName: undefined,
+		};
+	}
 	if (!envVar) {
 		throw new HTTPException(500, {
 			message: `No environment variable set for provider: ${usedProvider}`,
@@ -35,7 +43,6 @@ export function getProviderEnv(usedProvider: Provider): ProviderEnvResult {
 	}
 
 	// Validate required env vars for the provider
-	const config = getProviderEnvConfig(usedProvider);
 	if (config?.required) {
 		for (const [key, envVarName] of Object.entries(config.required)) {
 			if (key === "apiKey" || !envVarName) {

@@ -65,9 +65,7 @@ export const providers = [
 		description:
 			"KiwiLLM-hosted Qwen models exposed through our OpenAI-compatible worker.",
 		env: {
-			required: {
-				apiKey: "LLM_KIWILLM_QWEN_API_KEY",
-			},
+			required: {},
 			optional: {
 				baseUrl: "LLM_KIWILLM_QWEN_BASE_URL",
 			},
