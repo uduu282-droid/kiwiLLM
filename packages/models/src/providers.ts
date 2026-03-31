@@ -94,6 +94,57 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-deepseek",
+		name: "KiwiLLM DeepSeek",
+		description:
+			"KiwiLLM-hosted DeepSeek models exposed through our OpenAI-compatible worker.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_DEEPSEEK_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://deepseek-chat-proxy.deepseekrev1.workers.dev",
+		announcement: null,
+	},
+	{
+		id: "kiwillm-minimax",
+		name: "KiwiLLM MiniMax",
+		description:
+			"KiwiLLM-hosted MiniMax models exposed through our OpenAI-compatible worker.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_MINIMAX_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://minimax-ai-proxy.revai.workers.dev",
+		announcement: null,
+	},
+	{
+		id: "kiwillm-free-ai-hub",
+		name: "KiwiLLM Free AI Hub",
+		description:
+			"KiwiLLM-hosted mixed-provider model hub exposed through our OpenAI-compatible worker.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_FREE_AI_HUB_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://free-ai-hub.revai.workers.dev",
+		announcement: null,
+	},
+	{
 		id: "openai",
 		name: "OpenAI",
 		description:

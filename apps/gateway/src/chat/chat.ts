@@ -795,7 +795,8 @@ chat.openapi(completions, async (c) => {
 				}
 
 				// Use the provider's context size, defaulting to a reasonable value if not specified
-				const modelContextSize = provider.contextSize ?? 8192;
+				const modelContextSize =
+					(provider as ProviderModelMapping).contextSize ?? 8192;
 				const contextSizeMet = modelContextSize >= requiredContextSize;
 
 				// If no_reasoning is true, exclude reasoning models

@@ -31,6 +31,9 @@ export function getProviderHeaders(
 		case "google-vertex":
 		case "kiwillm-qwen":
 		case "kiwillm-kimi":
+		case "kiwillm-deepseek":
+		case "kiwillm-minimax":
+		case "kiwillm-free-ai-hub":
 			return {};
 		case "obsidian":
 			return {

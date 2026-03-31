@@ -7,7 +7,13 @@ import type { ServerTypes } from "@/vars.js";
 
 export const internalModels = new OpenAPIHono<ServerTypes>();
 
-const preferredProviderOrder = ["kiwillm-qwen", "kiwillm-kimi"] as const;
+const preferredProviderOrder = [
+	"kiwillm-qwen",
+	"kiwillm-kimi",
+	"kiwillm-deepseek",
+	"kiwillm-minimax",
+	"kiwillm-free-ai-hub",
+] as const;
 
 // Provider schema
 const providerSchema = z.object({

@@ -70,6 +70,33 @@ export function getProviderEndpoint(
 						"https://kimi-k2.qwen4346.workers.dev",
 					) ?? "https://kimi-k2.qwen4346.workers.dev";
 				break;
+			case "kiwillm-deepseek":
+				url =
+					getProviderEnvValue(
+						"kiwillm-deepseek",
+						"baseUrl",
+						configIndex,
+						"https://deepseek-chat-proxy.deepseekrev1.workers.dev",
+					) ?? "https://deepseek-chat-proxy.deepseekrev1.workers.dev";
+				break;
+			case "kiwillm-minimax":
+				url =
+					getProviderEnvValue(
+						"kiwillm-minimax",
+						"baseUrl",
+						configIndex,
+						"https://minimax-ai-proxy.revai.workers.dev",
+					) ?? "https://minimax-ai-proxy.revai.workers.dev";
+				break;
+			case "kiwillm-free-ai-hub":
+				url =
+					getProviderEnvValue(
+						"kiwillm-free-ai-hub",
+						"baseUrl",
+						configIndex,
+						"https://free-ai-hub.revai.workers.dev",
+					) ?? "https://free-ai-hub.revai.workers.dev";
+				break;
 			case "anthropic":
 				url = "https://api.anthropic.com";
 				break;
@@ -359,6 +386,9 @@ export function getProviderEndpoint(
 		}
 		case "kiwillm-qwen":
 		case "kiwillm-kimi":
+		case "kiwillm-deepseek":
+		case "kiwillm-minimax":
+		case "kiwillm-free-ai-hub":
 			return `${url}/v1/chat/completions`;
 		case "alibaba":
 			if (imageGenerations) {
