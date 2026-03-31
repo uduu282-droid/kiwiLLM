@@ -61,17 +61,70 @@ export interface ApiModel {
 const API_URL =
 	process.env.API_BACKEND_URL ?? process.env.API_URL ?? "http://localhost:4002";
 
+const isKiwiProviderId = (providerId: string) =>
+	providerId === "kiwillm" || providerId.startsWith("kiwillm-");
+
+const filterKiwiProviders = (providers: ApiProvider[]): ApiProvider[] =>
+	providers.filter(
+		(provider) =>
+			provider.status === "active" && isKiwiProviderId(provider.id),
+	);
+
+const filterKiwiModels = (
+	models: ApiModel[],
+	providers: ApiProvider[],
+): ApiModel[] => {
+	const activeKiwiProviderIds = new Set(
+		filterKiwiProviders(providers).map((provider) => provider.id),
+	);
+
+	return models
+		.filter((model) => model.status === "active")
+		.map((model) => {
+			const mappings = model.mappings.filter(
+				(mapping) =>
+					mapping.status === "active" &&
+					activeKiwiProviderIds.has(mapping.providerId),
+			);
+
+			return {
+				...model,
+				mappings,
+			};
+		})
+		.filter((model) => model.mappings.length > 0);
+};
+
 export const fetchModels = cache(async (): Promise<ApiModel[]> => {
 	try {
-		const response = await fetch(`${API_URL}/internal/models`, {
-			next: { revalidate: 60 },
-		});
-		if (!response.ok) {
-			console.error("Failed to fetch models:", response.statusText);
+		const [modelsResponse, providersResponse] = await Promise.all([
+			fetch(`${API_URL}/internal/models`, {
+				next: { revalidate: 60 },
+			}),
+			fetch(`${API_URL}/internal/providers`, {
+				next: { revalidate: 60 },
+			}),
+		]);
+
+		if (!modelsResponse.ok) {
+			console.error("Failed to fetch models:", modelsResponse.statusText);
 			return [];
 		}
-		const data = await response.json();
-		return data.models ?? [];
+
+		if (!providersResponse.ok) {
+			console.error("Failed to fetch providers:", providersResponse.statusText);
+			return [];
+		}
+
+		const [modelsData, providersData] = await Promise.all([
+			modelsResponse.json(),
+			providersResponse.json(),
+		]);
+
+		return filterKiwiModels(
+			modelsData.models ?? [],
+			providersData.providers ?? [],
+		);
 	} catch (error) {
 		console.error("Error fetching models:", error);
 		return [];
@@ -88,7 +141,7 @@ export const fetchProviders = cache(async (): Promise<ApiProvider[]> => {
 			return [];
 		}
 		const data = await response.json();
-		return data.providers ?? [];
+		return filterKiwiProviders(data.providers ?? []);
 	} catch (error) {
 		console.error("Error fetching providers:", error);
 		return [];

@@ -50,9 +50,22 @@ export default async function ChatPage({
 		);
 	}
 
+	// Fetch the curated Kiwi playground catalog early so defaults come from it.
+	const [models, providers] = await Promise.all([
+		fetchModels(),
+		fetchProviders(),
+	]);
+
 	// Auto-select a web search capable model when hints=search
 	if (hints === "search" && !model) {
-		model = "google-ai-studio/gemini-3-flash-preview";
+		const webSearchModel =
+			models.find((entry) =>
+				entry.mappings.some((mapping) => mapping.webSearch),
+			) ?? models[0];
+
+		model = webSearchModel
+			? `${webSearchModel.mappings[0]?.providerId}/${webSearchModel.id}`
+			: "auto";
 		// Redirect to add the model parameter to the URL
 		const newParams = new URLSearchParams();
 		if (orgId) {
@@ -146,12 +159,6 @@ export default async function ChatPage({
 	}
 
 	const projects = (initialProjectsData?.projects ?? []) as Project[];
-
-	// Fetch models and providers from API
-	const [models, providers] = await Promise.all([
-		fetchModels(),
-		fetchProviders(),
-	]);
 
 	// Determine selected project: URL > cookie > first
 	let selectedProject: Project | null = null;
