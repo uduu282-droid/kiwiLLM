@@ -48,8 +48,12 @@ export default function LandingPage() {
 			<header className="border-b">
 				<div className="container mx-auto px-4 py-4 flex items-center justify-between">
 					<div className="flex items-center gap-2">
-						<Code className="h-6 w-6" />
-						<span className="font-semibold text-lg">LLM Gateway Code</span>
+						<img
+							src="/brand/kiwillm-logo.png"
+							alt="KiwiLLM"
+							className="h-6 w-6 object-contain"
+						/>
+						<span className="font-semibold text-lg">KiwiLLM Code</span>
 					</div>
 					<div className="flex items-center gap-4">
 						<Button variant="ghost" asChild>
@@ -184,7 +188,7 @@ export default function LandingPage() {
 							Ready to supercharge your coding?
 						</h2>
 						<p className="text-muted-foreground mb-8">
-							Join thousands of developers using LLM Gateway for AI-assisted
+							Join thousands of developers using KiwiLLM for AI-assisted
 							development.
 						</p>
 						<Button size="lg" asChild>
@@ -197,11 +201,15 @@ export default function LandingPage() {
 			<footer className="border-t py-8 px-4">
 				<div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
 					<div className="flex items-center gap-2">
-						<Code className="h-5 w-5" />
-						<span className="font-medium">LLM Gateway Code</span>
+						<img
+							src="/brand/kiwillm-logo.png"
+							alt="KiwiLLM"
+							className="h-5 w-5 object-contain"
+						/>
+						<span className="font-medium">KiwiLLM Code</span>
 					</div>
 					<p className="text-sm text-muted-foreground">
-						&copy; {new Date().getFullYear()} LLM Gateway. All rights reserved.
+						&copy; {new Date().getFullYear()} KiwiLLM. All rights reserved.
 					</p>
 				</div>
 			</footer>

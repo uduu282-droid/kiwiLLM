@@ -27,10 +27,19 @@ export const metadata: Metadata = {
 	description:
 		"KiwiLLM documentation - route, manage, and analyze LLM traffic across providers with one API.",
 	icons: {
-		icon: "/favicon/favicon.ico?v=2",
+		icon: [{ url: "/brand/kiwillm-logo.png?v=3", type: "image/png" }],
+		shortcut: [{ url: "/brand/kiwillm-logo.png?v=3", type: "image/png" }],
+		apple: [{ url: "/brand/kiwillm-logo.png?v=3", type: "image/png" }],
 	},
 	alternates: {
 		canonical: "./",
+	},
+	openGraph: {
+		title: "KiwiLLM Documentation",
+		description:
+			"KiwiLLM documentation - route, manage, and analyze LLM traffic across providers with one API.",
+		images: ["/brand/kiwillm-logo.png"],
+		type: "website",
 	},
 };
 

@@ -8,7 +8,7 @@ import { getConfig } from "@/lib/config-server";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-	title: "AI Models for Coding - LLM Gateway Code",
+	title: "AI Models for Coding - KiwiLLM Code",
 	description:
 		"High-performance AI models optimized for coding tasks with tool support, JSON output, streaming, and prompt caching.",
 };
@@ -21,8 +21,12 @@ export default function CodingModelsPage() {
 			<header className="border-b">
 				<div className="container mx-auto px-4 py-4 flex items-center justify-between">
 					<Link href="/" className="flex items-center gap-2">
-						<Code className="h-6 w-6" />
-						<span className="font-semibold text-lg">LLM Gateway Code</span>
+						<img
+							src="/brand/kiwillm-logo.png"
+							alt="KiwiLLM"
+							className="h-6 w-6 object-contain"
+						/>
+						<span className="font-semibold text-lg">KiwiLLM Code</span>
 					</Link>
 					<div className="flex items-center gap-4">
 						<Button variant="ghost" asChild>

@@ -23,26 +23,30 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
 	metadataBase: new URL("https://code.llmgateway.io"),
-	title: "LLM Gateway Code - Dev Plans for Developers",
+	title: "KiwiLLM Code - Dev Plans for Developers",
 	description:
-		"Subscribe to LLM Gateway Dev Plans for AI-powered coding assistance. Access Claude, GPT-4, and other models.",
+		"Subscribe to KiwiLLM Code for AI-powered coding assistance. Access Claude, GPT-4, and other models.",
 	icons: {
-		icon: "/favicon/favicon.ico?v=2",
+		icon: [
+			{ url: "/favicon/favicon.ico?v=2" },
+			{ url: "/brand/kiwillm-logo.png", type: "image/png" },
+		],
+		apple: [{ url: "/brand/kiwillm-logo.png", type: "image/png" }],
 	},
 	openGraph: {
-		title: "LLM Gateway Code - Dev Plans for Developers",
+		title: "KiwiLLM Code - Dev Plans for Developers",
 		description:
-			"Subscribe to LLM Gateway Dev Plans for AI-powered coding assistance. Access Claude, GPT-4, and other models.",
-		images: ["/opengraph.png?v=1"],
+			"Subscribe to KiwiLLM Code for AI-powered coding assistance. Access Claude, GPT-4, and other models.",
+		images: ["/brand/kiwillm-logo.png"],
 		type: "website",
 		url: "https://code.llmgateway.io",
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "LLM Gateway Code - Dev Plans for Developers",
+		title: "KiwiLLM Code - Dev Plans for Developers",
 		description:
-			"Subscribe to LLM Gateway Dev Plans for AI-powered coding assistance. Access Claude, GPT-4, and other models.",
-		images: ["/opengraph.png?v=1"],
+			"Subscribe to KiwiLLM Code for AI-powered coding assistance. Access Claude, GPT-4, and other models.",
+		images: ["/brand/kiwillm-logo.png"],
 	},
 };
 

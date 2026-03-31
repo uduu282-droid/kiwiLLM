@@ -59,9 +59,7 @@ function MobileHeader() {
 					<Logo className="h-4 w-4" />
 				</div>
 				<div className="flex flex-col">
-					<span className="text-sm font-semibold leading-tight">
-						LLM Gateway
-					</span>
+					<span className="text-sm font-semibold leading-tight">KiwiLLM</span>
 					<span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
 						Admin
 					</span>
@@ -106,7 +104,7 @@ export function AdminShell({ children }: AdminShellProps) {
 							</div>
 							<div className="flex flex-col">
 								<span className="text-sm font-semibold leading-tight">
-									LLM Gateway
+									KiwiLLM
 								</span>
 								<span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
 									Admin

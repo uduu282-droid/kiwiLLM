@@ -199,8 +199,12 @@ export default function DashboardClient() {
 			<header className="border-b">
 				<div className="container mx-auto px-4 py-4 flex items-center justify-between">
 					<Link href="/" className="flex items-center gap-2">
-						<Code className="h-6 w-6" />
-						<span className="font-semibold text-lg">LLM Gateway Code</span>
+						<img
+							src="/brand/kiwillm-logo.png"
+							alt="KiwiLLM"
+							className="h-6 w-6 object-contain"
+						/>
+						<span className="font-semibold text-lg">KiwiLLM Code</span>
 					</Link>
 					<div className="flex items-center gap-4">
 						<span className="text-sm text-muted-foreground">{user?.email}</span>
@@ -293,8 +297,8 @@ export default function DashboardClient() {
 									<h3 className="font-semibold">Your API Key</h3>
 								</div>
 								<p className="text-sm text-muted-foreground mb-4">
-									Use this API key to authenticate with LLM Gateway in your
-									coding tools.
+									Use this API key to authenticate with KiwiLLM in your coding
+									tools.
 								</p>
 								<div className="flex gap-2 mb-4">
 									<Input

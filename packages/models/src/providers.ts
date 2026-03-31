@@ -179,6 +179,91 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-chatbot-ai",
+		name: "KiwiLLM Chatbot AI",
+		description:
+			"KiwiLLM-hosted legacy OpenAI model worker exposed through an OpenAI-compatible endpoint.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_CHATBOT_AI_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://chatbot-ai.qwen4346.workers.dev",
+		announcement: null,
+	},
+	{
+		id: "kiwillm-cerebras-ai",
+		name: "KiwiLLM Cerebras AI",
+		description:
+			"KiwiLLM-hosted Cerebras worker exposing selected OpenAI-compatible models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_CEREBRAS_AI_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://cerebras-ai.qwen4346.workers.dev",
+		announcement: null,
+	},
+	{
+		id: "kiwillm-grok-proxy",
+		name: "KiwiLLM Grok Proxy",
+		description:
+			"KiwiLLM-hosted Grok proxy worker exposing selected OpenAI-compatible models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_GROK_PROXY_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://grok-proxy.qwen4346.workers.dev",
+		announcement: null,
+	},
+	{
+		id: "kiwillm-gpt-oss-worker",
+		name: "KiwiLLM GPT OSS Worker",
+		description:
+			"KiwiLLM-hosted GPT OSS worker exposing selected OpenAI-compatible models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_GPT_OSS_WORKER_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://gpt-oss-worker.llamai.workers.dev",
+		announcement: null,
+	},
+	{
+		id: "kiwillm-claude-v3xg",
+		name: "KiwiLLM Claude V3XG",
+		description:
+			"KiwiLLM-hosted Claude V3XG worker exposing selected chat-completions-compatible models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_CLAUDE_V3XG_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://claude-v3xg.onrender.com",
+		announcement: null,
+	},
+	{
 		id: "openai",
 		name: "OpenAI",
 		description:

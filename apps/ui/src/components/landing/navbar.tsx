@@ -256,6 +256,11 @@ export const Navbar = ({
 			description: "What's new in KiwiLLM across releases.",
 		},
 		{
+			title: "About",
+			href: "/about",
+			description: "Learn what KiwiLLM is building and why it exists.",
+		},
+		{
 			title: "Providers",
 			href: "/providers",
 			description: "Connect and manage your provider API keys.",

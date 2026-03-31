@@ -1,6 +1,6 @@
 {
-	"name": "",
-	"short_name": "",
+	"name": "KiwiLLM Documentation",
+	"short_name": "KiwiLLM Docs",
 	"icons": [
 		{
 			"src": "/favicon/android-chrome-192x192.png",

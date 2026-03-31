@@ -24,10 +24,21 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
 	metadataBase: new URL("https://admin.llmgateway.io"),
-	title: "LLM Gateway Admin",
-	description: "Admin dashboard for LLM Gateway.",
+	title: "KiwiLLM Admin",
+	description: "Admin dashboard for KiwiLLM.",
 	icons: {
-		icon: "/favicon/favicon.ico?v=2",
+		icon: [
+			{ url: "/favicon/favicon.ico?v=2" },
+			{ url: "/brand/kiwillm-logo.png", type: "image/png" },
+		],
+		apple: [{ url: "/brand/kiwillm-logo.png", type: "image/png" }],
+	},
+	openGraph: {
+		title: "KiwiLLM Admin",
+		description: "Admin dashboard for KiwiLLM.",
+		images: ["/brand/kiwillm-logo.png"],
+		type: "website",
+		url: "https://admin.llmgateway.io",
 	},
 	robots: {
 		index: false,
