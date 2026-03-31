@@ -22,8 +22,8 @@ export interface AppConfig {
 export function getConfig(): AppConfig {
 	const hosted = process.env.HOSTED === "true";
 	const configuredDocsUrl = process.env.DOCS_URL?.replace(
-		"https://docs.llmgateway.io",
 		"https://kiwillm.in",
+		"https://docs.llmgateway.io",
 	);
 	const appUrl =
 		process.env.APP_URL ??
@@ -58,7 +58,7 @@ export function getConfig(): AppConfig {
 		twitterUrl: process.env.TWITTER_URL ?? "https://kiwillm.in",
 		docsUrl:
 			configuredDocsUrl ??
-			(hosted ? "https://kiwillm.in" : "http://localhost:3005"),
+			(hosted ? "https://docs.llmgateway.io" : "http://localhost:3005"),
 		playgroundUrl:
 			process.env.PLAYGROUND_URL ??
 			(hosted ? "https://chat.kiwillm.in" : "http://localhost:3003"),
