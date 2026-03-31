@@ -12,6 +12,8 @@ const preferredProviderOrder = [
 	"kiwillm-kimi",
 	"kiwillm-deepseek",
 	"kiwillm-minimax",
+	"kiwillm-n33-ai",
+	"kiwillm-claude-talkai",
 	"kiwillm-free-ai-hub",
 ] as const;
 

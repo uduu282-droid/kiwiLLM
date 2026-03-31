@@ -97,6 +97,24 @@ export function getProviderEndpoint(
 						"https://free-ai-hub.revai.workers.dev",
 					) ?? "https://free-ai-hub.revai.workers.dev";
 				break;
+			case "kiwillm-n33-ai":
+				url =
+					getProviderEnvValue(
+						"kiwillm-n33-ai",
+						"baseUrl",
+						configIndex,
+						"https://n33-ai.qwen4346.workers.dev",
+					) ?? "https://n33-ai.qwen4346.workers.dev";
+				break;
+			case "kiwillm-claude-talkai":
+				url =
+					getProviderEnvValue(
+						"kiwillm-claude-talkai",
+						"baseUrl",
+						configIndex,
+						"https://claude-talkai.ronitshrimankar1.workers.dev",
+					) ?? "https://claude-talkai.ronitshrimankar1.workers.dev";
+				break;
 			case "anthropic":
 				url = "https://api.anthropic.com";
 				break;
@@ -389,6 +407,8 @@ export function getProviderEndpoint(
 		case "kiwillm-deepseek":
 		case "kiwillm-minimax":
 		case "kiwillm-free-ai-hub":
+		case "kiwillm-n33-ai":
+		case "kiwillm-claude-talkai":
 			return `${url}/v1/chat/completions`;
 		case "alibaba":
 			if (imageGenerations) {

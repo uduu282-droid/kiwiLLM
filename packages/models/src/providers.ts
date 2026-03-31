@@ -145,6 +145,40 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-n33-ai",
+		name: "KiwiLLM N33 AI",
+		description:
+			"KiwiLLM-hosted mixed model worker exposed through our OpenAI-compatible worker.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_N33_AI_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://n33-ai.qwen4346.workers.dev",
+		announcement: null,
+	},
+	{
+		id: "kiwillm-claude-talkai",
+		name: "KiwiLLM Claude TalkAI",
+		description:
+			"KiwiLLM-hosted Claude TalkAI worker exposing Anthropic, OpenAI, and DeepSeek models through an OpenAI-compatible endpoint.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_CLAUDE_TALKAI_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://claude-talkai.ronitshrimankar1.workers.dev",
+		announcement: null,
+	},
+	{
 		id: "openai",
 		name: "OpenAI",
 		description:

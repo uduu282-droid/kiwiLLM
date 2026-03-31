@@ -34,6 +34,8 @@ export function getProviderHeaders(
 		case "kiwillm-deepseek":
 		case "kiwillm-minimax":
 		case "kiwillm-free-ai-hub":
+		case "kiwillm-n33-ai":
+		case "kiwillm-claude-talkai":
 			return {};
 		case "obsidian":
 			return {
