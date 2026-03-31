@@ -3,7 +3,7 @@ id: "1"
 slug: "terms"
 date: "2025-10-21"
 title: "Terms Of Use"
-description: "Review the Terms of Use for LLM Gateway. Learn about account eligibility, billing, data usage, AI provider policies, and user responsibilities when accessing our multi-provider AI gateway platform."
+description: "Review the Terms of Use for KiwiLLM. Learn about account eligibility, billing, data usage, AI provider policies, and user responsibilities when accessing our multi-provider AI gateway platform."
 ---
 
 # Terms of Use
@@ -11,7 +11,7 @@ description: "Review the Terms of Use for LLM Gateway. Learn about account eligi
 **Effective Date:** October 21, 2025  
 **Last Updated:** October 21, 2025
 
-Welcome to **LLM Gateway** (“we”, “our”, or “us”). These Terms of Use (“Terms”) govern your access to and use of the LLM Gateway platform, including our website **https://llmgateway.io**, APIs, SDKs, and any related products or services (collectively, the “Service”).
+Welcome to **KiwiLLM** (“we”, “our”, or “us”). These Terms of Use (“Terms”) govern your access to and use of the KiwiLLM platform, including our website **https://www.kiwillm.in**, APIs, SDKs, and any related products or services (collectively, the “Service”).
 
 By accessing or using the Service, you agree to be bound by these Terms. If you do not agree, please discontinue use immediately.
 
@@ -19,7 +19,7 @@ By accessing or using the Service, you agree to be bound by these Terms. If you 
 
 ## 1. Overview
 
-LLM Gateway provides an API gateway and management platform for connecting to multiple AI model providers.  
+KiwiLLM provides an API gateway and management platform for connecting to multiple AI model providers.  
 The Service allows users to:
 
 - Route and monitor API requests to AI providers
@@ -54,7 +54,7 @@ You agree to notify us immediately of any unauthorized access to your account.
 
 ## 4. Plans and Billing
 
-LLM Gateway offers free and enterprise plans:
+KiwiLLM offers free and enterprise plans:
 
 - **Free Plan:** Full features with generous limits
 - **Enterprise Plan:** Custom integrations, dedicated support, and SLA
@@ -68,7 +68,7 @@ All fees are non-refundable unless required by law.
 
 ## 5. Data and Privacy
 
-Your data is processed according to our [Privacy Policy](https://llmgateway.io/privacy).  
+Your data is processed according to our [Privacy Policy](https://www.kiwillm.in/legal/privacy).  
 You control how your data is stored under **Settings → Policies**, including whether to:
 
 - **Retain All Data** (request payloads and responses)
@@ -94,14 +94,14 @@ We reserve the right to suspend or terminate accounts engaging in abuse, fraud, 
 
 ## 7. AI Provider Usage
 
-When using AI models through LLM Gateway, you are also subject to the **terms and policies** of the respective model providers (e.g., OpenAI, Anthropic, Mistral, Google, etc.).  
-LLM Gateway acts as a router and analytics layer — we do not control or assume responsibility for provider responses.
+When using AI models through KiwiLLM, you are also subject to the **terms and policies** of the respective model providers (e.g., OpenAI, Anthropic, Mistral, Google, etc.).  
+KiwiLLM acts as a router and analytics layer - we do not control or assume responsibility for provider responses.
 
 ---
 
 ## 8. Intellectual Property
 
-All rights, titles, and interests in and to the Service (including software, design, and branding) are owned by **LLM Gateway** or its licensors.
+All rights, titles, and interests in and to the Service (including software, design, and branding) are owned by **KiwiLLM** or its licensors.
 
 You retain ownership of your own data and prompts.  
 You grant us a limited license to process and analyze your data for the purpose of providing the Service.
@@ -151,14 +151,14 @@ Use of the Service and AI outputs is at your own discretion and risk.
 
 To the fullest extent permitted by law:
 
-- LLM Gateway is **not liable** for indirect, incidental, or consequential damages
+- KiwiLLM is **not liable** for indirect, incidental, or consequential damages
 - Our total liability for any claim arising from these Terms shall not exceed the amount you paid (if any) in the preceding **three (3) months**
 
 ---
 
 ## 13. Indemnification
 
-You agree to indemnify and hold harmless **LLM Gateway**, its founders, employees, and partners from any claims, damages, or expenses resulting from:
+You agree to indemnify and hold harmless **KiwiLLM**, its founders, employees, and partners from any claims, damages, or expenses resulting from:
 
 - Your use or misuse of the Service
 - Your violation of these Terms or third-party rights
@@ -168,7 +168,7 @@ You agree to indemnify and hold harmless **LLM Gateway**, its founders, employee
 ## 14. Modifications
 
 We may update or modify these Terms at any time.  
-The latest version will always be available at [https://llmgateway.io/terms](https://llmgateway.io/terms).  
+The latest version will always be available at [https://www.kiwillm.in/legal/terms](https://www.kiwillm.in/legal/terms).  
 Your continued use of the Service after any change constitutes acceptance of the updated Terms.
 
 ---
@@ -183,9 +183,9 @@ Any disputes shall be resolved in the courts located in Delaware, USA.
 ## 16. Contact Us
 
 If you have questions about these Terms, contact us at:  
-📧 **contact@llmgateway.io**  
-🌐 **https://llmgateway.io**
+📧 **support@kiwillm.in**  
+🌐 **https://www.kiwillm.in**
 
 ---
 
-© 2025 LLM Gateway. All rights reserved.
+© 2025 KiwiLLM. All rights reserved.

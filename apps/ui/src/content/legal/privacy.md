@@ -3,7 +3,7 @@ id: "2"
 slug: "privacy"
 date: "2025-10-21"
 title: "Privacy Policy"
-description: "Read LLM Gateway’s Privacy Policy to understand how we collect, use, and protect your data. Learn about data retention, AI request storage, cookies, and your privacy rights when using our AI gateway platform."
+description: "Read KiwiLLM’s Privacy Policy to understand how we collect, use, and protect your data. Learn about data retention, AI request storage, cookies, and your privacy rights when using our AI gateway platform."
 ---
 
 # Privacy Policy
@@ -11,7 +11,7 @@ description: "Read LLM Gateway’s Privacy Policy to understand how we collect, 
 **Effective Date:** October 21, 2025  
 **Last Updated:** October 21, 2025
 
-LLM Gateway (“we”, “our”, or “us”) provides a unified AI gateway platform that enables users to connect, manage, and analyze AI models across multiple providers.  
+KiwiLLM (“we”, “our”, or “us”) provides a unified AI gateway platform that enables users to connect, manage, and analyze AI models across multiple providers.  
 This Privacy Policy explains how we collect, use, and protect your personal information when you use our website, services, or applications (collectively, the “Service”).
 
 ---
@@ -121,7 +121,7 @@ Depending on your location, you may have the right to:
 - Export your data in a machine-readable format
 - Withdraw consent for specific processing activities
 
-You can make requests via **[contact@llmgateway.io](mailto:contact@llmgateway.io)**.
+You can make requests via **[support@kiwillm.in](mailto:support@kiwillm.in)**.
 
 ---
 
@@ -142,12 +142,12 @@ We do not knowingly collect personal information from minors.
 ## 10. Changes to This Policy
 
 We may update this Privacy Policy periodically.  
-The latest version will always be available at [https://llmgateway.io/privacy](https://llmgateway.io/privacy).
+The latest version will always be available at [https://www.kiwillm.in/legal/privacy](https://www.kiwillm.in/legal/privacy).
 
 ---
 
 ## 11. Contact Us
 
 If you have any questions about this Privacy Policy or your data, contact us at:  
-📧 **contact@llmgateway.io**  
-🌐 **https://llmgateway.io**
+📧 **support@kiwillm.in**  
+🌐 **https://www.kiwillm.in**

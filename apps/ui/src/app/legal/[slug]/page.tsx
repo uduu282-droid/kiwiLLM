@@ -78,17 +78,17 @@ export async function generateMetadata({
 	}
 
 	return {
-		title: `${entry.title} - LLM Gateway`,
-		description: entry.description ?? "LLM Gateway legal post",
+		title: `${entry.title} - KiwiLLM`,
+		description: entry.description ?? "KiwiLLM legal page",
 		openGraph: {
-			title: `${entry.title} - LLM Gateway`,
-			description: entry.description ?? "LLM Gateway legal post",
+			title: `${entry.title} - KiwiLLM`,
+			description: entry.description ?? "KiwiLLM legal page",
 			type: "website",
 		},
 		twitter: {
 			card: "summary_large_image",
-			title: `${entry.title} - LLM Gateway`,
-			description: entry.description ?? "LLM Gateway legal post",
+			title: `${entry.title} - KiwiLLM`,
+			description: entry.description ?? "KiwiLLM legal page",
 		},
 	};
 }
