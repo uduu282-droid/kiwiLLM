@@ -30,6 +30,7 @@ import {
 	SelectValue,
 } from "@/lib/components/select";
 import { useApi } from "@/lib/fetch-client";
+import { LIVE_DASHBOARD_REFRESH_MS } from "@/lib/live-refresh";
 
 import type { ActivitT, ActivityModelUsage } from "@/types/activity";
 import type { TooltipProps } from "recharts";
@@ -211,6 +212,8 @@ export function ActivityChart({ initialData, apiKeyId }: ActivityChartProps) {
 		{
 			enabled: !!selectedProject?.id,
 			initialData: initialData,
+			refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+			refetchIntervalInBackground: true,
 		},
 	);
 

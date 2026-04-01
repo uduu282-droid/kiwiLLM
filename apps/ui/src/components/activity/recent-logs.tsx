@@ -18,6 +18,7 @@ import {
 	SelectValue,
 } from "@/lib/components/select";
 import { useApi } from "@/lib/fetch-client";
+import { LIVE_DASHBOARD_REFRESH_MS } from "@/lib/live-refresh";
 
 import type { Log } from "@llmgateway/db";
 
@@ -225,6 +226,8 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 			initialPageParam: undefined,
 			refetchOnWindowFocus: false,
 			staleTime: 5 * 60 * 1000, // 5 minutes to prevent unnecessary refetches
+			refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+			refetchIntervalInBackground: true,
 			getNextPageParam: (lastPage) => {
 				return lastPage?.pagination?.hasMore
 					? lastPage.pagination.nextCursor

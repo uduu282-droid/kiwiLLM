@@ -10,8 +10,10 @@ import {
 	inArray,
 	and,
 	gte,
+	lt,
 	lte,
 	eq,
+	log,
 	projectHourlyStats,
 	projectHourlyModelStats,
 	apiKeyHourlyStats,
@@ -21,6 +23,295 @@ import {
 import type { ServerTypes } from "@/vars.js";
 
 export const activity = new OpenAPIHono<ServerTypes>();
+
+interface ActivityRow {
+	date: string;
+	requestCount: number;
+	inputTokens: number;
+	outputTokens: number;
+	cachedTokens: number;
+	totalTokens: number;
+	cost: number;
+	inputCost: number;
+	outputCost: number;
+	requestCost: number;
+	dataStorageCost: number;
+	imageInputCost: number;
+	imageOutputCost: number;
+	cachedInputCost: number;
+	errorCount: number;
+	cacheCount: number;
+	discountSavings: number;
+	creditsRequestCount: number;
+	apiKeysRequestCount: number;
+	creditsCost: number;
+	apiKeysCost: number;
+	creditsDataStorageCost: number;
+	apiKeysDataStorageCost: number;
+}
+
+interface ModelBreakdownRow {
+	date: string;
+	usedModel: string | null;
+	usedProvider: string | null;
+	requestCount: number;
+	inputTokens: number;
+	outputTokens: number;
+	totalTokens: number;
+	cost: number;
+}
+
+function getCurrentHourStart(): Date {
+	const now = new Date();
+	now.setMinutes(0, 0, 0);
+	return now;
+}
+
+function createEmptyActivityRow(date: string): ActivityRow {
+	return {
+		date,
+		requestCount: 0,
+		inputTokens: 0,
+		outputTokens: 0,
+		cachedTokens: 0,
+		totalTokens: 0,
+		cost: 0,
+		inputCost: 0,
+		outputCost: 0,
+		requestCost: 0,
+		dataStorageCost: 0,
+		imageInputCost: 0,
+		imageOutputCost: 0,
+		cachedInputCost: 0,
+		errorCount: 0,
+		cacheCount: 0,
+		discountSavings: 0,
+		creditsRequestCount: 0,
+		apiKeysRequestCount: 0,
+		creditsCost: 0,
+		apiKeysCost: 0,
+		creditsDataStorageCost: 0,
+		apiKeysDataStorageCost: 0,
+	};
+}
+
+function mergeActivityRows(
+	rows: ActivityRow[],
+	modelRows: ModelBreakdownRow[],
+): z.infer<typeof dailyActivitySchema>[] {
+	const activityByDate = new Map<string, ActivityRow>();
+
+	for (const row of rows) {
+		const existing =
+			activityByDate.get(row.date) ?? createEmptyActivityRow(row.date);
+		existing.requestCount += Number(row.requestCount);
+		existing.inputTokens += Number(row.inputTokens);
+		existing.outputTokens += Number(row.outputTokens);
+		existing.cachedTokens += Number(row.cachedTokens);
+		existing.totalTokens += Number(row.totalTokens);
+		existing.cost += Number(row.cost);
+		existing.inputCost += Number(row.inputCost);
+		existing.outputCost += Number(row.outputCost);
+		existing.requestCost += Number(row.requestCost);
+		existing.dataStorageCost += Number(row.dataStorageCost);
+		existing.imageInputCost += Number(row.imageInputCost);
+		existing.imageOutputCost += Number(row.imageOutputCost);
+		existing.cachedInputCost += Number(row.cachedInputCost);
+		existing.errorCount += Number(row.errorCount);
+		existing.cacheCount += Number(row.cacheCount);
+		existing.discountSavings += Number(row.discountSavings);
+		existing.creditsRequestCount += Number(row.creditsRequestCount);
+		existing.apiKeysRequestCount += Number(row.apiKeysRequestCount);
+		existing.creditsCost += Number(row.creditsCost);
+		existing.apiKeysCost += Number(row.apiKeysCost);
+		existing.creditsDataStorageCost += Number(row.creditsDataStorageCost);
+		existing.apiKeysDataStorageCost += Number(row.apiKeysDataStorageCost);
+		activityByDate.set(row.date, existing);
+	}
+
+	const modelBreakdownByDate = new Map<
+		string,
+		Map<string, z.infer<typeof modelUsageSchema>>
+	>();
+
+	for (const row of modelRows) {
+		const dateMap =
+			modelBreakdownByDate.get(row.date) ??
+			new Map<string, z.infer<typeof modelUsageSchema>>();
+		const modelId = row.usedModel || "unknown";
+		const providerId = row.usedProvider || "unknown";
+		const key = `${providerId}:${modelId}`;
+		const existing = dateMap.get(key) ?? {
+			id: modelId,
+			provider: providerId,
+			requestCount: 0,
+			inputTokens: 0,
+			outputTokens: 0,
+			totalTokens: 0,
+			cost: 0,
+		};
+		existing.requestCount += Number(row.requestCount);
+		existing.inputTokens += Number(row.inputTokens);
+		existing.outputTokens += Number(row.outputTokens);
+		existing.totalTokens += Number(row.totalTokens);
+		existing.cost += Number(row.cost);
+		dateMap.set(key, existing);
+		modelBreakdownByDate.set(row.date, dateMap);
+	}
+
+	return Array.from(activityByDate.values())
+		.sort((a, b) => a.date.localeCompare(b.date))
+		.map((day) => ({
+			...day,
+			errorRate:
+				day.requestCount > 0 ? (day.errorCount / day.requestCount) * 100 : 0,
+			cacheRate:
+				day.requestCount > 0 ? (day.cacheCount / day.requestCount) * 100 : 0,
+			modelBreakdown: Array.from(
+				(modelBreakdownByDate.get(day.date) ?? new Map()).values(),
+			).sort((a, b) => a.id.localeCompare(b.id)),
+		}));
+}
+
+async function queryLiveActivityRows(
+	projectIds: string[],
+	startDate: Date,
+	endDate: Date,
+	apiKeyId?: string,
+): Promise<{ rows: ActivityRow[]; modelRows: ModelBreakdownRow[] }> {
+	const conditions = [
+		inArray(log.projectId, projectIds),
+		gte(log.createdAt, startDate),
+		lte(log.createdAt, endDate),
+	];
+
+	if (apiKeyId) {
+		conditions.push(eq(log.apiKeyId, apiKeyId));
+	}
+
+	const whereClause = and(...conditions);
+
+	const [rows, modelRows] = await Promise.all([
+		db
+			.select({
+				date: sql<string>`DATE(${log.createdAt})`.as("date"),
+				requestCount: sql<number>`count(*)::int`.as("requestCount"),
+				inputTokens:
+					sql<number>`COALESCE(SUM(CAST(${log.promptTokens} AS NUMERIC)), 0)`.as(
+						"inputTokens",
+					),
+				outputTokens:
+					sql<number>`COALESCE(SUM(CAST(${log.completionTokens} AS NUMERIC)), 0)`.as(
+						"outputTokens",
+					),
+				cachedTokens:
+					sql<number>`COALESCE(SUM(CAST(${log.cachedTokens} AS NUMERIC)), 0)`.as(
+						"cachedTokens",
+					),
+				totalTokens:
+					sql<number>`COALESCE(SUM(CAST(${log.totalTokens} AS NUMERIC)), 0)`.as(
+						"totalTokens",
+					),
+				cost: sql<number>`COALESCE(SUM(${log.cost}), 0)`.as("cost"),
+				inputCost: sql<number>`COALESCE(SUM(${log.inputCost}), 0)`.as(
+					"inputCost",
+				),
+				outputCost: sql<number>`COALESCE(SUM(${log.outputCost}), 0)`.as(
+					"outputCost",
+				),
+				requestCost: sql<number>`COALESCE(SUM(${log.requestCost}), 0)`.as(
+					"requestCost",
+				),
+				dataStorageCost:
+					sql<number>`COALESCE(SUM(CAST(${log.dataStorageCost} AS REAL)), 0)`.as(
+						"dataStorageCost",
+					),
+				imageInputCost: sql<number>`COALESCE(SUM(${log.imageInputCost}), 0)`.as(
+					"imageInputCost",
+				),
+				imageOutputCost:
+					sql<number>`COALESCE(SUM(${log.imageOutputCost}), 0)`.as(
+						"imageOutputCost",
+					),
+				cachedInputCost:
+					sql<number>`COALESCE(SUM(${log.cachedInputCost}), 0)`.as(
+						"cachedInputCost",
+					),
+				errorCount:
+					sql<number>`SUM(CASE WHEN ${log.hasError} = true THEN 1 ELSE 0 END)::int`.as(
+						"errorCount",
+					),
+				cacheCount:
+					sql<number>`SUM(CASE WHEN ${log.cached} = true THEN 1 ELSE 0 END)::int`.as(
+						"cacheCount",
+					),
+				discountSavings: sql<number>`COALESCE(
+					SUM(
+						CASE
+							WHEN ${log.discount} > 0 AND ${log.discount} < 1
+							THEN ${log.cost} * ${log.discount} / (1 - ${log.discount})
+							ELSE 0
+						END
+					),
+					0
+				)`.as("discountSavings"),
+				creditsRequestCount:
+					sql<number>`SUM(CASE WHEN ${log.usedMode} = 'credits' THEN 1 ELSE 0 END)::int`.as(
+						"creditsRequestCount",
+					),
+				apiKeysRequestCount:
+					sql<number>`SUM(CASE WHEN ${log.usedMode} = 'api-keys' THEN 1 ELSE 0 END)::int`.as(
+						"apiKeysRequestCount",
+					),
+				creditsCost:
+					sql<number>`COALESCE(SUM(CASE WHEN ${log.usedMode} = 'credits' THEN ${log.cost} ELSE 0 END), 0)`.as(
+						"creditsCost",
+					),
+				apiKeysCost:
+					sql<number>`COALESCE(SUM(CASE WHEN ${log.usedMode} = 'api-keys' THEN ${log.cost} ELSE 0 END), 0)`.as(
+						"apiKeysCost",
+					),
+				creditsDataStorageCost:
+					sql<number>`COALESCE(SUM(CASE WHEN ${log.usedMode} = 'credits' THEN CAST(${log.dataStorageCost} AS REAL) ELSE 0 END), 0)`.as(
+						"creditsDataStorageCost",
+					),
+				apiKeysDataStorageCost:
+					sql<number>`COALESCE(SUM(CASE WHEN ${log.usedMode} = 'api-keys' THEN CAST(${log.dataStorageCost} AS REAL) ELSE 0 END), 0)`.as(
+						"apiKeysDataStorageCost",
+					),
+			})
+			.from(log)
+			.where(whereClause)
+			.groupBy(sql`DATE(${log.createdAt})`)
+			.orderBy(sql`DATE(${log.createdAt}) ASC`),
+		db
+			.select({
+				date: sql<string>`DATE(${log.createdAt})`.as("date"),
+				usedModel: log.usedModel,
+				usedProvider: log.usedProvider,
+				requestCount: sql<number>`count(*)::int`.as("requestCount"),
+				inputTokens:
+					sql<number>`COALESCE(SUM(CAST(${log.promptTokens} AS NUMERIC)), 0)`.as(
+						"inputTokens",
+					),
+				outputTokens:
+					sql<number>`COALESCE(SUM(CAST(${log.completionTokens} AS NUMERIC)), 0)`.as(
+						"outputTokens",
+					),
+				totalTokens:
+					sql<number>`COALESCE(SUM(CAST(${log.totalTokens} AS NUMERIC)), 0)`.as(
+						"totalTokens",
+					),
+				cost: sql<number>`COALESCE(SUM(${log.cost}), 0)`.as("cost"),
+			})
+			.from(log)
+			.where(whereClause)
+			.groupBy(sql`DATE(${log.createdAt})`, log.usedModel, log.usedProvider)
+			.orderBy(sql`DATE(${log.createdAt}) ASC`, log.usedModel),
+	]);
+
+	return { rows, modelRows };
+}
 
 // Define the response schema for model-specific usage
 const modelUsageSchema = z.object({
@@ -156,6 +447,12 @@ activity.openapi(getActivity, async (c) => {
 		});
 	}
 
+	const currentHourStart = getCurrentHourStart();
+	const liveStartDate =
+		endDate >= currentHourStart
+			? new Date(Math.max(startDate.getTime(), currentHourStart.getTime()))
+			: null;
+
 	// If filtering by apiKeyId, use the apiKeyHourlyStats aggregation table
 	if (apiKeyId) {
 		// Query daily aggregated data from apiKeyHourlyStats table
@@ -257,6 +554,7 @@ activity.openapi(getActivity, async (c) => {
 					inArray(apiKeyHourlyStats.projectId, projectIds),
 					gte(apiKeyHourlyStats.hourTimestamp, startDate),
 					lte(apiKeyHourlyStats.hourTimestamp, endDate),
+					lt(apiKeyHourlyStats.hourTimestamp, currentHourStart),
 				),
 			)
 			.groupBy(sql`DATE(${apiKeyHourlyStats.hourTimestamp})`)
@@ -297,6 +595,7 @@ activity.openapi(getActivity, async (c) => {
 					inArray(apiKeyHourlyModelStats.projectId, projectIds),
 					gte(apiKeyHourlyModelStats.hourTimestamp, startDate),
 					lte(apiKeyHourlyModelStats.hourTimestamp, endDate),
+					lt(apiKeyHourlyModelStats.hourTimestamp, currentHourStart),
 				),
 			)
 			.groupBy(
@@ -306,85 +605,58 @@ activity.openapi(getActivity, async (c) => {
 				sql`DATE(${apiKeyHourlyModelStats.hourTimestamp}) ASC, ${apiKeyHourlyModelStats.usedModel} ASC`,
 			);
 
-		const modelBreakdownByDate = new Map<
-			string,
-			z.infer<typeof modelUsageSchema>[]
-		>();
-		for (const breakdown of modelBreakdowns) {
-			if (!modelBreakdownByDate.has(breakdown.date)) {
-				modelBreakdownByDate.set(breakdown.date, []);
-			}
-			modelBreakdownByDate.get(breakdown.date)!.push({
-				id: breakdown.usedModel || "unknown",
-				provider: breakdown.usedProvider || "unknown",
-				requestCount: Number(breakdown.requestCount),
-				inputTokens: Number(breakdown.inputTokens),
-				outputTokens: Number(breakdown.outputTokens),
-				totalTokens: Number(breakdown.totalTokens),
-				cost: Number(breakdown.cost),
-			});
-		}
+		const liveActivity = liveStartDate
+			? await queryLiveActivityRows(
+					projectIds,
+					liveStartDate,
+					endDate,
+					apiKeyId,
+				)
+			: { rows: [], modelRows: [] };
 
-		// Process daily aggregates and add calculated fields
-		const activityData = hourlyAggregates.map((day) => {
-			const requestCount = Number(day.requestCount);
-			const inputTokens = Number(day.inputTokens);
-			const outputTokens = Number(day.outputTokens);
-			const cachedTokens = Number(day.cachedTokens);
-			const totalTokens = Number(day.totalTokens);
-			const cost = Number(day.cost);
-			const inputCost = Number(day.inputCost);
-			const outputCost = Number(day.outputCost);
-			const requestCost = Number(day.requestCost);
-			const dataStorageCost = Number(day.dataStorageCost);
-			const errorCount = Number(day.errorCount);
-			const cacheCount = Number(day.cacheCount);
-			const discountSavings = Number(day.discountSavings);
-			const imageInputCost = Number(day.imageInputCost);
-			const imageOutputCost = Number(day.imageOutputCost);
-			const cachedInputCost = Number(day.cachedInputCost);
-
-			const creditsRequestCount = Number(day.creditsRequestCount);
-			const apiKeysRequestCount = Number(day.apiKeysRequestCount);
-			const creditsCost = Number(day.creditsCost);
-			const apiKeysCost = Number(day.apiKeysCost);
-			const creditsDataStorageCost = Number(day.creditsDataStorageCost);
-			const apiKeysDataStorageCost = Number(day.apiKeysDataStorageCost);
-
-			const errorRate =
-				requestCount > 0 ? (errorCount / requestCount) * 100 : 0;
-			const cacheRate =
-				requestCount > 0 ? (cacheCount / requestCount) * 100 : 0;
-
-			return {
-				date: day.date,
-				requestCount,
-				inputTokens,
-				outputTokens,
-				cachedTokens,
-				totalTokens,
-				cost,
-				inputCost,
-				outputCost,
-				requestCost,
-				dataStorageCost,
-				imageInputCost,
-				imageOutputCost,
-				cachedInputCost,
-				errorCount,
-				errorRate,
-				cacheCount,
-				cacheRate,
-				discountSavings,
-				creditsRequestCount,
-				apiKeysRequestCount,
-				creditsCost,
-				apiKeysCost,
-				creditsDataStorageCost,
-				apiKeysDataStorageCost,
-				modelBreakdown: modelBreakdownByDate.get(day.date) ?? [],
-			};
-		});
+		const activityData = mergeActivityRows(
+			[
+				...hourlyAggregates.map((day) => ({
+					date: day.date,
+					requestCount: Number(day.requestCount),
+					inputTokens: Number(day.inputTokens),
+					outputTokens: Number(day.outputTokens),
+					cachedTokens: Number(day.cachedTokens),
+					totalTokens: Number(day.totalTokens),
+					cost: Number(day.cost),
+					inputCost: Number(day.inputCost),
+					outputCost: Number(day.outputCost),
+					requestCost: Number(day.requestCost),
+					dataStorageCost: Number(day.dataStorageCost),
+					imageInputCost: Number(day.imageInputCost),
+					imageOutputCost: Number(day.imageOutputCost),
+					cachedInputCost: Number(day.cachedInputCost),
+					errorCount: Number(day.errorCount),
+					cacheCount: Number(day.cacheCount),
+					discountSavings: Number(day.discountSavings),
+					creditsRequestCount: Number(day.creditsRequestCount),
+					apiKeysRequestCount: Number(day.apiKeysRequestCount),
+					creditsCost: Number(day.creditsCost),
+					apiKeysCost: Number(day.apiKeysCost),
+					creditsDataStorageCost: Number(day.creditsDataStorageCost),
+					apiKeysDataStorageCost: Number(day.apiKeysDataStorageCost),
+				})),
+				...liveActivity.rows,
+			],
+			[
+				...modelBreakdowns.map((breakdown) => ({
+					date: breakdown.date,
+					usedModel: breakdown.usedModel,
+					usedProvider: breakdown.usedProvider,
+					requestCount: Number(breakdown.requestCount),
+					inputTokens: Number(breakdown.inputTokens),
+					outputTokens: Number(breakdown.outputTokens),
+					totalTokens: Number(breakdown.totalTokens),
+					cost: Number(breakdown.cost),
+				})),
+				...liveActivity.modelRows,
+			],
+		);
 
 		return c.json({
 			activity: activityData,
@@ -490,6 +762,7 @@ activity.openapi(getActivity, async (c) => {
 				inArray(projectHourlyStats.projectId, projectIds),
 				gte(projectHourlyStats.hourTimestamp, startDate),
 				lte(projectHourlyStats.hourTimestamp, endDate),
+				lt(projectHourlyStats.hourTimestamp, currentHourStart),
 			),
 		)
 		.groupBy(sql`DATE(${projectHourlyStats.hourTimestamp})`)
@@ -529,6 +802,7 @@ activity.openapi(getActivity, async (c) => {
 				inArray(projectHourlyModelStats.projectId, projectIds),
 				gte(projectHourlyModelStats.hourTimestamp, startDate),
 				lte(projectHourlyModelStats.hourTimestamp, endDate),
+				lt(projectHourlyModelStats.hourTimestamp, currentHourStart),
 			),
 		)
 		.groupBy(
@@ -538,85 +812,53 @@ activity.openapi(getActivity, async (c) => {
 			sql`DATE(${projectHourlyModelStats.hourTimestamp}) ASC, ${projectHourlyModelStats.usedModel} ASC`,
 		);
 
-	// Create a map to organize model breakdowns by date
-	const modelBreakdownByDate = new Map<
-		string,
-		z.infer<typeof modelUsageSchema>[]
-	>();
-	for (const breakdown of modelBreakdowns) {
-		if (!modelBreakdownByDate.has(breakdown.date)) {
-			modelBreakdownByDate.set(breakdown.date, []);
-		}
-		modelBreakdownByDate.get(breakdown.date)!.push({
-			id: breakdown.usedModel || "unknown",
-			provider: breakdown.usedProvider || "unknown",
-			requestCount: Number(breakdown.requestCount),
-			inputTokens: Number(breakdown.inputTokens),
-			outputTokens: Number(breakdown.outputTokens),
-			totalTokens: Number(breakdown.totalTokens),
-			cost: Number(breakdown.cost),
-		});
-	}
+	const liveActivity = liveStartDate
+		? await queryLiveActivityRows(projectIds, liveStartDate, endDate)
+		: { rows: [], modelRows: [] };
 
-	// Process hourly aggregates (summed to daily) and add calculated fields
-	const activityData = hourlyAggregates.map((day) => {
-		// Convert database strings to numbers
-		const requestCount = Number(day.requestCount);
-		const inputTokens = Number(day.inputTokens);
-		const outputTokens = Number(day.outputTokens);
-		const cachedTokens = Number(day.cachedTokens);
-		const totalTokens = Number(day.totalTokens);
-		const cost = Number(day.cost);
-		const inputCost = Number(day.inputCost);
-		const outputCost = Number(day.outputCost);
-		const requestCost = Number(day.requestCost);
-		const dataStorageCost = Number(day.dataStorageCost);
-		const imageInputCost = Number(day.imageInputCost);
-		const imageOutputCost = Number(day.imageOutputCost);
-		const cachedInputCost = Number(day.cachedInputCost);
-		const errorCount = Number(day.errorCount);
-		const cacheCount = Number(day.cacheCount);
-		const discountSavings = Number(day.discountSavings);
-
-		const creditsRequestCount = Number(day.creditsRequestCount);
-		const apiKeysRequestCount = Number(day.apiKeysRequestCount);
-		const creditsCost = Number(day.creditsCost);
-		const apiKeysCost = Number(day.apiKeysCost);
-		const creditsDataStorageCost = Number(day.creditsDataStorageCost);
-		const apiKeysDataStorageCost = Number(day.apiKeysDataStorageCost);
-
-		const errorRate = requestCount > 0 ? (errorCount / requestCount) * 100 : 0;
-		const cacheRate = requestCount > 0 ? (cacheCount / requestCount) * 100 : 0;
-
-		return {
-			date: day.date,
-			requestCount,
-			inputTokens,
-			outputTokens,
-			cachedTokens,
-			totalTokens,
-			cost,
-			inputCost,
-			outputCost,
-			requestCost,
-			dataStorageCost,
-			imageInputCost,
-			imageOutputCost,
-			cachedInputCost,
-			errorCount,
-			errorRate,
-			cacheCount,
-			cacheRate,
-			discountSavings,
-			creditsRequestCount,
-			apiKeysRequestCount,
-			creditsCost,
-			apiKeysCost,
-			creditsDataStorageCost,
-			apiKeysDataStorageCost,
-			modelBreakdown: modelBreakdownByDate.get(day.date) ?? [],
-		};
-	});
+	const activityData = mergeActivityRows(
+		[
+			...hourlyAggregates.map((day) => ({
+				date: day.date,
+				requestCount: Number(day.requestCount),
+				inputTokens: Number(day.inputTokens),
+				outputTokens: Number(day.outputTokens),
+				cachedTokens: Number(day.cachedTokens),
+				totalTokens: Number(day.totalTokens),
+				cost: Number(day.cost),
+				inputCost: Number(day.inputCost),
+				outputCost: Number(day.outputCost),
+				requestCost: Number(day.requestCost),
+				dataStorageCost: Number(day.dataStorageCost),
+				imageInputCost: Number(day.imageInputCost),
+				imageOutputCost: Number(day.imageOutputCost),
+				cachedInputCost: Number(day.cachedInputCost),
+				errorCount: Number(day.errorCount),
+				cacheCount: Number(day.cacheCount),
+				discountSavings: Number(day.discountSavings),
+				creditsRequestCount: Number(day.creditsRequestCount),
+				apiKeysRequestCount: Number(day.apiKeysRequestCount),
+				creditsCost: Number(day.creditsCost),
+				apiKeysCost: Number(day.apiKeysCost),
+				creditsDataStorageCost: Number(day.creditsDataStorageCost),
+				apiKeysDataStorageCost: Number(day.apiKeysDataStorageCost),
+			})),
+			...liveActivity.rows,
+		],
+		[
+			...modelBreakdowns.map((breakdown) => ({
+				date: breakdown.date,
+				usedModel: breakdown.usedModel,
+				usedProvider: breakdown.usedProvider,
+				requestCount: Number(breakdown.requestCount),
+				inputTokens: Number(breakdown.inputTokens),
+				outputTokens: Number(breakdown.outputTokens),
+				totalTokens: Number(breakdown.totalTokens),
+				cost: Number(breakdown.cost),
+			})),
+			...liveActivity.modelRows,
+		],
+	);
 
 	return c.json({
 		activity: activityData,

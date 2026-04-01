@@ -17,6 +17,7 @@ import {
 } from "@/lib/components/table";
 import { useDashboardState } from "@/lib/dashboard-state";
 import { useApi } from "@/lib/fetch-client";
+import { LIVE_DASHBOARD_REFRESH_MS } from "@/lib/live-refresh";
 
 import type { ActivityModelUsage, ActivitT } from "@/types/activity";
 
@@ -60,6 +61,8 @@ export function ModelUsageTable({
 		{
 			enabled: !!projectId,
 			initialData,
+			refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+			refetchIntervalInBackground: true,
 		},
 	);
 

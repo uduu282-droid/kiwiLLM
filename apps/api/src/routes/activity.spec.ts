@@ -253,6 +253,59 @@ describe("activity endpoint", () => {
 		expect(Array.isArray(data.activity)).toBe(true);
 	});
 
+	test("GET /activity should include current-hour logs that have not been re-aggregated yet", async () => {
+		const now = new Date();
+		await db.insert(tables.log).values({
+			id: "log-live-current-hour",
+			requestId: "log-live-current-hour",
+			createdAt: now,
+			updatedAt: now,
+			organizationId: "test-org-id",
+			projectId: "test-project-id",
+			apiKeyId: "test-api-key-id",
+			duration: 90,
+			requestedModel: "gpt-4",
+			requestedProvider: "openai",
+			usedModel: "gpt-4",
+			usedProvider: "openai",
+			responseSize: 777,
+			promptTokens: "7",
+			completionTokens: "13",
+			totalTokens: "20",
+			messages: JSON.stringify([{ role: "user", content: "Live now" }]),
+			mode: "api-keys",
+			usedMode: "api-keys",
+		});
+
+		const params = new URLSearchParams({
+			days: "7",
+			projectId: "test-project-id",
+		});
+		const res = await app.request("/activity?" + params, {
+			headers: {
+				Cookie: token,
+			},
+		});
+
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		const todayKey = now.toISOString().slice(0, 10);
+		const today = data.activity.find(
+			(day: { date: string }) => day.date === todayKey,
+		);
+
+		expect(today).toBeDefined();
+		expect(today.requestCount).toBe(3);
+		expect(today.totalTokens).toBe(70);
+
+		const gpt4 = today.modelBreakdown.find(
+			(model: { id: string }) => model.id === "gpt-4",
+		);
+		expect(gpt4).toBeDefined();
+		expect(gpt4.requestCount).toBe(2);
+		expect(gpt4.totalTokens).toBe(50);
+	});
+
 	test("GET /activity should require authentication", async () => {
 		const res = await app.request("/activity?days=7");
 		expect(res.status).toBe(401);

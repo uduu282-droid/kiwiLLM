@@ -14,6 +14,7 @@ import {
 import { getDateRangeFromParams } from "@/components/date-range-picker";
 import { useDashboardState } from "@/lib/dashboard-state";
 import { useApi } from "@/lib/fetch-client";
+import { LIVE_DASHBOARD_REFRESH_MS } from "@/lib/live-refresh";
 
 import type { ActivitT } from "@/types/activity";
 import type { TooltipProps } from "recharts";
@@ -76,6 +77,8 @@ export function UsageChart({
 		{
 			enabled: !!projectId,
 			initialData,
+			refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+			refetchIntervalInBackground: true,
 		},
 	);
 

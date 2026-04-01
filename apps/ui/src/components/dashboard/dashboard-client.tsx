@@ -55,6 +55,7 @@ import {
 } from "@/lib/components/select";
 import { useAppConfig } from "@/lib/config";
 import { useApi } from "@/lib/fetch-client";
+import { LIVE_DASHBOARD_REFRESH_MS } from "@/lib/live-refresh";
 
 import type { ActivitT } from "@/types/activity";
 
@@ -111,6 +112,8 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 			initialData: searchParams.get("from") ? initialActivityData : undefined,
 			refetchOnWindowFocus: false,
 			staleTime: 1000 * 60 * 5, // 5 minutes
+			refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+			refetchIntervalInBackground: true,
 		},
 	);
 
@@ -280,6 +283,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 										• Organization: {selectedOrganization.name}
 									</span>
 								)}
+								<span className="ml-2">• Live usage refreshes every 15s</span>
 							</p>
 						)}
 					</div>
