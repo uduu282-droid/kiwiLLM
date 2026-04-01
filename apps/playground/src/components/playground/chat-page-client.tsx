@@ -1,5 +1,6 @@
 "use client";
 
+import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
@@ -36,6 +37,59 @@ const PLAYGROUND_API_KEY_STORAGE_KEY = "kiwillm_playground_api_key";
 const STRICT_PROVIDER_ROUTING_STORAGE_KEY =
 	"kiwillm_playground_strict_provider_routing";
 const PLAYGROUND_DEBUG_PREFIX = "[KiwiLLM Playground]";
+
+async function debugChatFetch(input: RequestInfo | URL, init?: RequestInit) {
+	const startedAt = Date.now();
+	const response = await fetch(input, init);
+	const contentType = response.headers.get("content-type");
+	const url =
+		typeof input === "string"
+			? input
+			: input instanceof URL
+				? input.toString()
+				: input.url;
+
+	console.info(`${PLAYGROUND_DEBUG_PREFIX} fetch response`, {
+		url,
+		status: response.status,
+		ok: response.ok,
+		contentType,
+		durationMs: Date.now() - startedAt,
+	});
+
+	const shouldInspectBody =
+		!response.ok ||
+		!contentType ||
+		(!contentType.includes("text/event-stream") &&
+			!contentType.includes("application/json"));
+
+	if (shouldInspectBody) {
+		void response
+			.clone()
+			.text()
+			.then((bodyText) => {
+				console.error(`${PLAYGROUND_DEBUG_PREFIX} fetch response body`, {
+					url,
+					status: response.status,
+					contentType,
+					bodyPreview: bodyText.slice(0, 2000),
+				});
+			})
+			.catch((error) => {
+				console.error(
+					`${PLAYGROUND_DEBUG_PREFIX} failed to read response body`,
+					{
+						url,
+						status: response.status,
+						contentType,
+						error,
+					},
+				);
+			});
+	}
+
+	return response;
+}
 
 function getDefaultModelValue(models: ApiModel[]) {
 	const firstModel = models[0];
@@ -194,9 +248,18 @@ export default function ChatPageClient({
 	const panelIdCounterRef = useRef(1);
 	// Flag to indicate we should clear messages on next URL change (set by handleChatSelect)
 	const shouldClearMessagesRef = useRef(false);
+	const chatTransport = useMemo(
+		() =>
+			new DefaultChatTransport({
+				api: "/api/chat",
+				fetch: debugChatFetch,
+			}),
+		[],
+	);
 
 	const { messages, setMessages, sendMessage, status, stop, regenerate } =
 		useChat({
+			transport: chatTransport,
 			onError: async (e) => {
 				errorOccurredRef.current = true;
 				const msg = getErrorMessage(e);
@@ -1372,8 +1435,17 @@ function ExtraChatPanel({
 	const [imageCount, setImageCount] = useState<1 | 2 | 3 | 4>(1);
 	const [webSearchEnabled, setWebSearchEnabled] = useState(false);
 	const [text, setText] = useState("");
+	const chatTransport = useMemo(
+		() =>
+			new DefaultChatTransport({
+				api: "/api/chat",
+				fetch: debugChatFetch,
+			}),
+		[],
+	);
 
 	const { messages, sendMessage, status, stop, regenerate } = useChat({
+		transport: chatTransport,
 		onError: async (e) => {
 			const msg = getErrorMessage(e);
 			console.error(`${PLAYGROUND_DEBUG_PREFIX} comparison chat error`, {
