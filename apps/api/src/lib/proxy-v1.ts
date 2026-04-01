@@ -38,6 +38,7 @@ export const proxyV1Request = async (c: Context<ServerTypes>) => {
 			upstreamHeaders.set(key, value);
 		}
 	}
+	upstreamHeaders.set("accept-encoding", "identity");
 
 	const method = c.req.method.toUpperCase();
 	const hasBody = method !== "GET" && method !== "HEAD";
@@ -66,11 +67,14 @@ export const proxyV1Request = async (c: Context<ServerTypes>) => {
 		});
 	}
 
-	const responseBuffer = await upstreamResponse.arrayBuffer();
-	responseHeaders.set("content-length", String(responseBuffer.byteLength));
+	const responseText = await upstreamResponse.text();
+	responseHeaders.set(
+		"content-length",
+		String(Buffer.byteLength(responseText, "utf8")),
+	);
 	responseHeaders.set("cache-control", "no-store, no-transform");
 
-	return new Response(responseBuffer, {
+	return new Response(responseText, {
 		status: upstreamResponse.status,
 		statusText: upstreamResponse.statusText,
 		headers: responseHeaders,
