@@ -54,6 +54,7 @@ import {
 import { logger } from "@llmgateway/logger";
 import {
 	type BaseMessage,
+	getProviderEnvConfig,
 	getModelStreamingSupport,
 	hasMaxTokens,
 	hasProviderEnvironmentToken,
@@ -132,6 +133,10 @@ const hostedProviderFallbackBaseUrls: Partial<Record<Provider, string>> = {
 	"kiwillm-grok-proxy": "https://grok-proxy.qwen4346.workers.dev",
 	"kiwillm-gpt-oss-worker": "https://gpt-oss-worker.llamai.workers.dev",
 };
+
+function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
+	return !getProviderEnvConfig(providerId)?.required.apiKey;
+}
 
 function serializeJsonResponse(data: unknown): string {
 	return JSON.stringify(data, (_key, value) => {
@@ -1155,7 +1160,17 @@ chat.openapi(completions, async (c) => {
 
 				const availableProviders =
 					project.mode === "api-keys"
-						? providerKeys.map((key) => key.provider)
+						? [
+								...new Set([
+									...providerKeys.map((key) => key.provider),
+									...providers
+										.filter((p) => p.id !== "llmgateway" && p.id !== usedProvider)
+										.filter((p) =>
+											providerCanUseHostedRouteWithoutKey(p.id as Provider),
+										)
+										.map((p) => p.id),
+								]),
+							]
 						: providers
 								.filter((p) => p.id !== "llmgateway" && p.id !== usedProvider)
 								.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
@@ -1214,9 +1229,15 @@ chat.openapi(completions, async (c) => {
 						try {
 							if (project.mode === "api-keys") {
 								if (!providerKey?.token) {
-									return false;
+									if (providerCanUseHostedRouteWithoutKey(provider.providerId)) {
+										routingToken = "";
+										routingConfigIndex = 0;
+									} else {
+										return false;
+									}
+								} else {
+									routingToken = providerKey.token;
 								}
-								routingToken = providerKey.token;
 							} else if (project.mode === "credits") {
 								const envResult = getProviderEnv(provider.providerId);
 								routingToken = envResult.token;
@@ -1378,7 +1399,17 @@ chat.openapi(completions, async (c) => {
 
 			const availableProviders =
 				project.mode === "api-keys"
-					? providerKeys.map((key) => key.provider)
+					? [
+							...new Set([
+								...providerKeys.map((key) => key.provider),
+								...providers
+									.filter((p) => p.id !== "llmgateway")
+									.filter((p) =>
+										providerCanUseHostedRouteWithoutKey(p.id as Provider),
+									)
+									.map((p) => p.id),
+							]),
+						]
 					: providers
 							.filter((p) => p.id !== "llmgateway")
 							.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
@@ -1450,9 +1481,15 @@ chat.openapi(completions, async (c) => {
 					try {
 						if (project.mode === "api-keys") {
 							if (!providerKey?.token) {
-								return false;
+								if (providerCanUseHostedRouteWithoutKey(provider.providerId)) {
+									routingToken = "";
+									routingConfigIndex = 0;
+								} else {
+									return false;
+								}
+							} else {
+								routingToken = providerKey.token;
 							}
-							routingToken = providerKey.token;
 						} else if (project.mode === "credits") {
 							const envResult = getProviderEnv(provider.providerId);
 							routingToken = envResult.token;
