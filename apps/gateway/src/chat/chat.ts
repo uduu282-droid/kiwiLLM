@@ -1005,9 +1005,11 @@ chat.openapi(completions, async (c) => {
 
 		// If we found a suitable model, use the cheapest provider from it
 		if (selectedModel && selectedProviders.length > 0) {
+			const resolvedSelectedModel = selectedModel;
+
 			// Fetch uptime/latency metrics from last 5 minutes for provider selection
 			const metricsCombinations = selectedProviders.map((p) => ({
-				modelId: selectedModel.id,
+				modelId: resolvedSelectedModel.id,
 				providerId: p.providerId,
 			}));
 			const metricsMap =
@@ -1015,7 +1017,7 @@ chat.openapi(completions, async (c) => {
 
 			const cheapestResult = getCheapestFromAvailableProviders(
 				selectedProviders,
-				selectedModel,
+				resolvedSelectedModel,
 				{ metricsMap, isStreaming: stream },
 			);
 
@@ -1039,9 +1041,32 @@ chat.openapi(completions, async (c) => {
 						"No non-reasoning models are available for auto routing. Remove no_reasoning parameter or use a specific model.",
 				});
 			}
-			// Default fallback if no suitable model is found - use cheapest allowed model
-			usedModel = "gpt-5-nano";
-			usedProvider = "openai";
+
+			const hostedFallbackModel = models.find(
+				(candidate) => candidate.id === "minimax-m1",
+			);
+			const hostedFallbackProvider = hostedFallbackModel?.providers.find(
+				(provider) =>
+					provider.providerId === "kiwillm-minimax" &&
+					canRouteProviderMapping(provider as ProviderModelMapping),
+			) as ProviderModelMapping | undefined;
+
+			if (hostedFallbackModel && hostedFallbackProvider) {
+				logger.warn("Falling back from auto routing to hosted minimax route", {
+					organizationId: project.organizationId,
+					apiKeyId: apiKey.id,
+					freeModelsOnly: free_models_only,
+				});
+				selectedModel = hostedFallbackModel;
+				selectedProviders = [hostedFallbackProvider];
+				usedModel = hostedFallbackProvider.modelName;
+				usedProvider = hostedFallbackProvider.providerId;
+			} else {
+				throw new HTTPException(503, {
+					message:
+						"No routeable models are currently available for auto routing. Please choose a specific model.",
+				});
+			}
 		}
 		// Update modelInfo to the selected model so retry/fallback logic can find
 		// alternative providers. Without this, modelInfo still points to the "auto"
