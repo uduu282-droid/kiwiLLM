@@ -2,7 +2,10 @@
 import { HTTPException } from "hono/http-exception";
 
 import { findUserFromOrganization } from "@/lib/cached-queries.js";
-import { checkFreeModelRateLimit } from "@/lib/rate-limit.js";
+import {
+	checkFreeModelRateLimit,
+	checkFreeUserRequestRateLimit,
+} from "@/lib/rate-limit.js";
 
 import { logger } from "@llmgateway/logger";
 
@@ -54,6 +57,56 @@ export async function validateFreeModelUsage(
 
 		throw new HTTPException(429, {
 			message: "Rate limit exceeded for free models. Please try again later.",
+		});
+	}
+}
+
+export async function validateFreeUserUsage(
+	c: Context<ServerTypes>,
+	organizationId: string,
+	options?: { skipEmailVerification?: boolean },
+) {
+	const result = await findUserFromOrganization(organizationId);
+	if (!result?.user) {
+		logger.error("User not found", { organizationId });
+		throw new HTTPException(500, {
+			message: "User not found",
+		});
+	}
+
+	const user = result.user;
+	if (!options?.skipEmailVerification && !user.emailVerified) {
+		throw new HTTPException(403, {
+			message:
+				"Email verification required to use KiwiLLM free-tier access. Please verify your email address.",
+		});
+	}
+
+	const rateLimitResult = await checkFreeUserRequestRateLimit(organizationId);
+
+	c.header("X-RateLimit-Limit-Minute", rateLimitResult.minute.limit.toString());
+	c.header(
+		"X-RateLimit-Remaining-Minute",
+		rateLimitResult.minute.remaining.toString(),
+	);
+	c.header("X-RateLimit-Limit-Day", rateLimitResult.day.limit.toString());
+	c.header(
+		"X-RateLimit-Remaining-Day",
+		rateLimitResult.day.remaining.toString(),
+	);
+
+	if (!rateLimitResult.allowed) {
+		if (rateLimitResult.retryAfter) {
+			c.header("Retry-After", rateLimitResult.retryAfter.toString());
+			c.header(
+				"X-RateLimit-Reset",
+				(Math.floor(Date.now() / 1000) + rateLimitResult.retryAfter).toString(),
+			);
+		}
+
+		throw new HTTPException(429, {
+			message:
+				"Free-tier limit reached. Free users can send up to 10 requests per minute and 200 requests per day.",
 		});
 	}
 }

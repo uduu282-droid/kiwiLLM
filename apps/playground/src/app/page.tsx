@@ -28,6 +28,20 @@ export interface GatewayModel {
 	architecture?: { input_modalities?: string[] };
 }
 
+function getDefaultModelValue(models: Awaited<ReturnType<typeof fetchModels>>) {
+	const firstModel = models[0];
+	if (!firstModel) {
+		return "";
+	}
+
+	const firstMapping = firstModel.mappings[0];
+	if (firstMapping?.providerId) {
+		return `${firstMapping.providerId}/${firstModel.id}`;
+	}
+
+	return firstModel.id;
+}
+
 export default async function ChatPage({
 	searchParams,
 }: {
@@ -55,6 +69,7 @@ export default async function ChatPage({
 		fetchModels(),
 		fetchProviders(),
 	]);
+	const defaultModel = getDefaultModelValue(models);
 
 	// Auto-select a web search capable model when hints=search
 	if (hints === "search" && !model) {
@@ -65,7 +80,7 @@ export default async function ChatPage({
 
 		model = webSearchModel
 			? `${webSearchModel.mappings[0]?.providerId}/${webSearchModel.id}`
-			: "auto";
+			: defaultModel;
 		// Redirect to add the model parameter to the URL
 		const newParams = new URLSearchParams();
 		if (orgId) {
@@ -80,8 +95,10 @@ export default async function ChatPage({
 		if (hints) {
 			newParams.set("hints", hints);
 		}
-		newParams.set("model", model);
-		redirect(`/?${newParams.toString()}`);
+		if (model) {
+			newParams.set("model", model);
+			redirect(`/?${newParams.toString()}`);
+		}
 	}
 
 	// Fetch organizations server-side

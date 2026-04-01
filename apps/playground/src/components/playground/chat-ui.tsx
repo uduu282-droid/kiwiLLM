@@ -143,6 +143,8 @@ interface ChatUIProps {
 	isLoading?: boolean;
 	error?: string | null;
 	floatingInput?: boolean;
+	canSend?: boolean;
+	lockReason?: string | null;
 }
 
 const suggestions = [
@@ -419,6 +421,8 @@ export const ChatUI = ({
 	isLoading = false,
 	error = null,
 	floatingInput = false,
+	canSend = true,
+	lockReason = null,
 }: ChatUIProps) => {
 	// Check if the model uses WIDTHxHEIGHT format (Alibaba or ZAI)
 	const usesPixelDimensions =
@@ -472,6 +476,13 @@ export const ChatUI = ({
 		}>,
 	) => {
 		if (isLoading || status === "streaming") {
+			return;
+		}
+
+		if (!canSend) {
+			toast.error(
+				lockReason ?? "Provide an API key before using the Playground.",
+			);
 			return;
 		}
 
@@ -638,7 +649,7 @@ export const ChatUI = ({
 					accept={supportsImages ? "image/*" : undefined}
 					multiple
 					globalDrop
-					aria-disabled={isLoading || status === "streaming"}
+					aria-disabled={isLoading || status === "streaming" || !canSend}
 					onSubmit={(message) => {
 						void handlePromptSubmit(message.text ?? "", message.files);
 					}}
@@ -651,7 +662,12 @@ export const ChatUI = ({
 							ref={textareaRef}
 							value={text}
 							onChange={(e) => setText(e.currentTarget.value)}
-							placeholder="Message"
+							placeholder={
+								canSend
+									? "Message"
+									: "Paste your KiwiLLM API key in the config panel to start chatting"
+							}
+							disabled={!canSend}
 						/>
 					</PromptInputBody>
 					<PromptInputToolbar>
@@ -816,7 +832,7 @@ export const ChatUI = ({
 							) : null}
 							<PromptInputSubmit
 								status={status === "streaming" ? "streaming" : "ready"}
-								disabled={isLoading}
+								disabled={isLoading || !canSend}
 							/>
 						</div>
 					</PromptInputToolbar>

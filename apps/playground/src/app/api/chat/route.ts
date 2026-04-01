@@ -10,10 +10,7 @@ import {
 	createUIMessageStreamResponse,
 	JsonToSseTransformStream,
 } from "ai";
-import { cookies } from "next/headers";
 import { z } from "zod";
-
-import { getUser } from "@/lib/getUser";
 
 import { createLLMGateway } from "@llmgateway/ai-sdk-provider";
 
@@ -297,14 +294,6 @@ interface McpClientWrapper {
 }
 
 export async function POST(req: Request) {
-	const user = await getUser();
-
-	if (!user) {
-		return new Response(JSON.stringify({ error: "Unauthorized" }), {
-			status: 401,
-		});
-	}
-
 	const body = await req.json();
 	const {
 		messages,
@@ -327,14 +316,16 @@ export async function POST(req: Request) {
 	const headerApiKey = req.headers.get("x-llmgateway-key") ?? undefined;
 	const headerModel = req.headers.get("x-llmgateway-model") ?? undefined;
 	const noFallbackHeader = req.headers.get("x-no-fallback") ?? undefined;
-
-	const cookieStore = await cookies();
-	const cookieApiKey =
-		cookieStore.get("llmgateway_playground_key")?.value ??
-		cookieStore.get("__Host-llmgateway_playground_key")?.value;
-	const finalApiKey = apiKey ?? headerApiKey ?? cookieApiKey;
+	const finalApiKey = apiKey ?? headerApiKey;
 	if (!finalApiKey) {
 		return new Response(JSON.stringify({ error: "Missing API key" }), {
+			status: 400,
+		});
+	}
+
+	let selectedModel = (model ?? headerModel)?.trim();
+	if (!selectedModel) {
+		return new Response(JSON.stringify({ error: "Missing model" }), {
 			status: 400,
 		});
 	}
@@ -362,7 +353,6 @@ export async function POST(req: Request) {
 	// Respect root model IDs passed from the client without adding a provider prefix.
 	// Only apply provider-based prefixing when the client did NOT explicitly specify a model
 	// (i.e. we're using a header/default model value).
-	let selectedModel = (model ?? headerModel ?? "auto") as string;
 	if (!model && provider && typeof provider === "string") {
 		const alreadyPrefixed = String(selectedModel).includes("/");
 		if (!alreadyPrefixed) {

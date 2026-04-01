@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
+	BanIcon,
 	BarChart3Icon,
 	EditIcon,
 	KeyIcon,
@@ -268,6 +269,36 @@ export function ApiKeysList({
 					toast({
 						title: "API Key Status Updated",
 						description: "The API key status has been updated.",
+					});
+				},
+			},
+		);
+	};
+
+	const revokeKey = (id: string) => {
+		toggleKeyStatus(
+			{
+				params: {
+					path: { id },
+				},
+				body: {
+					status: "inactive",
+				},
+			},
+			{
+				onSuccess: () => {
+					const queryKey = api.queryOptions("get", "/keys/api", {
+						params: {
+							query: { projectId: selectedProject.id },
+						},
+					}).queryKey;
+
+					void queryClient.invalidateQueries({ queryKey });
+
+					toast({
+						title: "API Key Revoked",
+						description:
+							"The key has been revoked and can no longer be used for requests.",
 					});
 				},
 			},
@@ -547,9 +578,8 @@ export function ApiKeysList({
 														/>
 													</div>
 													<div className="text-muted-foreground text-sm">
-														Usage includes both usage from KiwiLLM credits
-														and usage from your own provider keys when
-														applicable.
+														Usage includes both usage from KiwiLLM credits and
+														usage from your own provider keys when applicable.
 													</div>
 												</div>
 												<DialogFooter className="pt-8">
@@ -621,14 +651,45 @@ export function ApiKeysList({
 											{key.description !== "Auto-generated playground key" && (
 												<>
 													<DropdownMenuSeparator />
-													<DropdownMenuItem
-														onClick={() => toggleStatus(key.id, key.status)}
-													>
-														{key.status === "active"
-															? "Deactivate"
-															: "Activate"}{" "}
-														Key
-													</DropdownMenuItem>
+													{key.status === "active" ? (
+														<AlertDialog>
+															<AlertDialogTrigger asChild>
+																<DropdownMenuItem
+																	onSelect={(e) => e.preventDefault()}
+																>
+																	<BanIcon className="mr-2 h-4 w-4" />
+																	Revoke Key
+																</DropdownMenuItem>
+															</AlertDialogTrigger>
+															<AlertDialogContent>
+																<AlertDialogHeader>
+																	<AlertDialogTitle>
+																		Revoke this API key?
+																	</AlertDialogTitle>
+																	<AlertDialogDescription>
+																		This will immediately disable the key so it
+																		can no longer authenticate requests. You can
+																		reactivate it later from the keys list if
+																		needed.
+																	</AlertDialogDescription>
+																</AlertDialogHeader>
+																<AlertDialogFooter>
+																	<AlertDialogCancel>Cancel</AlertDialogCancel>
+																	<AlertDialogAction
+																		onClick={() => revokeKey(key.id)}
+																	>
+																		Revoke Key
+																	</AlertDialogAction>
+																</AlertDialogFooter>
+															</AlertDialogContent>
+														</AlertDialog>
+													) : (
+														<DropdownMenuItem
+															onClick={() => toggleStatus(key.id, key.status)}
+														>
+															Activate Key
+														</DropdownMenuItem>
+													)}
 													<DropdownMenuSeparator />
 													<AlertDialog>
 														<AlertDialogTrigger asChild>
@@ -717,12 +778,45 @@ export function ApiKeysList({
 									{key.description !== "Auto-generated playground key" && (
 										<>
 											<DropdownMenuSeparator />
-											<DropdownMenuItem
-												onClick={() => toggleStatus(key.id, key.status)}
-											>
-												{key.status === "active" ? "Deactivate" : "Activate"}{" "}
-												Key
-											</DropdownMenuItem>
+											{key.status === "active" ? (
+												<AlertDialog>
+													<AlertDialogTrigger asChild>
+														<DropdownMenuItem
+															onSelect={(e) => e.preventDefault()}
+														>
+															<BanIcon className="mr-2 h-4 w-4" />
+															Revoke Key
+														</DropdownMenuItem>
+													</AlertDialogTrigger>
+													<AlertDialogContent>
+														<AlertDialogHeader>
+															<AlertDialogTitle>
+																Revoke this API key?
+															</AlertDialogTitle>
+															<AlertDialogDescription>
+																This will immediately disable the key so it can
+																no longer authenticate requests. You can
+																reactivate it later from the keys list if
+																needed.
+															</AlertDialogDescription>
+														</AlertDialogHeader>
+														<AlertDialogFooter>
+															<AlertDialogCancel>Cancel</AlertDialogCancel>
+															<AlertDialogAction
+																onClick={() => revokeKey(key.id)}
+															>
+																Revoke Key
+															</AlertDialogAction>
+														</AlertDialogFooter>
+													</AlertDialogContent>
+												</AlertDialog>
+											) : (
+												<DropdownMenuItem
+													onClick={() => toggleStatus(key.id, key.status)}
+												>
+													Activate Key
+												</DropdownMenuItem>
+											)}
 											<DropdownMenuSeparator />
 											<AlertDialog>
 												<AlertDialogTrigger asChild>
@@ -909,4 +1003,3 @@ export function ApiKeysList({
 		</>
 	);
 }
-

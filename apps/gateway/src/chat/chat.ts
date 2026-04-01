@@ -109,7 +109,10 @@ import {
 } from "./tools/tokenizer.js";
 import { transformResponseToOpenai } from "./tools/transform-response-to-openai.js";
 import { transformStreamingToOpenai } from "./tools/transform-streaming-to-openai.js";
-import { validateFreeModelUsage } from "./tools/validate-free-model-usage.js";
+import {
+	validateFreeModelUsage,
+	validateFreeUserUsage,
+} from "./tools/validate-free-model-usage.js";
 import { validateModelCapabilities } from "./tools/validate-model-capabilities.js";
 
 import type { OriginalRequestParams } from "./tools/resolve-provider-context.js";
@@ -531,6 +534,9 @@ chat.openapi(completions, async (c) => {
 			message: "Could not find organization",
 		});
 	}
+
+	const isFreeTierOrganization =
+		organization.plan === "free" && organization.devPlan === "none";
 
 	// Run guardrails check for enterprise organizations
 	let guardrailResult: Awaited<ReturnType<typeof checkGuardrails>> | undefined;
@@ -1482,6 +1488,7 @@ chat.openapi(completions, async (c) => {
 
 		if (
 			totalAvailableCredits <= 0 &&
+			!isFreeTierOrganization &&
 			!free_models_only &&
 			!((finalModelInfo ?? modelInfo) as ModelDefinition).free &&
 			!selectedProviderIsZeroCost
@@ -1536,6 +1543,7 @@ chat.openapi(completions, async (c) => {
 
 			if (
 				totalAvailableCredits <= 0 &&
+				!isFreeTierOrganization &&
 				!free_models_only &&
 				!isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition) &&
 				!selectedProviderIsZeroCost
@@ -1572,18 +1580,23 @@ chat.openapi(completions, async (c) => {
 		});
 	}
 
-	// Check email verification and rate limits for free models (only when using credits/environment tokens)
-	if (
-		isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition) &&
-		(!providerKey || !providerKey.token)
-	) {
-		await validateFreeModelUsage(
-			c,
-			project.organizationId,
-			usedModel,
-			modelInfo as ModelDefinition,
-			{ skipEmailVerification: onboarding },
-		);
+	// Apply free-tier protections when requests use Kiwi-managed provider tokens.
+	if (!providerKey || !providerKey.token) {
+		if (isFreeTierOrganization) {
+			await validateFreeUserUsage(c, project.organizationId, {
+				skipEmailVerification: onboarding,
+			});
+		} else if (
+			isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition)
+		) {
+			await validateFreeModelUsage(
+				c,
+				project.organizationId,
+				usedModel,
+				modelInfo as ModelDefinition,
+				{ skipEmailVerification: onboarding },
+			);
+		}
 	}
 
 	// Check if organization has credits for data retention costs
