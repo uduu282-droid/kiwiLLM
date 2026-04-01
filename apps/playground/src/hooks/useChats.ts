@@ -25,13 +25,15 @@ export interface ChatMessage {
 	createdAt: string;
 }
 
-export function useChats() {
+export function useChats(enabled = true) {
 	const api = useApi();
 
-	return api.useQuery("get", "/chats");
+	return api.useQuery("get", "/chats", undefined, {
+		enabled,
+	});
 }
 
-export function useDataChat(chatId: string) {
+export function useDataChat(chatId: string, enabled = true) {
 	const api = useApi();
 
 	return api.useQuery(
@@ -43,7 +45,7 @@ export function useDataChat(chatId: string) {
 			},
 		},
 		{
-			enabled: !!chatId,
+			enabled: enabled && !!chatId,
 		},
 	);
 }

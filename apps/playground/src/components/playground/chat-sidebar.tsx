@@ -101,9 +101,11 @@ export function ChatSidebar({
 	const { user, isLoading: isUserLoading } = useUser();
 	const { signOut } = useAuth();
 	const { organization, isLoading: isOrgLoading } = useOrganization();
+	const isAuthenticated = !isUserLoading && !!user;
 
 	// Use real chat data from API
-	const { data: chatsData, isLoading: isChatsLoading } = useChats();
+	const { data: chatsData, isLoading: isChatsLoading } =
+		useChats(isAuthenticated);
 	const deleteChat = useDeleteChat();
 	const updateChat = useUpdateChat();
 
@@ -316,8 +318,6 @@ export function ChatSidebar({
 			</div>
 		);
 	};
-
-	const isAuthenticated = !!user;
 
 	// Loading auth state → show lightweight skeleton to avoid hydration issues
 	if (isUserLoading) {

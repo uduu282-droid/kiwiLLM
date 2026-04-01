@@ -163,6 +163,8 @@ export default function ChatPageClient({
 	const canUsePlayground = apiKey.trim().length > 0;
 	const playgroundLockReason =
 		"Paste a KiwiLLM API key in the config panel before sending a prompt.";
+	const isAuthenticated = !isUserLoading && !!user;
+	const canPersistChats = isAuthenticated && !!selectedProject;
 
 	// MCP servers management
 	const {
@@ -218,6 +220,10 @@ export default function ChatPageClient({
 				// If an error already occurred during streaming, skip saving the response
 				if (errorOccurredRef.current) {
 					errorOccurredRef.current = false;
+					return;
+				}
+
+				if (!canPersistChats) {
 					return;
 				}
 
@@ -327,10 +333,7 @@ export default function ChatPageClient({
 						error?.status === 404 &&
 						error?.message?.includes("Chat not found")
 					) {
-						chatIdRef.current = null;
-						setCurrentChatId(null);
-						setMessages([]);
-						toast.error("Chat was deleted. Please start a new conversation.");
+						clearCurrentChatState(true);
 					} else {
 						toast.error(
 							`Failed to save AI response: ${getErrorMessage(error)}`,
@@ -563,10 +566,51 @@ export default function ChatPageClient({
 	const createChat = useCreateChat();
 	const addMessage = useAddMessage();
 	const deleteChat = useDeleteChat();
-	const { data: currentChatData, isLoading: isChatLoading } = useDataChat(
-		currentChatId ?? "",
+	const {
+		data: currentChatData,
+		isLoading: isChatLoading,
+		error: currentChatError,
+	} = useDataChat(currentChatId ?? "", canPersistChats);
+	useChats(canPersistChats);
+
+	const clearCurrentChatState = useCallback(
+		(showToast = false) => {
+			chatIdRef.current = null;
+			setCurrentChatId(null);
+			shouldClearMessagesRef.current = true;
+			setMessages([]);
+
+			const params = new URLSearchParams(searchParams.toString());
+			params.delete("chat");
+			const newUrl = params.toString()
+				? `${pathname}?${params.toString()}`
+				: pathname;
+			router.replace(newUrl);
+
+			if (showToast) {
+				toast.error(
+					"That saved chat no longer exists. Starting a fresh conversation.",
+				);
+			}
+		},
+		[pathname, router, searchParams, setMessages],
 	);
-	useChats();
+
+	useEffect(() => {
+		if (!canPersistChats && currentChatId) {
+			clearCurrentChatState();
+		}
+	}, [canPersistChats, clearCurrentChatState, currentChatId]);
+
+	useEffect(() => {
+		const error = currentChatError as {
+			status?: number;
+			message?: string;
+		} | null;
+		if (error?.status === 404 || error?.message?.includes("Chat not found")) {
+			clearCurrentChatState(true);
+		}
+	}, [clearCurrentChatState, currentChatError]);
 
 	useEffect(() => {
 		if (!currentChatData?.messages) {
@@ -652,9 +696,11 @@ export default function ChatPageClient({
 		});
 	}, [currentChatData, setMessages, setSelectedModel]);
 
-	const isAuthenticated = !isUserLoading && !!user;
-
 	const ensureCurrentChat = async (userMessage?: string): Promise<string> => {
+		if (!canPersistChats) {
+			throw new Error("Chat persistence is unavailable");
+		}
+
 		if (chatIdRef.current) {
 			return chatIdRef.current;
 		}
@@ -695,7 +741,7 @@ export default function ChatPageClient({
 			image_url: { url: string };
 		}>,
 	) => {
-		if (!isAuthenticated || !selectedProject) {
+		if (!canPersistChats) {
 			return;
 		}
 
@@ -722,9 +768,7 @@ export default function ChatPageClient({
 		} catch (error: any) {
 			// If chat not found, it means the chat was deleted or is stale
 			if (error?.status === 404 && error?.message?.includes("Chat not found")) {
-				chatIdRef.current = null;
-				setCurrentChatId(null);
-				setMessages([]);
+				clearCurrentChatState();
 
 				// Try again with a new chat
 				try {
@@ -769,9 +813,7 @@ export default function ChatPageClient({
 					await deleteChat.mutateAsync({
 						params: { path: { id: chatIdRef.current } },
 					});
-					setCurrentChatId(null);
-					chatIdRef.current = null;
-					setMessages([]);
+					clearCurrentChatState();
 					isNewChatRef.current = false;
 				} catch (cleanupError) {
 					toast.error(
