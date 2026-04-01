@@ -832,8 +832,8 @@ chat.openapi(completions, async (c) => {
 			}
 		};
 
-		// Find the cheapest model that meets our context size requirements
-		// Only consider hardcoded models for auto selection
+		// Find the cheapest model that meets our context size requirements.
+		// We prefer a curated pool first, then widen if nothing routeable is available.
 		const allowedAutoModels = ["gpt-oss-120b", "gpt-5-nano", "gpt-4.1-nano"];
 
 		let selectedModel: ModelDefinition | undefined;
@@ -841,10 +841,17 @@ chat.openapi(completions, async (c) => {
 		let lowestPrice = Number.MAX_VALUE;
 		const now = new Date(); // Cache current time for deprecation checks
 		const autoSelectionPasses = free_models_only
-			? [true, false]
-			: [false];
+			? [
+					{ freeOnly: true, restrictToAllowed: false },
+					{ freeOnly: false, restrictToAllowed: true },
+					{ freeOnly: false, restrictToAllowed: false },
+				]
+			: [
+					{ freeOnly: false, restrictToAllowed: true },
+					{ freeOnly: false, restrictToAllowed: false },
+				];
 
-		for (const freeOnlyPass of autoSelectionPasses) {
+		for (const selectionPass of autoSelectionPasses) {
 			selectedModel = undefined;
 			selectedProviders = [];
 			lowestPrice = Number.MAX_VALUE;
@@ -856,11 +863,14 @@ chat.openapi(completions, async (c) => {
 
 				// On the first free-only pass, prefer free models if available.
 				// If none are routeable, fall back to our standard auto pool.
-				if (freeOnlyPass) {
+				if (selectionPass.freeOnly) {
 					if (!("free" in modelDef && modelDef.free)) {
 						continue;
 					}
-				} else if (!allowedAutoModels.includes(modelDef.id)) {
+				} else if (
+					selectionPass.restrictToAllowed &&
+					!allowedAutoModels.includes(modelDef.id)
+				) {
 					continue;
 				}
 
@@ -978,8 +988,13 @@ chat.openapi(completions, async (c) => {
 			}
 
 			if (selectedModel && selectedProviders.length > 0) {
-				if (free_models_only && !freeOnlyPass) {
+				if (free_models_only && !selectionPass.freeOnly) {
 					logger.warn("Falling back from free-only auto routing to general auto routing", {
+						organizationId: project.organizationId,
+						apiKeyId: apiKey.id,
+					});
+				} else if (!free_models_only && !selectionPass.restrictToAllowed) {
+					logger.warn("Falling back from curated auto routing to broad auto routing", {
 						organizationId: project.organizationId,
 						apiKeyId: apiKey.id,
 					});

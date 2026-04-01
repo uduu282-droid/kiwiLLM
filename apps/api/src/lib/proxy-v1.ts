@@ -55,7 +55,22 @@ export const proxyV1Request = async (c: Context<ServerTypes>) => {
 		responseHeaders.delete(header);
 	}
 
-	return new Response(upstreamResponse.body, {
+	const contentType = responseHeaders.get("content-type") ?? "";
+	const isStreamingResponse = contentType.includes("text/event-stream");
+
+	if (isStreamingResponse) {
+		return new Response(upstreamResponse.body, {
+			status: upstreamResponse.status,
+			statusText: upstreamResponse.statusText,
+			headers: responseHeaders,
+		});
+	}
+
+	const responseBuffer = await upstreamResponse.arrayBuffer();
+	responseHeaders.set("content-length", String(responseBuffer.byteLength));
+	responseHeaders.set("cache-control", "no-store, no-transform");
+
+	return new Response(responseBuffer, {
 		status: upstreamResponse.status,
 		statusText: upstreamResponse.statusText,
 		headers: responseHeaders,
