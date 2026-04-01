@@ -42,7 +42,33 @@ export const proxyV1Request = async (c: Context<ServerTypes>) => {
 
 	const method = c.req.method.toUpperCase();
 	const hasBody = method !== "GET" && method !== "HEAD";
-	const body = hasBody ? await c.req.raw.arrayBuffer() : undefined;
+	let body = hasBody ? await c.req.raw.arrayBuffer() : undefined;
+
+	if (
+		body &&
+		method === "POST" &&
+		c.req.path === "/v1/chat/completions" &&
+		(upstreamHeaders.get("content-type") ?? "").includes("application/json")
+	) {
+		try {
+			const requestText = Buffer.from(body).toString("utf8");
+			const requestJson = JSON.parse(requestText) as {
+				model?: string;
+			};
+
+			if (requestJson.model === "auto") {
+				requestJson.model = "minimax-m1";
+				const rewrittenBody = Buffer.from(JSON.stringify(requestJson), "utf8");
+				body = rewrittenBody.buffer.slice(
+					rewrittenBody.byteOffset,
+					rewrittenBody.byteOffset + rewrittenBody.byteLength,
+				);
+				upstreamHeaders.set("content-length", String(rewrittenBody.byteLength));
+			}
+		} catch {
+			// Leave the original request body untouched when it is not valid JSON.
+		}
+	}
 
 	const upstreamResponse = await fetch(upstreamUrl, {
 		method,
