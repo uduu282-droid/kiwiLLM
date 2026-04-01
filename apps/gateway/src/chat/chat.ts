@@ -128,6 +128,11 @@ const dashboardUrl = process.env.APP_URL ?? "https://app.kiwillm.in";
 
 export const chat = new OpenAPIHono<ServerTypes>();
 
+const hostedProviderFallbackBaseUrls: Partial<Record<Provider, string>> = {
+	"kiwillm-grok-proxy": "https://grok-proxy.qwen4346.workers.dev",
+	"kiwillm-gpt-oss-worker": "https://gpt-oss-worker.llamai.workers.dev",
+};
+
 function serializeJsonResponse(data: unknown): string {
 	return JSON.stringify(data, (_key, value) => {
 		if (typeof value === "bigint") {
@@ -1888,15 +1893,29 @@ chat.openapi(completions, async (c) => {
 			isImageGeneration,
 		);
 	} catch (error) {
-		if (usedProvider === "llmgateway" && usedModel !== "custom") {
+		const hostedFallbackBaseUrl = usedProvider
+			? hostedProviderFallbackBaseUrls[usedProvider]
+			: undefined;
+		if (
+			hostedFallbackBaseUrl &&
+			error instanceof Error &&
+			error.message.includes("requires a baseUrl")
+		) {
+			logger.warn("Falling back to hosted provider default base URL", {
+				provider: usedProvider,
+				model: usedModel,
+				hostedFallbackBaseUrl,
+			});
+			url = `${hostedFallbackBaseUrl}/v1/chat/completions`;
+		} else if (usedProvider === "llmgateway" && usedModel !== "custom") {
 			throw new HTTPException(400, {
 				message: `Invalid model: ${usedModel} for provider: ${usedProvider}`,
 			});
+		} else {
+			throw new HTTPException(500, {
+				message: `Could not use provider: ${usedProvider}. ${error instanceof Error ? error.message : ""}`,
+			});
 		}
-
-		throw new HTTPException(500, {
-			message: `Could not use provider: ${usedProvider}. ${error instanceof Error ? error.message : ""}`,
-		});
 	}
 
 	let useResponsesApi = url?.includes("/responses") ?? false;
