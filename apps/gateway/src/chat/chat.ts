@@ -128,6 +128,36 @@ const dashboardUrl = process.env.APP_URL ?? "https://app.kiwillm.in";
 
 export const chat = new OpenAPIHono<ServerTypes>();
 
+function serializeJsonResponse(data: unknown): string {
+	return JSON.stringify(data, (_key, value) => {
+		if (typeof value === "bigint") {
+			return value.toString();
+		}
+		if (typeof value === "number" && !Number.isFinite(value)) {
+			return null;
+		}
+		return value;
+	});
+}
+
+function jsonResponse(
+	data: unknown,
+	status = 200,
+	headers?: Record<string, string>,
+): Response {
+	const body = serializeJsonResponse(data);
+
+	return new Response(body, {
+		status,
+		headers: {
+			"Content-Type": "application/json; charset=utf-8",
+			"Cache-Control": "no-store, no-transform",
+			"Content-Length": Buffer.byteLength(body).toString(),
+			...(headers ?? {}),
+		},
+	});
+}
+
 const completions = createRoute({
 	operationId: "v1_chat_completions",
 	summary: "Chat Completions",
@@ -262,7 +292,7 @@ chat.openapi(completions, async (c) => {
 	try {
 		rawBody = await c.req.json();
 	} catch {
-		return c.json(
+		return jsonResponse(
 			{
 				error: {
 					message: "Invalid JSON in request body",
@@ -278,7 +308,7 @@ chat.openapi(completions, async (c) => {
 	// Validate against schema
 	const validationResult = completionsRequestSchema.safeParse(rawBody);
 	if (!validationResult.success) {
-		return c.json(
+		return jsonResponse(
 			{
 				error: {
 					message: "Invalid request parameters",
@@ -349,7 +379,7 @@ chat.openapi(completions, async (c) => {
 		validationResult.data.reasoning_effort !== undefined &&
 		reasoning_object_effort !== undefined
 	) {
-		return c.json(
+		return jsonResponse(
 			{
 				error: {
 					message:
@@ -2039,7 +2069,7 @@ chat.openapi(completions, async (c) => {
 					toolResults: cachedResponse.choices?.[0]?.message?.tool_calls ?? null,
 				});
 
-				return c.json(cachedResponse);
+				return jsonResponse(cachedResponse);
 			}
 		}
 	}
@@ -5339,7 +5369,7 @@ chat.openapi(completions, async (c) => {
 			}
 
 			// Return error response - use 504 for timeouts, 502 for other connection failures
-			return c.json(
+			return jsonResponse(
 				{
 					error: {
 						message: isTimeoutFetchError
@@ -5488,7 +5518,7 @@ chat.openapi(completions, async (c) => {
 				toolResults: null,
 			});
 
-			return c.json(
+			return jsonResponse(
 				{
 					error: {
 						message: "Request canceled by client",
@@ -5599,7 +5629,7 @@ chat.openapi(completions, async (c) => {
 						toolResults: null,
 					});
 
-					return c.json(
+					return jsonResponse(
 						{
 							error: {
 								message: `Upstream provider timeout: ${errorMessage}`,
@@ -5769,7 +5799,7 @@ chat.openapi(completions, async (c) => {
 			// For content_filter, return a proper completion response (not an error)
 			// This handles Azure ResponsibleAIPolicyViolation and similar content filtering errors
 			if (finishReason === "content_filter") {
-				return c.json({
+				return jsonResponse({
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion",
 					created: Math.floor(Date.now() / 1000),
@@ -5803,14 +5833,14 @@ chat.openapi(completions, async (c) => {
 			if (finishReason === "client_error") {
 				try {
 					const originalError = JSON.parse(errorResponseText);
-					return c.json(originalError, res.status as 400);
+					return jsonResponse(originalError, res.status);
 				} catch {
 					// If we can't parse the original error, fall back to our format
 				}
 			}
 
 			// Return our wrapped error response for non-client errors
-			return c.json(
+			return jsonResponse(
 				{
 					error: {
 						message: `Error from provider: ${res.status} ${res.statusText} ${errorResponseText}`,
@@ -5868,7 +5898,7 @@ chat.openapi(completions, async (c) => {
 
 	if (!res || !res.ok) {
 		// All retries exhausted
-		return c.json(
+		return jsonResponse(
 			{
 				error: {
 					message: "All provider attempts failed",
@@ -5977,7 +6007,7 @@ chat.openapi(completions, async (c) => {
 				toolResults: null,
 			});
 
-			return c.json(
+			return jsonResponse(
 				{
 					error: {
 						message: `Upstream provider timeout: ${errorMessage}`,
@@ -6405,5 +6435,5 @@ chat.openapi(completions, async (c) => {
 		});
 	}
 
-	return c.json(transformedResponse);
+	return jsonResponse(transformedResponse);
 });

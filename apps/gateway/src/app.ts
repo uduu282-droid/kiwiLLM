@@ -41,6 +41,32 @@ const gatewayUrl =
 	process.env.PUBLIC_GATEWAY_URL ??
 	(isHosted ? "https://api.kiwillm.in" : "http://localhost:4001");
 
+function jsonResponse(
+	data: unknown,
+	status: number,
+	headers?: Record<string, string>,
+): Response {
+	const body = JSON.stringify(data, (_key, value) => {
+		if (typeof value === "bigint") {
+			return value.toString();
+		}
+		if (typeof value === "number" && !Number.isFinite(value)) {
+			return null;
+		}
+		return value;
+	});
+
+	return new Response(body, {
+		status,
+		headers: {
+			"Content-Type": "application/json; charset=utf-8",
+			"Cache-Control": "no-store, no-transform",
+			"Content-Length": Buffer.byteLength(body).toString(),
+			...(headers ?? {}),
+		},
+	});
+}
+
 export const config = {
 	servers: [
 		{
@@ -129,7 +155,7 @@ app.onError((error, c) => {
 			logger.warn("HTTP client error", { status, message: error.message });
 		}
 
-		return c.json(
+		return jsonResponse(
 			{
 				error: true,
 				status,
@@ -148,7 +174,7 @@ app.onError((error, c) => {
 			path: c.req.path,
 			method: c.req.method,
 		});
-		return c.json(
+		return jsonResponse(
 			{
 				error: true,
 				status: 504,
@@ -166,7 +192,7 @@ app.onError((error, c) => {
 			path: c.req.path,
 			method: c.req.method,
 		});
-		return c.json(
+		return jsonResponse(
 			{
 				error: true,
 				status: 499,
@@ -181,7 +207,7 @@ app.onError((error, c) => {
 		"Unhandled error",
 		error instanceof Error ? error : new Error(String(error)),
 	);
-	return c.json(
+	return jsonResponse(
 		{
 			error: true,
 			status: 500,
