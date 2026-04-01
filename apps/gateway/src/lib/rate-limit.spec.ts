@@ -41,7 +41,7 @@ describe("Rate Limiting", () => {
 		vi.mocked(redis.zremrangebyscore).mockResolvedValue(0);
 		vi.mocked(redis.zcard).mockResolvedValue(0);
 		vi.mocked(redis.zrange).mockResolvedValue([]);
-		vi.mocked(redis.zadd).mockResolvedValue(1);
+		vi.mocked(redis.zadd).mockResolvedValue("1");
 		vi.mocked(redis.expire).mockResolvedValue(1);
 	});
 
