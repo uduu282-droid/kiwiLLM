@@ -1,7 +1,7 @@
 "use client";
 
-import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
@@ -37,6 +37,7 @@ const PLAYGROUND_API_KEY_STORAGE_KEY = "kiwillm_playground_api_key";
 const STRICT_PROVIDER_ROUTING_STORAGE_KEY =
 	"kiwillm_playground_strict_provider_routing";
 const PLAYGROUND_DEBUG_PREFIX = "[KiwiLLM Playground]";
+const DEFAULT_PUBLIC_MODEL = "minimax-m1";
 
 async function debugChatFetch(input: RequestInfo | URL, init?: RequestInit) {
 	const startedAt = Date.now();
@@ -92,12 +93,14 @@ async function debugChatFetch(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 function getDefaultModelValue(models: ApiModel[]) {
-	const firstModel = models[0];
-	if (!firstModel) {
+	const preferredModel =
+		models.find((model) => model.id === DEFAULT_PUBLIC_MODEL) ??
+		models.find((model) => model.id !== "auto");
+	if (!preferredModel) {
 		return "";
 	}
 
-	return firstModel.id;
+	return preferredModel.id;
 }
 
 function getBaseModelId(value: string) {

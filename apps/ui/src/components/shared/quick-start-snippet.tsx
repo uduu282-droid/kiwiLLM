@@ -18,12 +18,11 @@ export function QuickStartSection({
 
 	const keyPlaceholder = apiKey ?? "YOUR_API_KEY";
 
-	const curlExample = `curl -X POST https://api.kiwillm.in/v1/chat/completions \\
+const curlExample = `curl -X POST https://api.kiwillm.in/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer ${keyPlaceholder}" \\
   -d '{
-  "model": "auto",
-  "free_models_only": true,
+  "model": "minimax-m1",
   "messages": [
     {"role": "user", "content": "Hello!"}
   ]
@@ -37,10 +36,8 @@ const client = new OpenAI({
 });
 
 const response = await client.chat.completions.create({
-  model: "auto",
+  model: "minimax-m1",
   messages: [{ role: "user", content: "Hello!" }],
-  // @ts-expect-error KiwiLLM extension
-  free_models_only: true,
 });`;
 
 	const code = activeTab === "curl" ? curlExample : tsExample;

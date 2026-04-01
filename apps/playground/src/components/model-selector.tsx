@@ -456,7 +456,7 @@ export function ModelSelector({
 		});
 
 		for (const m of sortedModels) {
-			if (m.id === "custom") {
+			if (m.id === "custom" || m.id === "auto") {
 				continue;
 			}
 
@@ -470,11 +470,6 @@ export function ModelSelector({
 				isRoot: true,
 				searchText: rootSearchText,
 			});
-
-			// Skip provider entries for auto model - it should only appear as root
-			if (m.id === "auto") {
-				continue;
-			}
 
 			for (const mp of m.mappings) {
 				const isDeactivated =

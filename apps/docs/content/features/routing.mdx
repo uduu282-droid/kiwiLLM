@@ -8,11 +8,10 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 # Routing
 
-KiwiLLM supports three routing styles:
+KiwiLLM supports two routing styles today:
 
 1. **Model routing** to the best provider for a model
 2. **Provider-specific routing** when you want a fixed upstream
-3. **Auto routing** when you want KiwiLLM to choose the model for you
 
 ## Model routing
 
@@ -89,59 +88,28 @@ curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
 	selected upstream is degraded or unavailable.
 </Callout>
 
-## Auto routing
+## Recommended defaults
 
-Set `"model": "auto"` to let KiwiLLM select the model itself:
-
-```bash
-curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
-  -H "Authorization: Bearer $KIWILLM_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "auto",
-    "messages": [{ "role": "user", "content": "Summarize this document." }]
-  }'
-```
-
-Auto routing is useful when you want KiwiLLM to handle model selection based on request shape, context size, and available capabilities.
-
-### Free models only
-
-You can restrict auto routing to zero-cost models by adding `free_models_only`:
+For the best out-of-the-box experience, start with a concrete KiwiLLM model such as `minimax-m1`:
 
 ```bash
 curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
   -H "Authorization: Bearer $KIWILLM_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "auto",
-    "free_models_only": true,
-    "messages": [{ "role": "user", "content": "Hello!" }]
-  }'
-```
-
-### Reasoning-aware routing
-
-If you set `reasoning_effort`, KiwiLLM restricts selection to reasoning-capable models:
-
-```bash
-curl -X POST "https://api.kiwillm.in/v1/chat/completions" \
-  -H "Authorization: Bearer $KIWILLM_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "auto",
+    "model": "minimax-m1",
     "reasoning_effort": "medium",
     "messages": [{ "role": "user", "content": "Solve this step by step." }]
   }'
 ```
 
-If you want to exclude reasoning models, set `no_reasoning: true`.
+This keeps routing reliable while still letting KiwiLLM handle provider failover for that model.
 
 ## Best practices
 
 - Use plain model IDs in most production traffic
 - Use provider-prefixed models for testing and debugging
-- Use `"model": "auto"` when you want KiwiLLM to optimize selection
+- Start with `minimax-m1` or another explicit KiwiLLM model in docs and demos
 - Keep fallback enabled unless you have a strong reason to pin one provider
 - Review logs and cost data to understand how traffic is being routed
 

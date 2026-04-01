@@ -127,11 +127,10 @@ export function OnboardingWizard() {
 					Authorization: `Bearer ${apiKey}`,
 				},
 				body: JSON.stringify({
-					model: "auto",
+					model: "minimax-m1",
 					messages: [{ role: "user", content: prompt.trim() }],
 					max_tokens: 200,
 					stream: true,
-					free_models_only: true,
 					onboarding: true,
 				}),
 				signal: controller.signal,
@@ -153,7 +152,7 @@ export function OnboardingWizard() {
 
 			const decoder = new TextDecoder();
 			let accumulated = "";
-			let model = "auto";
+			let model = "minimax-m1";
 			let buffer = "";
 
 			while (true) {
@@ -404,4 +403,3 @@ export function OnboardingWizard() {
 		</div>
 	);
 }
-
