@@ -45,7 +45,7 @@ const nextConfig: NextConfig = {
 			},
 			{
 				source: "/docs",
-				destination: "https://kiwillm.in",
+				destination: "https://docs.llmgateway.io",
 				permanent: true,
 			},
 			{
@@ -55,17 +55,17 @@ const nextConfig: NextConfig = {
 			},
 			{
 				source: "/github",
-				destination: "https://github.com/theopenco/llmgateway",
+				destination: "https://github.com/uduu282-droid/kiwiLLM",
 				permanent: true,
 			},
 			{
 				source: "/twitter",
-				destination: "https://twitter.com/llmgateway",
+				destination: "https://www.kiwillm.in",
 				permanent: true,
 			},
 			{
 				source: "/x",
-				destination: "https://x.com/llmgateway",
+				destination: "https://www.kiwillm.in",
 				permanent: true,
 			},
 			{

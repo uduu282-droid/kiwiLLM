@@ -18,7 +18,7 @@ export function QuickStartSection({
 
 	const keyPlaceholder = apiKey ?? "YOUR_API_KEY";
 
-	const curlExample = `curl -X POST https://api.llmgateway.io/v1/chat/completions \\
+	const curlExample = `curl -X POST https://api.kiwillm.in/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer ${keyPlaceholder}" \\
   -d '{
@@ -33,7 +33,7 @@ export function QuickStartSection({
 
 const client = new OpenAI({
   apiKey: "${keyPlaceholder}",
-  baseURL: "https://api.llmgateway.io/v1/"
+  baseURL: "https://api.kiwillm.in/v1/"
 });
 
 const response = await client.chat.completions.create({
@@ -63,8 +63,8 @@ const response = await client.chat.completions.create({
 						<span className="font-medium">Quick Start</span>
 					</div>
 					<p className="text-sm text-muted-foreground">
-						Use your API key to make requests. KiwiLLM is compatible with
-						the OpenAI SDK — just change the base URL.
+						Use your API key to make requests. KiwiLLM is compatible with the
+						OpenAI SDK — just change the base URL.
 					</p>
 					<div className="flex gap-2">
 						<Button
@@ -104,4 +104,3 @@ const response = await client.chat.completions.create({
 		</Card>
 	);
 }
-
