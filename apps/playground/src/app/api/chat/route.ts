@@ -863,7 +863,9 @@ export async function POST(req: Request) {
 								controller.close();
 								return;
 							}
-							controller.enqueue(encoder.encode(value));
+							controller.enqueue(
+								typeof value === "string" ? encoder.encode(value) : value,
+							);
 						}
 					} catch (err) {
 						clearInterval(keepaliveTimer);
