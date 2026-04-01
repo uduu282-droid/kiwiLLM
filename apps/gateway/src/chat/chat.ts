@@ -1155,6 +1155,9 @@ chat.openapi(completions, async (c) => {
 								.filter((p) => p.id !== "llmgateway" && p.id !== usedProvider)
 								.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
 								.map((p) => p.id);
+				const providerKeyMap = new Map(
+					providerKeys.map((key) => [key.provider, key]),
+				);
 
 				// Filter model providers to only those available (excluding the low-uptime one)
 				// If web search is requested, also filter to providers that support it
@@ -1197,7 +1200,50 @@ chat.openapi(completions, async (c) => {
 						) {
 							return false;
 						}
-						return true;
+
+						const providerMapping = provider as ProviderModelMapping;
+						const providerKey = providerKeyMap.get(provider.providerId);
+						let routingToken = "";
+						let routingConfigIndex = 0;
+
+						try {
+							if (project.mode === "api-keys") {
+								if (!providerKey?.token) {
+									return false;
+								}
+								routingToken = providerKey.token;
+							} else if (project.mode === "credits") {
+								const envResult = getProviderEnv(provider.providerId);
+								routingToken = envResult.token;
+								routingConfigIndex = envResult.configIndex;
+							} else if (providerKey?.token) {
+								routingToken = providerKey.token;
+							} else {
+								const envResult = getProviderEnv(provider.providerId);
+								routingToken = envResult.token;
+								routingConfigIndex = envResult.configIndex;
+							}
+
+							return Boolean(
+								getProviderEndpoint(
+									provider.providerId,
+									providerKey?.baseUrl ?? undefined,
+									provider.modelName,
+									provider.providerId === "google-ai-studio" ||
+										provider.providerId === "google-vertex"
+										? routingToken
+										: undefined,
+									stream,
+									providerMapping.reasoning === true,
+									hasExistingToolCalls,
+									providerKey?.options ?? undefined,
+									routingConfigIndex,
+									providerMapping.imageGenerations === true,
+								),
+							);
+						} catch {
+							return false;
+						}
 					},
 				);
 
@@ -1332,6 +1378,9 @@ chat.openapi(completions, async (c) => {
 							.filter((p) => p.id !== "llmgateway")
 							.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
 							.map((p) => p.id);
+			const providerKeyMap = new Map(
+				providerKeys.map((key) => [key.provider, key]),
+			);
 
 			// Filter model providers to only those available
 			// If web search is requested, also filter to providers that support it
@@ -1387,7 +1436,50 @@ chat.openapi(completions, async (c) => {
 							return false;
 						}
 					}
-					return true;
+
+					const providerMapping = provider as ProviderModelMapping;
+					const providerKey = providerKeyMap.get(provider.providerId);
+					let routingToken = "";
+					let routingConfigIndex = 0;
+
+					try {
+						if (project.mode === "api-keys") {
+							if (!providerKey?.token) {
+								return false;
+							}
+							routingToken = providerKey.token;
+						} else if (project.mode === "credits") {
+							const envResult = getProviderEnv(provider.providerId);
+							routingToken = envResult.token;
+							routingConfigIndex = envResult.configIndex;
+						} else if (providerKey?.token) {
+							routingToken = providerKey.token;
+						} else {
+							const envResult = getProviderEnv(provider.providerId);
+							routingToken = envResult.token;
+							routingConfigIndex = envResult.configIndex;
+						}
+
+						return Boolean(
+							getProviderEndpoint(
+								provider.providerId,
+								providerKey?.baseUrl ?? undefined,
+								provider.modelName,
+								provider.providerId === "google-ai-studio" ||
+									provider.providerId === "google-vertex"
+									? routingToken
+									: undefined,
+								stream,
+								providerMapping.reasoning === true,
+								hasExistingToolCalls,
+								providerKey?.options ?? undefined,
+								routingConfigIndex,
+								providerMapping.imageGenerations === true,
+							),
+						);
+					} catch {
+						return false;
+					}
 				},
 			);
 
