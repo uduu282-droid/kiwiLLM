@@ -293,6 +293,20 @@ interface McpClientWrapper {
 	name: string;
 }
 
+function jsonErrorResponse(
+	error: string,
+	status: number,
+	additionalBody?: Record<string, unknown>,
+) {
+	return Response.json(
+		{
+			error,
+			...(additionalBody ?? {}),
+		},
+		{ status },
+	);
+}
+
 function extractProviderErrorMessage(error: unknown): string | undefined {
 	const queue: unknown[] = [error];
 	const visited = new Set<unknown>();
@@ -355,9 +369,7 @@ export async function POST(req: Request) {
 	}: ChatRequestBody = body;
 
 	if (!messages || !Array.isArray(messages)) {
-		return new Response(JSON.stringify({ error: "Missing messages" }), {
-			status: 400,
-		});
+		return jsonErrorResponse("Missing messages", 400);
 	}
 
 	const headerApiKey = req.headers.get("x-llmgateway-key") ?? undefined;
@@ -365,16 +377,12 @@ export async function POST(req: Request) {
 	const noFallbackHeader = req.headers.get("x-no-fallback") ?? undefined;
 	const finalApiKey = apiKey ?? headerApiKey;
 	if (!finalApiKey) {
-		return new Response(JSON.stringify({ error: "Missing API key" }), {
-			status: 400,
-		});
+		return jsonErrorResponse("Missing API key", 400);
 	}
 
 	let selectedModel = (model ?? headerModel)?.trim();
 	if (!selectedModel) {
-		return new Response(JSON.stringify({ error: "Missing model" }), {
-			status: 400,
-		});
+		return jsonErrorResponse("Missing model", 400);
 	}
 
 	const gatewayUrl =
@@ -442,10 +450,7 @@ export async function POST(req: Request) {
 			}
 
 			if (!prompt.trim()) {
-				return new Response(
-					JSON.stringify({ error: "Missing prompt for image generation" }),
-					{ status: 400 },
-				);
+				return jsonErrorResponse("Missing prompt for image generation", 400);
 			}
 
 			const result = await generateImage({
@@ -508,7 +513,7 @@ export async function POST(req: Request) {
 				extractProviderErrorMessage(error) ??
 				(error instanceof Error ? error.message : "Image generation failed");
 
-			return new Response(JSON.stringify({ error: message }), { status });
+			return jsonErrorResponse(message, status);
 		}
 	}
 
@@ -871,8 +876,6 @@ export async function POST(req: Request) {
 			typeof (error as { status: unknown }).status === "number"
 				? (error as { status: number }).status
 				: 500;
-		return new Response(JSON.stringify({ error: message }), {
-			status,
-		});
+		return jsonErrorResponse(message, status);
 	}
 }
