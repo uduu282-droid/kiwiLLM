@@ -10,10 +10,7 @@ import {
 	createUIMessageStreamResponse,
 	JsonToSseTransformStream,
 } from "ai";
-import { cookies } from "next/headers";
 import { z } from "zod";
-
-import { getUser } from "@/lib/getUser";
 
 import { createLLMGateway } from "@llmgateway/ai-sdk-provider";
 
@@ -296,15 +293,54 @@ interface McpClientWrapper {
 	name: string;
 }
 
-export async function POST(req: Request) {
-	const user = await getUser();
+function extractProviderErrorMessage(error: unknown): string | undefined {
+	const queue: unknown[] = [error];
+	const visited = new Set<unknown>();
 
-	if (!user) {
-		return new Response(JSON.stringify({ error: "Unauthorized" }), {
-			status: 401,
-		});
+	while (queue.length > 0) {
+		const current = queue.shift();
+		if (!current || typeof current !== "object" || visited.has(current)) {
+			continue;
+		}
+		visited.add(current);
+
+		const candidate = current as Record<string, unknown>;
+		const directMessage = candidate.message;
+		if (
+			typeof directMessage === "string" &&
+			directMessage.trim() &&
+			directMessage !== "Failed to process error response"
+		) {
+			return directMessage;
+		}
+
+		const responseBody = candidate.responseBody;
+		if (typeof responseBody === "string" && responseBody.trim()) {
+			try {
+				const parsed = JSON.parse(responseBody) as Record<string, unknown>;
+				const nestedMessage =
+					(typeof parsed.message === "string" && parsed.message) ||
+					(typeof parsed.error === "string" && parsed.error) ||
+					(typeof parsed.detail === "string" && parsed.detail);
+				if (nestedMessage) {
+					return nestedMessage;
+				}
+			} catch {
+				return responseBody;
+			}
+		}
+
+		for (const key of ["cause", "error", "data", "response"]) {
+			if (key in candidate) {
+				queue.push(candidate[key]);
+			}
+		}
 	}
 
+	return undefined;
+}
+
+export async function POST(req: Request) {
 	const body = await req.json();
 	const {
 		messages,
@@ -327,14 +363,16 @@ export async function POST(req: Request) {
 	const headerApiKey = req.headers.get("x-llmgateway-key") ?? undefined;
 	const headerModel = req.headers.get("x-llmgateway-model") ?? undefined;
 	const noFallbackHeader = req.headers.get("x-no-fallback") ?? undefined;
-
-	const cookieStore = await cookies();
-	const cookieApiKey =
-		cookieStore.get("llmgateway_playground_key")?.value ??
-		cookieStore.get("__Host-llmgateway_playground_key")?.value;
-	const finalApiKey = apiKey ?? headerApiKey ?? cookieApiKey;
+	const finalApiKey = apiKey ?? headerApiKey;
 	if (!finalApiKey) {
 		return new Response(JSON.stringify({ error: "Missing API key" }), {
+			status: 400,
+		});
+	}
+
+	let selectedModel = (model ?? headerModel)?.trim();
+	if (!selectedModel) {
+		return new Response(JSON.stringify({ error: "Missing model" }), {
 			status: 400,
 		});
 	}
@@ -362,7 +400,6 @@ export async function POST(req: Request) {
 	// Respect root model IDs passed from the client without adding a provider prefix.
 	// Only apply provider-based prefixing when the client did NOT explicitly specify a model
 	// (i.e. we're using a header/default model value).
-	let selectedModel = (model ?? headerModel ?? "auto") as string;
 	if (!model && provider && typeof provider === "string") {
 		const alreadyPrefixed = String(selectedModel).includes("/");
 		if (!alreadyPrefixed) {
@@ -468,29 +505,10 @@ export async function POST(req: Request) {
 					: 500;
 
 			const message =
-				error instanceof Error ? error.message : "Image generation failed";
+				extractProviderErrorMessage(error) ??
+				(error instanceof Error ? error.message : "Image generation failed");
 
-			// Try to extract a more detailed message from the provider response.
-			// AI SDK errors may embed the original gateway response in responseBody.
-			let detailedMessage: string | undefined;
-			if (typeof error === "object" && error !== null) {
-				const err = error as Record<string, unknown>;
-				if (typeof err.responseBody === "string") {
-					try {
-						const body = JSON.parse(err.responseBody);
-						if (typeof body.message === "string") {
-							detailedMessage = body.message;
-						}
-					} catch {
-						// ignore parse errors
-					}
-				}
-			}
-
-			return new Response(
-				JSON.stringify({ error: detailedMessage ?? message }),
-				{ status },
-			);
+			return new Response(JSON.stringify({ error: message }), { status });
 		}
 	}
 
@@ -844,7 +862,8 @@ export async function POST(req: Request) {
 		}
 
 		const message =
-			error instanceof Error ? error.message : "KiwiLLM request failed";
+			extractProviderErrorMessage(error) ??
+			(error instanceof Error ? error.message : "KiwiLLM request failed");
 		const status =
 			typeof error === "object" &&
 			error !== null &&

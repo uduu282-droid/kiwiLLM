@@ -5,16 +5,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
 
-// Removed API key manager for playground; we rely on server-set cookie
-import { TopUpCreditsDialog } from "@/components/credits/top-up-credits-dialog";
 import { ModelSelector } from "@/components/model-selector";
-import { AuthDialog } from "@/components/playground/auth-dialog";
 import { ChatHeader } from "@/components/playground/chat-header";
 import { ChatSidebar } from "@/components/playground/chat-sidebar";
 import { ChatUI } from "@/components/playground/chat-ui";
+import { PlaygroundConfigSidebar } from "@/components/playground/config-sidebar";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider } from "@/components/ui/sidebar";
-// No local api key. We'll call backend to ensure key cookie exists after login.
 import {
 	useAddMessage,
 	useChats,
@@ -34,6 +31,47 @@ import type {
 	ApiProvider,
 } from "@/lib/fetch-models";
 import type { ComboboxModel, Organization, Project } from "@/lib/types";
+
+const PLAYGROUND_API_KEY_STORAGE_KEY = "kiwillm_playground_api_key";
+const STRICT_PROVIDER_ROUTING_STORAGE_KEY =
+	"kiwillm_playground_strict_provider_routing";
+
+function getDefaultModelValue(models: ApiModel[]) {
+	const firstModel = models[0];
+	if (!firstModel) {
+		return "";
+	}
+
+	return firstModel.id;
+}
+
+function getBaseModelId(value: string) {
+	return value.includes("/") ? value.split("/").slice(1).join("/") : value;
+}
+
+function isProviderSpecificModel(value: string) {
+	return value.includes("/");
+}
+
+function isSelectableModel(value: string, models: ApiModel[]) {
+	if (!value) {
+		return false;
+	}
+
+	const [providerId, modelId] = value.includes("/")
+		? (value.split("/") as [string, string])
+		: ["", value];
+	const model = models.find((entry) => entry.id === modelId);
+	if (!model) {
+		return false;
+	}
+
+	if (!providerId) {
+		return model.mappings.length > 0;
+	}
+
+	return model.mappings.some((mapping) => mapping.providerId === providerId);
+}
 
 /**
  * Minimal interface for tool parts from AI SDK v6 (tool-{toolName} pattern)
@@ -87,17 +125,21 @@ export default function ChatPageClient({
 		[models, providers],
 	);
 	const [availableModels] = useState<ComboboxModel[]>(mapped);
+	const defaultModel = useMemo(() => getDefaultModelValue(models), [models]);
 
 	const getInitialModel = () => {
 		const modelFromUrl = searchParams.get("model");
-		if (modelFromUrl) {
+		if (modelFromUrl && isSelectableModel(modelFromUrl, models)) {
 			return modelFromUrl;
 		}
-		// Default to "auto" model which auto-selects the best provider
-		return "auto";
+		return defaultModel;
 	};
 
 	const [selectedModel, setSelectedModel] = useState(getInitialModel());
+	const [apiKey, setApiKey] = useState("");
+	const [persistApiKey, setPersistApiKey] = useState(true);
+	const [showApiKey, setShowApiKey] = useState(false);
+	const [strictProviderRouting, setStrictProviderRouting] = useState(false);
 	const [reasoningEffort, setReasoningEffort] = useState<
 		"" | "minimal" | "low" | "medium" | "high"
 	>("");
@@ -124,7 +166,11 @@ export default function ChatPageClient({
 	const [webSearchEnabled, setWebSearchEnabled] = useState(enableWebSearch);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [showTopUp, setShowTopUp] = useState(false);
+	const canUsePlayground = apiKey.trim().length > 0;
+	const playgroundLockReason =
+		"Paste a KiwiLLM API key in the config panel before sending a prompt.";
+	const isAuthenticated = !isUserLoading && !!user;
+	const canPersistChats = isAuthenticated && !!selectedProject;
 
 	// MCP servers management
 	const {
@@ -180,6 +226,10 @@ export default function ChatPageClient({
 				// If an error already occurred during streaming, skip saving the response
 				if (errorOccurredRef.current) {
 					errorOccurredRef.current = false;
+					return;
+				}
+
+				if (!canPersistChats) {
 					return;
 				}
 
@@ -289,10 +339,7 @@ export default function ChatPageClient({
 						error?.status === 404 &&
 						error?.message?.includes("Chat not found")
 					) {
-						chatIdRef.current = null;
-						setCurrentChatId(null);
-						setMessages([]);
-						toast.error("Chat was deleted. Please start a new conversation.");
+						clearCurrentChatState(true);
 					} else {
 						toast.error(
 							`Failed to save AI response: ${getErrorMessage(error)}`,
@@ -318,6 +365,73 @@ export default function ChatPageClient({
 	useEffect(() => {
 		chatIdRef.current = currentChatId;
 	}, [currentChatId]);
+
+	useEffect(() => {
+		try {
+			const storedKey = window.localStorage.getItem(
+				PLAYGROUND_API_KEY_STORAGE_KEY,
+			);
+			if (storedKey) {
+				setApiKey(storedKey);
+			}
+		} catch {
+			// Ignore localStorage read failures.
+		}
+	}, []);
+
+	useEffect(() => {
+		try {
+			const storedPreference = window.localStorage.getItem(
+				STRICT_PROVIDER_ROUTING_STORAGE_KEY,
+			);
+			if (storedPreference === "true") {
+				setStrictProviderRouting(true);
+			}
+		} catch {
+			// Ignore localStorage read failures.
+		}
+	}, []);
+
+	useEffect(() => {
+		if (persistApiKey) {
+			try {
+				if (apiKey.trim()) {
+					window.localStorage.setItem(
+						PLAYGROUND_API_KEY_STORAGE_KEY,
+						apiKey.trim(),
+					);
+				} else {
+					window.localStorage.removeItem(PLAYGROUND_API_KEY_STORAGE_KEY);
+				}
+			} catch {
+				// Ignore localStorage write failures.
+			}
+			return;
+		}
+
+		try {
+			window.localStorage.removeItem(PLAYGROUND_API_KEY_STORAGE_KEY);
+		} catch {
+			// Ignore localStorage delete failures.
+		}
+	}, [apiKey, persistApiKey]);
+
+	useEffect(() => {
+		try {
+			window.localStorage.setItem(
+				STRICT_PROVIDER_ROUTING_STORAGE_KEY,
+				strictProviderRouting ? "true" : "false",
+			);
+		} catch {
+			// Ignore localStorage write failures.
+		}
+	}, [strictProviderRouting]);
+
+	useEffect(() => {
+		if (!isSelectableModel(selectedModel, models) && defaultModel) {
+			setSelectedModel(defaultModel);
+		}
+	}, [defaultModel, models, selectedModel]);
 
 	const supportsImages = useMemo(() => {
 		let model = availableModels.find((m) => m.id === selectedModel);
@@ -377,6 +491,11 @@ export default function ChatPageClient({
 
 	const sendMessageWithHeaders = useCallback(
 		(message: any, options?: any) => {
+			if (!canUsePlayground) {
+				toast.error(playgroundLockReason);
+				return Promise.resolve();
+			}
+
 			// Check if the user message contains image attachments (vision request)
 			const hasImageAttachments = message.parts?.some(
 				(p: any) => p.type === "file" && p.mediaType?.startsWith("image/"),
@@ -412,11 +531,15 @@ export default function ChatPageClient({
 				: undefined;
 
 			// Automatically disable provider fallback for provider-specific model selections
-			const isProviderSpecific = selectedModel.includes("/");
+			const isProviderSpecific = isProviderSpecificModel(selectedModel);
 			const localStorageOverride =
 				typeof window !== "undefined" &&
 				localStorage.getItem("llmgateway_no_fallback") === "true";
-			const noFallback = isProviderSpecific || localStorageOverride;
+			const noFallback = strictProviderRouting || localStorageOverride;
+			const requestModel =
+				isProviderSpecific && !strictProviderRouting
+					? getBaseModelId(selectedModel)
+					: selectedModel;
 
 			// Get enabled MCP servers
 			const enabledMcpServers = getEnabledMcpServers();
@@ -429,6 +552,8 @@ export default function ChatPageClient({
 				},
 				body: {
 					...(options?.body ?? {}),
+					model: requestModel,
+					apiKey: apiKey.trim(),
 					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 					...(imageConfig ? { image_config: imageConfig } : {}),
 					...(useImageGen ? { is_image_gen: true } : {}),
@@ -445,6 +570,8 @@ export default function ChatPageClient({
 		},
 		[
 			sendMessage,
+			apiKey,
+			canUsePlayground,
 			reasoningEffort,
 			supportsImageGen,
 			supportsImages,
@@ -456,6 +583,8 @@ export default function ChatPageClient({
 			webSearchEnabled,
 			supportsWebSearch,
 			getEnabledMcpServers,
+			playgroundLockReason,
+			strictProviderRouting,
 		],
 	);
 
@@ -473,10 +602,51 @@ export default function ChatPageClient({
 	const createChat = useCreateChat();
 	const addMessage = useAddMessage();
 	const deleteChat = useDeleteChat();
-	const { data: currentChatData, isLoading: isChatLoading } = useDataChat(
-		currentChatId ?? "",
+	const {
+		data: currentChatData,
+		isLoading: isChatLoading,
+		error: currentChatError,
+	} = useDataChat(currentChatId ?? "", canPersistChats);
+	useChats(canPersistChats);
+
+	const clearCurrentChatState = useCallback(
+		(showToast = false) => {
+			chatIdRef.current = null;
+			setCurrentChatId(null);
+			shouldClearMessagesRef.current = true;
+			setMessages([]);
+
+			const params = new URLSearchParams(searchParams.toString());
+			params.delete("chat");
+			const newUrl = params.toString()
+				? `${pathname}?${params.toString()}`
+				: pathname;
+			router.replace(newUrl);
+
+			if (showToast) {
+				toast.error(
+					"That saved chat no longer exists. Starting a fresh conversation.",
+				);
+			}
+		},
+		[pathname, router, searchParams, setMessages],
 	);
-	useChats();
+
+	useEffect(() => {
+		if (!canPersistChats && currentChatId) {
+			clearCurrentChatState();
+		}
+	}, [canPersistChats, clearCurrentChatState, currentChatId]);
+
+	useEffect(() => {
+		const error = currentChatError as {
+			status?: number;
+			message?: string;
+		} | null;
+		if (error?.status === 404 || error?.message?.includes("Chat not found")) {
+			clearCurrentChatState(true);
+		}
+	}, [clearCurrentChatState, currentChatError]);
 
 	useEffect(() => {
 		if (!currentChatData?.messages) {
@@ -562,48 +732,11 @@ export default function ChatPageClient({
 		});
 	}, [currentChatData, setMessages, setSelectedModel]);
 
-	const isAuthenticated = !isUserLoading && !!user;
-	const showAuthDialog = !isAuthenticated && !isUserLoading && !user;
-
-	const returnUrl = useMemo(() => {
-		const search = searchParams.toString();
-		return search ? `${pathname}?${search}` : pathname;
-	}, [pathname, searchParams]);
-
-	// Track which project has had its key ensured to prevent duplicate calls
-	const ensuredProjectRef = useRef<string | null>(null);
-
-	// After login, ensure a playground key cookie exists via backend
-	useEffect(() => {
-		// Reset ref when user logs out or project is unset
-		if (!isAuthenticated || !selectedProject) {
-			ensuredProjectRef.current = null;
-			return;
+	const ensureCurrentChat = async (userMessage?: string): Promise<string> => {
+		if (!canPersistChats) {
+			throw new Error("Chat persistence is unavailable");
 		}
 
-		const ensureKey = async () => {
-			if (!selectedOrganization) {
-				return;
-			}
-			// Skip if we've already ensured the key for this project
-			if (ensuredProjectRef.current === selectedProject.id) {
-				return;
-			}
-			try {
-				await fetch("/api/ensure-playground-key", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ projectId: selectedProject.id }),
-				});
-				ensuredProjectRef.current = selectedProject.id;
-			} catch {
-				// ignore for now
-			}
-		};
-		void ensureKey();
-	}, [isAuthenticated, selectedOrganization, selectedProject]);
-
-	const ensureCurrentChat = async (userMessage?: string): Promise<string> => {
 		if (chatIdRef.current) {
 			return chatIdRef.current;
 		}
@@ -644,8 +777,7 @@ export default function ChatPageClient({
 			image_url: { url: string };
 		}>,
 	) => {
-		if (selectedOrganization && Number(selectedOrganization.credits) <= 0) {
-			setShowTopUp(true);
+		if (!canPersistChats) {
 			return;
 		}
 
@@ -672,9 +804,7 @@ export default function ChatPageClient({
 		} catch (error: any) {
 			// If chat not found, it means the chat was deleted or is stale
 			if (error?.status === 404 && error?.message?.includes("Chat not found")) {
-				chatIdRef.current = null;
-				setCurrentChatId(null);
-				setMessages([]);
+				clearCurrentChatState();
 
 				// Try again with a new chat
 				try {
@@ -719,9 +849,7 @@ export default function ChatPageClient({
 					await deleteChat.mutateAsync({
 						params: { path: { id: chatIdRef.current } },
 					});
-					setCurrentChatId(null);
-					chatIdRef.current = null;
-					setMessages([]);
+					clearCurrentChatState();
 					isNewChatRef.current = false;
 				} catch (cleanupError) {
 					toast.error(
@@ -993,34 +1121,72 @@ export default function ChatPageClient({
 							</div>
 						</div>
 					) : null}
-					<div className="flex flex-col flex-1 min-h-0 w-full overflow-hidden">
-						<div
-							className={`grid h-full ${
-								!comparisonEnabled || extraPanelIds.length === 0
-									? "grid-cols-1 w-full"
-									: "gap-4 p-4 " +
-										(extraPanelIds.length === 1
-											? "grid-cols-1 md:grid-cols-2"
-											: "grid-cols-1 md:grid-cols-3")
-							}`}
-						>
-							{comparisonEnabled && extraPanelIds.length > 0 ? (
-								<div className="flex flex-col h-full min-h-0 rounded-lg border bg-background">
-									<div className="shrink-0 border-b bg-muted/40 px-3 py-2 flex items-center justify-between gap-2">
-										<span className="text-xs font-medium text-muted-foreground">
-											Model 1
-										</span>
-										<div className="w-full max-w-xs">
-											<ModelSelector
-												models={models}
-												providers={providers}
-												value={selectedModel}
-												onValueChange={setSelectedModel}
-												placeholder="Select a model..."
+					<div className="flex flex-1 min-h-0 w-full overflow-hidden">
+						<div className="flex flex-col flex-1 min-h-0 w-full overflow-hidden">
+							<div
+								className={`grid h-full ${
+									!comparisonEnabled || extraPanelIds.length === 0
+										? "grid-cols-1 w-full"
+										: "gap-4 p-4 " +
+											(extraPanelIds.length === 1
+												? "grid-cols-1 md:grid-cols-2"
+												: "grid-cols-1 md:grid-cols-3")
+								}`}
+							>
+								{comparisonEnabled && extraPanelIds.length > 0 ? (
+									<div className="flex flex-col h-full min-h-0 rounded-lg border bg-background">
+										<div className="shrink-0 border-b bg-muted/40 px-3 py-2 flex items-center justify-between gap-2">
+											<span className="text-xs font-medium text-muted-foreground">
+												Model 1
+											</span>
+											<div className="w-full max-w-xs">
+												<ModelSelector
+													models={models}
+													providers={providers}
+													value={selectedModel}
+													onValueChange={setSelectedModel}
+													placeholder="Select a model..."
+												/>
+											</div>
+										</div>
+										<div className="flex-1 min-h-0">
+											<ChatUI
+												messages={messages}
+												supportsImages={supportsImages}
+												supportsImageGen={supportsImageGen}
+												sendMessage={sendMessageWithHeaders}
+												selectedModel={selectedModel}
+												text={primaryText}
+												setText={setPrimaryText}
+												status={status}
+												stop={stop}
+												regenerate={regenerate}
+												reasoningEffort={reasoningEffort}
+												setReasoningEffort={setReasoningEffort}
+												supportsReasoning={supportsReasoning}
+												imageAspectRatio={imageAspectRatio}
+												setImageAspectRatio={setImageAspectRatio}
+												imageSize={imageSize}
+												setImageSize={setImageSize}
+												alibabaImageSize={alibabaImageSize}
+												setAlibabaImageSize={setAlibabaImageSize}
+												imageCount={imageCount}
+												setImageCount={setImageCount}
+												onUserMessage={
+													isAuthenticated ? handleUserMessage : undefined
+												}
+												isLoading={isLoading || isChatLoading}
+												error={error}
+												setWebSearchEnabled={setWebSearchEnabled}
+												supportsWebSearch={supportsWebSearch}
+												webSearchEnabled={webSearchEnabled}
+												canSend={canUsePlayground}
+												lockReason={playgroundLockReason}
 											/>
 										</div>
 									</div>
-									<div className="flex-1 min-h-0">
+								) : (
+									<div className="flex flex-col min-h-0 w-full">
 										<ChatUI
 											messages={messages}
 											supportsImages={supportsImages}
@@ -1043,78 +1209,81 @@ export default function ChatPageClient({
 											setAlibabaImageSize={setAlibabaImageSize}
 											imageCount={imageCount}
 											setImageCount={setImageCount}
-											onUserMessage={handleUserMessage}
-											isLoading={isLoading || isChatLoading}
-											error={error}
-											setWebSearchEnabled={setWebSearchEnabled}
 											supportsWebSearch={supportsWebSearch}
 											webSearchEnabled={webSearchEnabled}
+											setWebSearchEnabled={setWebSearchEnabled}
+											onUserMessage={
+												isAuthenticated ? handleUserMessage : undefined
+											}
+											isLoading={isLoading || isChatLoading}
+											error={error}
+											floatingInput
+											canSend={canUsePlayground}
+											lockReason={playgroundLockReason}
 										/>
 									</div>
-								</div>
-							) : (
-								<div className="flex flex-col min-h-0 w-full">
-									<ChatUI
-										messages={messages}
-										supportsImages={supportsImages}
-										supportsImageGen={supportsImageGen}
-										sendMessage={sendMessageWithHeaders}
-										selectedModel={selectedModel}
-										text={primaryText}
-										setText={setPrimaryText}
-										status={status}
-										stop={stop}
-										regenerate={regenerate}
-										reasoningEffort={reasoningEffort}
-										setReasoningEffort={setReasoningEffort}
-										supportsReasoning={supportsReasoning}
-										imageAspectRatio={imageAspectRatio}
-										setImageAspectRatio={setImageAspectRatio}
-										imageSize={imageSize}
-										setImageSize={setImageSize}
-										alibabaImageSize={alibabaImageSize}
-										setAlibabaImageSize={setAlibabaImageSize}
-										imageCount={imageCount}
-										setImageCount={setImageCount}
-										supportsWebSearch={supportsWebSearch}
-										webSearchEnabled={webSearchEnabled}
-										setWebSearchEnabled={setWebSearchEnabled}
-										onUserMessage={handleUserMessage}
-										isLoading={isLoading || isChatLoading}
-										error={error}
-										floatingInput
-									/>
-								</div>
-							)}
-							{comparisonEnabled
-								? extraPanelIds.map((panelId, index) => (
-										<div
-											key={panelId}
-											className="hidden md:flex flex-col h-full min-h-0"
-										>
-											<ExtraChatPanel
-												panelIndex={index + 2}
-												models={models}
-												providers={providers}
-												availableModels={availableModels}
-												initialModel={selectedModel}
-												syncInput={syncInput}
-												syncedText={syncedText}
-												setSyncedText={setSyncedText}
-												onRegisterExternalSubmit={(fn) => {
-													extraSubmitRefs.current[panelId] = fn;
-												}}
-												resetToken={comparisonResetToken}
-											/>
-										</div>
-									))
-								: null}
+								)}
+								{comparisonEnabled
+									? extraPanelIds.map((panelId, index) => (
+											<div
+												key={panelId}
+												className="hidden md:flex flex-col h-full min-h-0"
+											>
+												<ExtraChatPanel
+													panelIndex={index + 2}
+													models={models}
+													providers={providers}
+													availableModels={availableModels}
+													initialModel={selectedModel}
+													syncInput={syncInput}
+													syncedText={syncedText}
+													setSyncedText={setSyncedText}
+													onRegisterExternalSubmit={(fn) => {
+														extraSubmitRefs.current[panelId] = fn;
+													}}
+													resetToken={comparisonResetToken}
+													apiKey={apiKey}
+													canUsePlayground={canUsePlayground}
+													lockReason={playgroundLockReason}
+													strictProviderRouting={strictProviderRouting}
+												/>
+											</div>
+										))
+									: null}
+							</div>
 						</div>
+						<PlaygroundConfigSidebar
+							models={models}
+							providers={providers}
+							selectedModelValue={selectedModel}
+							apiKey={apiKey}
+							setApiKey={setApiKey}
+							showApiKey={showApiKey}
+							setShowApiKey={setShowApiKey}
+							persistApiKey={persistApiKey}
+							setPersistApiKey={setPersistApiKey}
+							strictProviderRouting={strictProviderRouting}
+							setStrictProviderRouting={setStrictProviderRouting}
+							canUsePlayground={canUsePlayground}
+							supportsReasoning={supportsReasoning}
+							reasoningEffort={reasoningEffort}
+							setReasoningEffort={setReasoningEffort}
+							supportsWebSearch={supportsWebSearch}
+							webSearchEnabled={webSearchEnabled}
+							setWebSearchEnabled={setWebSearchEnabled}
+							supportsImageGen={supportsImageGen}
+							imageAspectRatio={imageAspectRatio}
+							setImageAspectRatio={setImageAspectRatio}
+							imageSize={imageSize}
+							setImageSize={setImageSize}
+							alibabaImageSize={alibabaImageSize}
+							setAlibabaImageSize={setAlibabaImageSize}
+							imageCount={imageCount}
+							setImageCount={setImageCount}
+						/>
 					</div>
 				</div>
 			</div>
-			<TopUpCreditsDialog open={showTopUp} onOpenChange={setShowTopUp} />
-			<AuthDialog open={showAuthDialog} returnUrl={returnUrl} />
 		</SidebarProvider>
 	);
 }
@@ -1132,6 +1301,10 @@ interface ExtraChatPanelProps {
 		submit: (content: string) => Promise<void> | void,
 	) => void;
 	resetToken: number;
+	apiKey: string;
+	canUsePlayground: boolean;
+	lockReason: string;
+	strictProviderRouting: boolean;
 }
 
 function ExtraChatPanel({
@@ -1145,6 +1318,10 @@ function ExtraChatPanel({
 	setSyncedText,
 	onRegisterExternalSubmit,
 	resetToken,
+	apiKey,
+	canUsePlayground,
+	lockReason,
+	strictProviderRouting,
 }: ExtraChatPanelProps) {
 	const [selectedModel, setSelectedModel] = useState(initialModel);
 	const [reasoningEffort, setReasoningEffort] = useState<
@@ -1238,6 +1415,11 @@ function ExtraChatPanel({
 
 	const sendMessageWithHeaders = useCallback(
 		(message: any, options?: any) => {
+			if (!canUsePlayground) {
+				toast.error(lockReason);
+				return Promise.resolve();
+			}
+
 			// Check if the user message contains image attachments (vision request)
 			const hasImageAttachments = message.parts?.some(
 				(p: any) => p.type === "file" && p.mediaType?.startsWith("image/"),
@@ -1272,11 +1454,15 @@ function ExtraChatPanel({
 						}
 				: undefined;
 
-			const isProviderSpecific = selectedModel.includes("/");
+			const isProviderSpecific = isProviderSpecificModel(selectedModel);
 			const localStorageOverride =
 				typeof window !== "undefined" &&
 				localStorage.getItem("llmgateway_no_fallback") === "true";
-			const noFallback = isProviderSpecific || localStorageOverride;
+			const noFallback = strictProviderRouting || localStorageOverride;
+			const requestModel =
+				isProviderSpecific && !strictProviderRouting
+					? getBaseModelId(selectedModel)
+					: selectedModel;
 
 			const mergedOptions = {
 				...options,
@@ -1286,6 +1472,8 @@ function ExtraChatPanel({
 				},
 				body: {
 					...(options?.body ?? {}),
+					model: requestModel,
+					apiKey: apiKey.trim(),
 					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 					...(imageConfig ? { image_config: imageConfig } : {}),
 					...(useImageGen ? { is_image_gen: true } : {}),
@@ -1299,6 +1487,8 @@ function ExtraChatPanel({
 		},
 		[
 			sendMessage,
+			apiKey,
+			canUsePlayground,
 			reasoningEffort,
 			supportsImageGen,
 			supportsImages,
@@ -1309,6 +1499,8 @@ function ExtraChatPanel({
 			selectedModel,
 			webSearchEnabled,
 			supportsWebSearch,
+			lockReason,
+			strictProviderRouting,
 		],
 	);
 
@@ -1406,6 +1598,8 @@ function ExtraChatPanel({
 					setWebSearchEnabled={setWebSearchEnabled}
 					isLoading={false}
 					error={null}
+					canSend={canUsePlayground}
+					lockReason={lockReason}
 				/>
 			</div>
 		</div>
