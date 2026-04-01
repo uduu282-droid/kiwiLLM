@@ -47,7 +47,7 @@ export const proxyV1Request = async (c: Context<ServerTypes>) => {
 	if (
 		body &&
 		method === "POST" &&
-		c.req.path === "/v1/chat/completions" &&
+		requestUrl.pathname.endsWith("/chat/completions") &&
 		(upstreamHeaders.get("content-type") ?? "").includes("application/json")
 	) {
 		try {
