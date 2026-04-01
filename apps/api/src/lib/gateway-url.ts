@@ -6,6 +6,8 @@ const apiUrl =
 	process.env.API_URL ??
 	(isHosted ? "https://api.kiwillm.in" : "http://localhost:4002");
 
+const hostedDirectGatewayUrl = "https://kiwillm-gateway.onrender.com";
+
 const publicGatewayUrl =
 	process.env.PUBLIC_GATEWAY_URL ??
 	process.env.GATEWAY_URL ??
@@ -14,9 +16,11 @@ const publicGatewayUrl =
 const internalGatewayUrlCandidate =
 	process.env.INTERNAL_GATEWAY_URL ??
 	process.env.GATEWAY_INTERNAL_URL ??
-	process.env.GATEWAY_URL ??
-	process.env.PUBLIC_GATEWAY_URL ??
-	(isHosted ? apiUrl : "http://localhost:4001");
+	(isHosted
+		? hostedDirectGatewayUrl
+		: process.env.GATEWAY_URL ??
+			process.env.PUBLIC_GATEWAY_URL ??
+			"http://localhost:4001");
 
 export const getPublicGatewayUrl = () => publicGatewayUrl;
 
