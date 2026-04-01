@@ -35,6 +35,7 @@ import type { ComboboxModel, Organization, Project } from "@/lib/types";
 const PLAYGROUND_API_KEY_STORAGE_KEY = "kiwillm_playground_api_key";
 const STRICT_PROVIDER_ROUTING_STORAGE_KEY =
 	"kiwillm_playground_strict_provider_routing";
+const PLAYGROUND_DEBUG_PREFIX = "[KiwiLLM Playground]";
 
 function getDefaultModelValue(models: ApiModel[]) {
 	const firstModel = models[0];
@@ -199,6 +200,13 @@ export default function ChatPageClient({
 			onError: async (e) => {
 				errorOccurredRef.current = true;
 				const msg = getErrorMessage(e);
+				console.error(`${PLAYGROUND_DEBUG_PREFIX} primary chat error`, {
+					error: e,
+					message: msg,
+					selectedModel,
+					strictProviderRouting,
+					canUsePlayground,
+				});
 				setError(msg);
 				toast.error(msg);
 
@@ -565,6 +573,21 @@ export default function ChatPageClient({
 						: {}),
 				},
 			};
+
+			console.info(`${PLAYGROUND_DEBUG_PREFIX} sending primary chat request`, {
+				selectedModel,
+				requestModel,
+				strictProviderRouting,
+				noFallback,
+				supportsImageGen,
+				supportsImages,
+				supportsWebSearch,
+				webSearchEnabled,
+				reasoningEffort,
+				hasImageAttachments,
+				hasApiKey: apiKey.trim().length > 0,
+				mcpServerCount: enabledMcpServers.length,
+			});
 
 			return sendMessage(message, mergedOptions);
 		},
@@ -1353,6 +1376,14 @@ function ExtraChatPanel({
 	const { messages, sendMessage, status, stop, regenerate } = useChat({
 		onError: async (e) => {
 			const msg = getErrorMessage(e);
+			console.error(`${PLAYGROUND_DEBUG_PREFIX} comparison chat error`, {
+				error: e,
+				message: msg,
+				selectedModel,
+				strictProviderRouting,
+				canUsePlayground,
+				panelIndex,
+			});
 			toast.error(msg);
 		},
 	});
@@ -1482,6 +1513,24 @@ function ExtraChatPanel({
 						: {}),
 				},
 			};
+
+			console.info(
+				`${PLAYGROUND_DEBUG_PREFIX} sending comparison chat request`,
+				{
+					panelIndex,
+					selectedModel,
+					requestModel,
+					strictProviderRouting,
+					noFallback,
+					supportsImageGen,
+					supportsImages,
+					supportsWebSearch,
+					webSearchEnabled,
+					reasoningEffort,
+					hasImageAttachments,
+					hasApiKey: apiKey.trim().length > 0,
+				},
+			);
 
 			return sendMessage(message, mergedOptions);
 		},

@@ -293,6 +293,8 @@ interface McpClientWrapper {
 	name: string;
 }
 
+const ROUTE_DEBUG_PREFIX = "[KiwiLLM Playground API]";
+
 function jsonErrorResponse(
 	error: string,
 	status: number,
@@ -376,6 +378,21 @@ export async function POST(req: Request) {
 	const headerModel = req.headers.get("x-llmgateway-model") ?? undefined;
 	const noFallbackHeader = req.headers.get("x-no-fallback") ?? undefined;
 	const finalApiKey = apiKey ?? headerApiKey;
+	console.info(`${ROUTE_DEBUG_PREFIX} incoming request`, {
+		hasMessages: Array.isArray(messages),
+		messageCount: Array.isArray(messages) ? messages.length : 0,
+		model,
+		headerModel,
+		provider,
+		hasApiKeyInBody: typeof apiKey === "string" && apiKey.length > 0,
+		hasApiKeyInHeader:
+			typeof headerApiKey === "string" && headerApiKey.length > 0,
+		hasFinalApiKey: typeof finalApiKey === "string" && finalApiKey.length > 0,
+		reasoning_effort,
+		web_search: web_search === true,
+		is_image_gen: is_image_gen === true,
+		mcpServerCount: Array.isArray(mcp_servers) ? mcp_servers.length : 0,
+	});
 	if (!finalApiKey) {
 		return jsonErrorResponse("Missing API key", 400);
 	}
@@ -390,6 +407,12 @@ export async function POST(req: Request) {
 		(process.env.NODE_ENV === "development"
 			? "http://localhost:4001/v1"
 			: "https://api.kiwillm.in/v1");
+	console.info(`${ROUTE_DEBUG_PREFIX} resolved routing`, {
+		selectedModel,
+		provider,
+		gatewayUrl,
+		noFallbackHeader,
+	});
 
 	const llmgateway = createLLMGateway({
 		apiKey: finalApiKey,
@@ -512,6 +535,12 @@ export async function POST(req: Request) {
 			const message =
 				extractProviderErrorMessage(error) ??
 				(error instanceof Error ? error.message : "Image generation failed");
+			console.error(`${ROUTE_DEBUG_PREFIX} image generation failed`, {
+				status,
+				message,
+				selectedModel,
+				error,
+			});
 
 			return jsonErrorResponse(message, status);
 		}
@@ -876,6 +905,17 @@ export async function POST(req: Request) {
 			typeof (error as { status: unknown }).status === "number"
 				? (error as { status: number }).status
 				: 500;
+		console.error(`${ROUTE_DEBUG_PREFIX} chat request failed`, {
+			status,
+			message,
+			error,
+			selectedModel,
+			gatewayUrl:
+				process.env.GATEWAY_URL ??
+				(process.env.NODE_ENV === "development"
+					? "http://localhost:4001/v1"
+					: "https://api.kiwillm.in/v1"),
+		});
 		return jsonErrorResponse(message, status);
 	}
 }
