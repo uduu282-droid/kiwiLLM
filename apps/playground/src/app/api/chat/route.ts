@@ -293,6 +293,53 @@ interface McpClientWrapper {
 	name: string;
 }
 
+function extractProviderErrorMessage(error: unknown): string | undefined {
+	const queue: unknown[] = [error];
+	const visited = new Set<unknown>();
+
+	while (queue.length > 0) {
+		const current = queue.shift();
+		if (!current || typeof current !== "object" || visited.has(current)) {
+			continue;
+		}
+		visited.add(current);
+
+		const candidate = current as Record<string, unknown>;
+		const directMessage = candidate.message;
+		if (
+			typeof directMessage === "string" &&
+			directMessage.trim() &&
+			directMessage !== "Failed to process error response"
+		) {
+			return directMessage;
+		}
+
+		const responseBody = candidate.responseBody;
+		if (typeof responseBody === "string" && responseBody.trim()) {
+			try {
+				const parsed = JSON.parse(responseBody) as Record<string, unknown>;
+				const nestedMessage =
+					(typeof parsed.message === "string" && parsed.message) ||
+					(typeof parsed.error === "string" && parsed.error) ||
+					(typeof parsed.detail === "string" && parsed.detail);
+				if (nestedMessage) {
+					return nestedMessage;
+				}
+			} catch {
+				return responseBody;
+			}
+		}
+
+		for (const key of ["cause", "error", "data", "response"]) {
+			if (key in candidate) {
+				queue.push(candidate[key]);
+			}
+		}
+	}
+
+	return undefined;
+}
+
 export async function POST(req: Request) {
 	const body = await req.json();
 	const {
@@ -458,29 +505,10 @@ export async function POST(req: Request) {
 					: 500;
 
 			const message =
-				error instanceof Error ? error.message : "Image generation failed";
+				extractProviderErrorMessage(error) ??
+				(error instanceof Error ? error.message : "Image generation failed");
 
-			// Try to extract a more detailed message from the provider response.
-			// AI SDK errors may embed the original gateway response in responseBody.
-			let detailedMessage: string | undefined;
-			if (typeof error === "object" && error !== null) {
-				const err = error as Record<string, unknown>;
-				if (typeof err.responseBody === "string") {
-					try {
-						const body = JSON.parse(err.responseBody);
-						if (typeof body.message === "string") {
-							detailedMessage = body.message;
-						}
-					} catch {
-						// ignore parse errors
-					}
-				}
-			}
-
-			return new Response(
-				JSON.stringify({ error: detailedMessage ?? message }),
-				{ status },
-			);
+			return new Response(JSON.stringify({ error: message }), { status });
 		}
 	}
 
@@ -834,7 +862,8 @@ export async function POST(req: Request) {
 		}
 
 		const message =
-			error instanceof Error ? error.message : "KiwiLLM request failed";
+			extractProviderErrorMessage(error) ??
+			(error instanceof Error ? error.message : "KiwiLLM request failed");
 		const status =
 			typeof error === "object" &&
 			error !== null &&

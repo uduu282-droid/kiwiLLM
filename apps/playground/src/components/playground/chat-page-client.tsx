@@ -6,10 +6,10 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
 
 import { ModelSelector } from "@/components/model-selector";
-import { PlaygroundConfigSidebar } from "@/components/playground/config-sidebar";
 import { ChatHeader } from "@/components/playground/chat-header";
 import { ChatSidebar } from "@/components/playground/chat-sidebar";
 import { ChatUI } from "@/components/playground/chat-ui";
+import { PlaygroundConfigSidebar } from "@/components/playground/config-sidebar";
 import { Button } from "@/components/ui/button";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import {
@@ -33,6 +33,8 @@ import type {
 import type { ComboboxModel, Organization, Project } from "@/lib/types";
 
 const PLAYGROUND_API_KEY_STORAGE_KEY = "kiwillm_playground_api_key";
+const STRICT_PROVIDER_ROUTING_STORAGE_KEY =
+	"kiwillm_playground_strict_provider_routing";
 
 function getDefaultModelValue(models: ApiModel[]) {
 	const firstModel = models[0];
@@ -40,12 +42,15 @@ function getDefaultModelValue(models: ApiModel[]) {
 		return "";
 	}
 
-	const firstMapping = firstModel.mappings[0];
-	if (firstMapping?.providerId) {
-		return `${firstMapping.providerId}/${firstModel.id}`;
-	}
-
 	return firstModel.id;
+}
+
+function getBaseModelId(value: string) {
+	return value.includes("/") ? value.split("/").slice(1).join("/") : value;
+}
+
+function isProviderSpecificModel(value: string) {
+	return value.includes("/");
 }
 
 function isSelectableModel(value: string, models: ApiModel[]) {
@@ -134,6 +139,7 @@ export default function ChatPageClient({
 	const [apiKey, setApiKey] = useState("");
 	const [persistApiKey, setPersistApiKey] = useState(true);
 	const [showApiKey, setShowApiKey] = useState(false);
+	const [strictProviderRouting, setStrictProviderRouting] = useState(false);
 	const [reasoningEffort, setReasoningEffort] = useState<
 		"" | "minimal" | "low" | "medium" | "high"
 	>("");
@@ -374,6 +380,19 @@ export default function ChatPageClient({
 	}, []);
 
 	useEffect(() => {
+		try {
+			const storedPreference = window.localStorage.getItem(
+				STRICT_PROVIDER_ROUTING_STORAGE_KEY,
+			);
+			if (storedPreference === "true") {
+				setStrictProviderRouting(true);
+			}
+		} catch {
+			// Ignore localStorage read failures.
+		}
+	}, []);
+
+	useEffect(() => {
 		if (persistApiKey) {
 			try {
 				if (apiKey.trim()) {
@@ -396,6 +415,17 @@ export default function ChatPageClient({
 			// Ignore localStorage delete failures.
 		}
 	}, [apiKey, persistApiKey]);
+
+	useEffect(() => {
+		try {
+			window.localStorage.setItem(
+				STRICT_PROVIDER_ROUTING_STORAGE_KEY,
+				strictProviderRouting ? "true" : "false",
+			);
+		} catch {
+			// Ignore localStorage write failures.
+		}
+	}, [strictProviderRouting]);
 
 	useEffect(() => {
 		if (!isSelectableModel(selectedModel, models) && defaultModel) {
@@ -501,11 +531,15 @@ export default function ChatPageClient({
 				: undefined;
 
 			// Automatically disable provider fallback for provider-specific model selections
-			const isProviderSpecific = selectedModel.includes("/");
+			const isProviderSpecific = isProviderSpecificModel(selectedModel);
 			const localStorageOverride =
 				typeof window !== "undefined" &&
 				localStorage.getItem("llmgateway_no_fallback") === "true";
-			const noFallback = isProviderSpecific || localStorageOverride;
+			const noFallback = strictProviderRouting || localStorageOverride;
+			const requestModel =
+				isProviderSpecific && !strictProviderRouting
+					? getBaseModelId(selectedModel)
+					: selectedModel;
 
 			// Get enabled MCP servers
 			const enabledMcpServers = getEnabledMcpServers();
@@ -518,6 +552,7 @@ export default function ChatPageClient({
 				},
 				body: {
 					...(options?.body ?? {}),
+					model: requestModel,
 					apiKey: apiKey.trim(),
 					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 					...(imageConfig ? { image_config: imageConfig } : {}),
@@ -549,6 +584,7 @@ export default function ChatPageClient({
 			supportsWebSearch,
 			getEnabledMcpServers,
 			playgroundLockReason,
+			strictProviderRouting,
 		],
 	);
 
@@ -1209,6 +1245,7 @@ export default function ChatPageClient({
 													apiKey={apiKey}
 													canUsePlayground={canUsePlayground}
 													lockReason={playgroundLockReason}
+													strictProviderRouting={strictProviderRouting}
 												/>
 											</div>
 										))
@@ -1225,6 +1262,8 @@ export default function ChatPageClient({
 							setShowApiKey={setShowApiKey}
 							persistApiKey={persistApiKey}
 							setPersistApiKey={setPersistApiKey}
+							strictProviderRouting={strictProviderRouting}
+							setStrictProviderRouting={setStrictProviderRouting}
 							canUsePlayground={canUsePlayground}
 							supportsReasoning={supportsReasoning}
 							reasoningEffort={reasoningEffort}
@@ -1265,6 +1304,7 @@ interface ExtraChatPanelProps {
 	apiKey: string;
 	canUsePlayground: boolean;
 	lockReason: string;
+	strictProviderRouting: boolean;
 }
 
 function ExtraChatPanel({
@@ -1281,6 +1321,7 @@ function ExtraChatPanel({
 	apiKey,
 	canUsePlayground,
 	lockReason,
+	strictProviderRouting,
 }: ExtraChatPanelProps) {
 	const [selectedModel, setSelectedModel] = useState(initialModel);
 	const [reasoningEffort, setReasoningEffort] = useState<
@@ -1413,11 +1454,15 @@ function ExtraChatPanel({
 						}
 				: undefined;
 
-			const isProviderSpecific = selectedModel.includes("/");
+			const isProviderSpecific = isProviderSpecificModel(selectedModel);
 			const localStorageOverride =
 				typeof window !== "undefined" &&
 				localStorage.getItem("llmgateway_no_fallback") === "true";
-			const noFallback = isProviderSpecific || localStorageOverride;
+			const noFallback = strictProviderRouting || localStorageOverride;
+			const requestModel =
+				isProviderSpecific && !strictProviderRouting
+					? getBaseModelId(selectedModel)
+					: selectedModel;
 
 			const mergedOptions = {
 				...options,
@@ -1427,6 +1472,7 @@ function ExtraChatPanel({
 				},
 				body: {
 					...(options?.body ?? {}),
+					model: requestModel,
 					apiKey: apiKey.trim(),
 					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 					...(imageConfig ? { image_config: imageConfig } : {}),
@@ -1454,6 +1500,7 @@ function ExtraChatPanel({
 			webSearchEnabled,
 			supportsWebSearch,
 			lockReason,
+			strictProviderRouting,
 		],
 	);
 

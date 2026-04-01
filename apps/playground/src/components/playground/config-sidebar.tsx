@@ -38,6 +38,8 @@ interface PlaygroundConfigSidebarProps {
 	setShowApiKey: (value: boolean) => void;
 	persistApiKey: boolean;
 	setPersistApiKey: (value: boolean) => void;
+	strictProviderRouting: boolean;
+	setStrictProviderRouting: (value: boolean) => void;
 	canUsePlayground: boolean;
 	supportsReasoning: boolean;
 	reasoningEffort: "" | "minimal" | "low" | "medium" | "high";
@@ -147,6 +149,8 @@ export function PlaygroundConfigSidebar({
 	setShowApiKey,
 	persistApiKey,
 	setPersistApiKey,
+	strictProviderRouting,
+	setStrictProviderRouting,
 	canUsePlayground,
 	supportsReasoning,
 	reasoningEffort,
@@ -369,6 +373,25 @@ export function PlaygroundConfigSidebar({
 						<div className="flex items-center justify-between rounded-lg border px-3 py-2">
 							<div className="space-y-1">
 								<div className="flex items-center gap-2 text-sm font-medium">
+									<Zap className="h-4 w-4 text-muted-foreground" />
+									Strict provider routing
+								</div>
+								<p className="text-xs text-muted-foreground">
+									When off, provider-specific selections still use KiwiLLM's
+									resilient model routing. Turn this on only to test one exact
+									provider worker.
+								</p>
+							</div>
+							<Switch
+								checked={strictProviderRouting}
+								onCheckedChange={setStrictProviderRouting}
+								aria-label="Toggle strict provider routing"
+							/>
+						</div>
+
+						<div className="flex items-center justify-between rounded-lg border px-3 py-2">
+							<div className="space-y-1">
+								<div className="flex items-center gap-2 text-sm font-medium">
 									<Search className="h-4 w-4 text-muted-foreground" />
 									Web search
 								</div>
@@ -542,8 +565,9 @@ export function PlaygroundConfigSidebar({
 								Provider selection
 							</div>
 							<p className="mt-1">
-								Provider-specific selections disable fallback automatically,
-								which makes direct model/provider testing more reliable.
+								Provider-specific picks now stay user-friendly by default. The
+								chat page routes through the KiwiLLM model id unless you enable
+								strict provider routing for exact worker testing.
 							</p>
 						</div>
 					</div>
