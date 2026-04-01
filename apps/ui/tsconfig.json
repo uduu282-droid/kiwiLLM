@@ -22,7 +22,8 @@
 		],
 		"paths": {
 			"@/*": ["./src/*"],
-			"content-collections": ["./.content-collections/generated"]
+			"content-collections": ["./.content-collections/generated"],
+			"@kiwi-docs/*": ["../docs/*"]
 		}
 	},
 	"include": [

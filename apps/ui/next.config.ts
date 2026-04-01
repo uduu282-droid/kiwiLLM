@@ -1,8 +1,11 @@
 import { join, resolve } from "path";
 
 import { withContentCollections } from "@content-collections/next";
+import { createMDX } from "fumadocs-mdx/next";
 
 import type { NextConfig } from "next";
+
+const withMDX = createMDX();
 
 const nextConfig: NextConfig = {
 	outputFileTracingRoot: join(__dirname, "../../"),
@@ -27,6 +30,7 @@ const nextConfig: NextConfig = {
 				__dirname,
 				"../../packages/shared/src/components/index.tsx",
 			),
+			"@kiwi-docs": resolve(__dirname, "../docs"),
 		};
 
 		return config;
@@ -41,11 +45,6 @@ const nextConfig: NextConfig = {
 			{
 				source: "/models/sherlock-think-alpha",
 				destination: "/models/grok-4-1-fast-reasoning",
-				permanent: true,
-			},
-			{
-				source: "/docs",
-				destination: "https://docs.llmgateway.io",
 				permanent: true,
 			},
 			{
@@ -96,4 +95,4 @@ const nextConfig: NextConfig = {
 };
 
 // withContentCollections must be the outermost plugin
-export default withContentCollections(nextConfig);
+export default withContentCollections(withMDX(nextConfig));
