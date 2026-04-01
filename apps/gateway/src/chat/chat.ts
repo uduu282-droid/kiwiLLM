@@ -746,13 +746,16 @@ chat.openapi(completions, async (c) => {
 
 		// Get available providers based on project mode
 		let availableProviders: string[] = [];
+		let activeProviderKeys: Awaited<
+			ReturnType<typeof findActiveProviderKeys>
+		> = [];
 
 		if (project.mode === "api-keys") {
-			const providerKeys = await findActiveProviderKeys(project.organizationId);
-			availableProviders = providerKeys.map((key) => key.provider);
+			activeProviderKeys = await findActiveProviderKeys(project.organizationId);
+			availableProviders = activeProviderKeys.map((key) => key.provider);
 		} else if (project.mode === "credits" || project.mode === "hybrid") {
-			const providerKeys = await findActiveProviderKeys(project.organizationId);
-			const databaseProviders = providerKeys.map((key) => key.provider);
+			activeProviderKeys = await findActiveProviderKeys(project.organizationId);
+			const databaseProviders = activeProviderKeys.map((key) => key.provider);
 
 			// Check which providers have environment tokens available
 			const envProviders: string[] = [];
@@ -773,145 +776,215 @@ chat.openapi(completions, async (c) => {
 				];
 			}
 		}
+		const activeProviderKeyMap = new Map(
+			activeProviderKeys.map((key) => [key.provider, key]),
+		);
+
+		const canRouteProviderMapping = (
+			providerMapping: ProviderModelMapping,
+		): boolean => {
+			const providerId = providerMapping.providerId as Provider;
+			const providerKey = activeProviderKeyMap.get(providerId);
+			let routingToken = "";
+			let routingConfigIndex = 0;
+
+			try {
+				if (project.mode === "api-keys") {
+					if (!providerKey?.token) {
+						return false;
+					}
+					routingToken = providerKey.token;
+				} else if (project.mode === "credits") {
+					const envResult = getProviderEnv(providerId);
+					routingToken = envResult.token;
+					routingConfigIndex = envResult.configIndex;
+				} else if (providerKey?.token) {
+					routingToken = providerKey.token;
+				} else {
+					const envResult = getProviderEnv(providerId);
+					routingToken = envResult.token;
+					routingConfigIndex = envResult.configIndex;
+				}
+
+				const endpoint = getProviderEndpoint(
+					providerId,
+					providerKey?.baseUrl ?? undefined,
+					providerMapping.modelName,
+					providerId === "google-ai-studio" || providerId === "google-vertex"
+						? routingToken
+						: undefined,
+					stream,
+					providerMapping.reasoning === true,
+					hasExistingToolCalls,
+					providerKey?.options ?? undefined,
+					routingConfigIndex,
+					providerMapping.imageGenerations === true,
+				);
+
+				return Boolean(endpoint);
+			} catch (error) {
+				logger.warn("Skipping unavailable auto-route provider", {
+					providerId,
+					modelName: providerMapping.modelName,
+					error: error instanceof Error ? error.message : String(error),
+				});
+				return false;
+			}
+		};
 
 		// Find the cheapest model that meets our context size requirements
 		// Only consider hardcoded models for auto selection
 		const allowedAutoModels = ["gpt-oss-120b", "gpt-5-nano", "gpt-4.1-nano"];
 
 		let selectedModel: ModelDefinition | undefined;
-		let selectedProviders: any[] = [];
+		let selectedProviders: ProviderModelMapping[] = [];
 		let lowestPrice = Number.MAX_VALUE;
 		const now = new Date(); // Cache current time for deprecation checks
+		const autoSelectionPasses = free_models_only
+			? [true, false]
+			: [false];
 
-		for (const modelDef of models) {
-			if (modelDef.id === "auto" || modelDef.id === "custom") {
-				continue;
-			}
+		for (const freeOnlyPass of autoSelectionPasses) {
+			selectedModel = undefined;
+			selectedProviders = [];
+			lowestPrice = Number.MAX_VALUE;
 
-			// When free_models_only is true, only consider models marked as free
-			// Otherwise, only consider hardcoded allowed models
-			if (free_models_only) {
-				if (!("free" in modelDef && modelDef.free)) {
+			for (const modelDef of models) {
+				if (modelDef.id === "auto" || modelDef.id === "custom") {
 					continue;
 				}
-			} else if (!allowedAutoModels.includes(modelDef.id)) {
-				continue;
-			}
 
-			// Validate IAM rules for this candidate model and filter providers.
-			// We must re-evaluate per model because iamAllowedProviders was computed
-			// for the "auto" model which only has the "llmgateway" provider.
-			const candidateIam = await validateModelAccess(
-				apiKey.id,
-				modelDef.id,
-				undefined,
-				modelDef,
-			);
-			if (!candidateIam.allowed) {
-				continue;
-			}
-			const candidateAllowedProviders = candidateIam.allowedProviders;
-
-			// Check if any of the model's providers are available
-			const availableModelProviders = modelDef.providers.filter(
-				(provider) =>
-					availableProviders.includes(provider.providerId) &&
-					(!candidateAllowedProviders ||
-						candidateAllowedProviders.includes(provider.providerId)),
-			);
-
-			// Filter by context size requirement, reasoning capability, and deprecation status
-			const suitableProviders = availableModelProviders.filter((provider) => {
-				// Skip deprecated provider mappings
-				if (
-					(provider as ProviderModelMapping).deprecatedAt &&
-					now > (provider as ProviderModelMapping).deprecatedAt!
-				) {
-					return false;
+				// On the first free-only pass, prefer free models if available.
+				// If none are routeable, fall back to our standard auto pool.
+				if (freeOnlyPass) {
+					if (!("free" in modelDef && modelDef.free)) {
+						continue;
+					}
+				} else if (!allowedAutoModels.includes(modelDef.id)) {
+					continue;
 				}
 
-				// Use the provider's context size, defaulting to a reasonable value if not specified
-				const modelContextSize =
-					(provider as ProviderModelMapping).contextSize ?? 8192;
-				const contextSizeMet = modelContextSize >= requiredContextSize;
-
-				// If no_reasoning is true, exclude reasoning models
-				if (
-					no_reasoning &&
-					(provider as ProviderModelMapping).reasoning === true
-				) {
-					return false;
+				// Validate IAM rules for this candidate model and filter providers.
+				// We must re-evaluate per model because iamAllowedProviders was computed
+				// for the "auto" model which only has the "llmgateway" provider.
+				const candidateIam = await validateModelAccess(
+					apiKey.id,
+					modelDef.id,
+					undefined,
+					modelDef,
+				);
+				if (!candidateIam.allowed) {
+					continue;
 				}
+				const candidateAllowedProviders = candidateIam.allowedProviders;
 
-				// Check reasoning capability if reasoning_effort is specified
-				if (
-					reasoning_effort !== undefined &&
-					(provider as ProviderModelMapping).reasoning !== true
-				) {
-					return false;
-				}
+				// Check if any of the model's providers are available
+				const availableModelProviders = modelDef.providers.filter(
+					(provider) =>
+						availableProviders.includes(provider.providerId) &&
+						(!candidateAllowedProviders ||
+							candidateAllowedProviders.includes(provider.providerId)),
+				);
 
-				// Check reasoning.max_tokens support if specified
-				if (
-					reasoning_max_tokens !== undefined &&
-					(provider as ProviderModelMapping).reasoningMaxTokens !== true
-				) {
-					return false;
-				}
+				// Filter by context size requirement, reasoning capability, and deprecation status
+				const suitableProviders = availableModelProviders.filter((provider) => {
+					const providerMapping = provider as ProviderModelMapping;
 
-				// Check tool capability if tools or tool_choice is specified
-				if (
-					(tools !== undefined || tool_choice !== undefined) &&
-					(provider as ProviderModelMapping).tools !== true
-				) {
-					return false;
-				}
-
-				// Check web search capability if web search tool is requested
-				if (
-					webSearchTool &&
-					(provider as ProviderModelMapping).webSearch !== true
-				) {
-					return false;
-				}
-
-				// Check JSON output capability if json_object or json_schema response format is requested
-				if (
-					response_format?.type === "json_object" ||
-					response_format?.type === "json_schema"
-				) {
-					if ((provider as ProviderModelMapping).jsonOutput !== true) {
+					// Skip deprecated provider mappings
+					if (providerMapping.deprecatedAt && now > providerMapping.deprecatedAt) {
 						return false;
 					}
-				}
 
-				// Check JSON schema output capability if json_schema response format is requested
-				if (response_format?.type === "json_schema") {
-					if ((provider as ProviderModelMapping).jsonOutputSchema !== true) {
+					// Use the provider's context size, defaulting to a reasonable value if not specified
+					const modelContextSize = providerMapping.contextSize ?? 8192;
+					const contextSizeMet = modelContextSize >= requiredContextSize;
+					if (!contextSizeMet) {
 						return false;
 					}
-				}
 
-				// Check vision capability if images are present in messages
-				if (hasImages && (provider as ProviderModelMapping).vision !== true) {
-					return false;
-				}
+					// If no_reasoning is true, exclude reasoning models
+					if (no_reasoning && providerMapping.reasoning === true) {
+						return false;
+					}
 
-				return contextSizeMet;
-			});
+					// Check reasoning capability if reasoning_effort is specified
+					if (
+						reasoning_effort !== undefined &&
+						providerMapping.reasoning !== true
+					) {
+						return false;
+					}
 
-			if (suitableProviders.length > 0) {
-				// Find the cheapest among the suitable providers for this model
-				for (const provider of suitableProviders) {
-					const totalPrice =
-						((provider.inputPrice || 0) + (provider.outputPrice || 0)) / 2;
+					// Check reasoning.max_tokens support if specified
+					if (
+						reasoning_max_tokens !== undefined &&
+						providerMapping.reasoningMaxTokens !== true
+					) {
+						return false;
+					}
 
-					if (totalPrice < lowestPrice) {
-						lowestPrice = totalPrice;
-						selectedModel = modelDef;
-						selectedProviders = suitableProviders;
+					// Check tool capability if tools or tool_choice is specified
+					if (
+						(tools !== undefined || tool_choice !== undefined) &&
+						providerMapping.tools !== true
+					) {
+						return false;
+					}
+
+					// Check web search capability if web search tool is requested
+					if (webSearchTool && providerMapping.webSearch !== true) {
+						return false;
+					}
+
+					// Check JSON output capability if json_object or json_schema response format is requested
+					if (
+						response_format?.type === "json_object" ||
+						response_format?.type === "json_schema"
+					) {
+						if (providerMapping.jsonOutput !== true) {
+							return false;
+						}
+					}
+
+					// Check JSON schema output capability if json_schema response format is requested
+					if (
+						response_format?.type === "json_schema" &&
+						providerMapping.jsonOutputSchema !== true
+					) {
+						return false;
+					}
+
+					// Check vision capability if images are present in messages
+					if (hasImages && providerMapping.vision !== true) {
+						return false;
+					}
+
+					return canRouteProviderMapping(providerMapping);
+				}) as ProviderModelMapping[];
+
+				if (suitableProviders.length > 0) {
+					// Find the cheapest among the suitable providers for this model
+					for (const provider of suitableProviders) {
+						const totalPrice =
+							((provider.inputPrice || 0) + (provider.outputPrice || 0)) / 2;
+
+						if (totalPrice < lowestPrice) {
+							lowestPrice = totalPrice;
+							selectedModel = modelDef;
+							selectedProviders = suitableProviders;
+						}
 					}
 				}
+			}
+
+			if (selectedModel && selectedProviders.length > 0) {
+				if (free_models_only && !freeOnlyPass) {
+					logger.warn("Falling back from free-only auto routing to general auto routing", {
+						organizationId: project.organizationId,
+						apiKeyId: apiKey.id,
+					});
+				}
+				break;
 			}
 		}
 
@@ -944,13 +1017,7 @@ chat.openapi(completions, async (c) => {
 				usedModel = selectedProviders[0].modelName;
 			}
 		} else {
-			if (free_models_only) {
-				// If free_models_only is true but no suitable model found, return error
-				throw new HTTPException(400, {
-					message:
-						"No free models are available for auto routing. Remove free_models_only parameter or use a specific model.",
-				});
-			} else if (no_reasoning) {
+			if (no_reasoning) {
 				// If no_reasoning is true but no suitable model found, return error
 				throw new HTTPException(400, {
 					message:
