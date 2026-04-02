@@ -1570,7 +1570,10 @@ chat.openapi(completions, async (c) => {
 			);
 
 			if (availableModelProviders.length === 0) {
-				const hostedFallbackProviders = iamFilteredModelProviders.filter(
+				const hostedFallbackCandidateProviders = iamAllowedProviders
+					? iamFilteredModelProviders
+					: modelInfo.providers;
+				const hostedFallbackProviders = hostedFallbackCandidateProviders.filter(
 					(provider) => {
 						if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
 							return false;
