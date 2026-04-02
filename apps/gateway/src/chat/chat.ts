@@ -1464,7 +1464,7 @@ chat.openapi(completions, async (c) => {
 			// Filter model providers to only those available
 			// If web search is requested, also filter to providers that support it
 			// If JSON output is requested, also filter to providers that support it
-			const availableModelProviders = iamFilteredModelProviders.filter(
+			let availableModelProviders = iamFilteredModelProviders.filter(
 				(provider) => {
 					if (!availableProviders.includes(provider.providerId)) {
 						return false;
@@ -1568,6 +1568,102 @@ chat.openapi(completions, async (c) => {
 					}
 				},
 			);
+
+			if (availableModelProviders.length === 0) {
+				const hostedFallbackProviders = iamFilteredModelProviders.filter(
+					(provider) => {
+						if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
+							return false;
+						}
+						if (webSearchTool) {
+							if ((provider as ProviderModelMapping).webSearch !== true) {
+								return false;
+							}
+						}
+						if (
+							response_format?.type === "json_object" ||
+							response_format?.type === "json_schema"
+						) {
+							if ((provider as ProviderModelMapping).jsonOutput !== true) {
+								return false;
+							}
+						}
+						if (response_format?.type === "json_schema") {
+							if ((provider as ProviderModelMapping).jsonOutputSchema !== true) {
+								return false;
+							}
+						}
+						if (hasImages && (provider as ProviderModelMapping).vision !== true) {
+							return false;
+						}
+						if (reasoning_effort !== undefined) {
+							if ((provider as ProviderModelMapping).reasoning !== true) {
+								return false;
+							}
+						}
+						if (reasoning_effort === undefined) {
+							const hasNonReasoningAlternative = modelInfo.providers.some(
+								(p) =>
+									p.providerId === provider.providerId &&
+									(p as ProviderModelMapping).reasoning !== true,
+							);
+							if (
+								hasNonReasoningAlternative &&
+								(provider as ProviderModelMapping).reasoning === true
+							) {
+								return false;
+							}
+						}
+
+						const providerMapping = provider as ProviderModelMapping;
+						const providerKey = providerKeyMap.get(provider.providerId);
+						let routingToken = "";
+						let routingConfigIndex = 0;
+
+						try {
+							if (providerKey?.token) {
+								routingToken = providerKey.token;
+							} else if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
+								return false;
+							} else if (project.mode !== "api-keys") {
+								const envResult = getProviderEnv(provider.providerId);
+								routingToken = envResult.token;
+								routingConfigIndex = envResult.configIndex;
+							}
+
+							return Boolean(
+								resolveProviderEndpointWithFallback({
+									providerId: provider.providerId,
+									baseUrl: providerKey?.baseUrl ?? undefined,
+									modelName: provider.modelName,
+									googleApiKey:
+										provider.providerId === "google-ai-studio" ||
+										provider.providerId === "google-vertex"
+											? routingToken
+											: undefined,
+									stream,
+									reasoning: providerMapping.reasoning === true,
+									hasExistingToolCalls,
+									providerOptions: providerKey?.options ?? undefined,
+									configIndex: routingConfigIndex,
+									imageGenerations: providerMapping.imageGenerations === true,
+								}),
+							);
+						} catch {
+							return false;
+						}
+					},
+				);
+
+				if (hostedFallbackProviders.length > 0) {
+					logger.warn("Using hosted explicit-model fallback providers", {
+						model: usedModel,
+						providers: hostedFallbackProviders.map((provider) => provider.providerId),
+						projectMode: project.mode,
+					});
+					availableModelProviders = hostedFallbackProviders;
+				}
+			}
 
 			if (availableModelProviders.length === 0) {
 				throw new HTTPException(400, {
