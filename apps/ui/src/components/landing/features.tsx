@@ -192,10 +192,10 @@ const features: FeatureItem[] = [
 				<circle cx="106.797" cy="126.012" r="3.98224" fill="#77B359" />
 			</svg>
 		),
-		title: "Self-hosted or Cloud",
+		title: "Managed Deployment",
 		description:
-			"Run on your own infrastructure for full control, or let us handle it—your choice.",
-		slug: "self-hosted-or-cloud",
+			"Launch on KiwiLLM's hosted platform with managed infrastructure and production-ready controls.",
+		slug: "managed-deployment",
 	},
 	{
 		icon: (

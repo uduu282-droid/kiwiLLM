@@ -55,18 +55,17 @@ export function AdminDashboardEnterprise() {
 			<div className="container mx-auto px-4 sm:px-6 lg:px-8">
 				<div className="mx-auto max-w-3xl text-center mb-16">
 					<div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-muted px-4 py-1.5">
-						<span className="text-xs font-mono text-blue-500">SELF-HOSTED</span>
+						<span className="text-xs font-mono text-blue-500">ENTERPRISE</span>
 						<span className="text-xs text-muted-foreground">
 							Included with every enterprise deployment
 						</span>
 					</div>
 					<h2 className="mb-4 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl text-balance">
-						A full admin dashboard, on your infrastructure
+						A full admin dashboard for your organization
 					</h2>
 					<p className="text-lg text-muted-foreground text-balance leading-relaxed">
-						When you self-host KiwiLLM, you get a complete admin dashboard
-						to monitor, manage, and optimize your entire LLM operation. No
-						external dependencies, no data leaving your network.
+						Enterprise KiwiLLM includes a complete admin dashboard to monitor,
+						manage, and optimize your entire LLM operation from one place.
 					</p>
 				</div>
 
@@ -96,4 +95,3 @@ export function AdminDashboardEnterprise() {
 		</section>
 	);
 }
-

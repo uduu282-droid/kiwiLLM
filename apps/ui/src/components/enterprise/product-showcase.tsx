@@ -44,7 +44,7 @@ const screenshots = [
 		alt: "KiwiLLM Documentation",
 		title: "Developer Documentation",
 		description:
-			"Comprehensive API reference, integration guides, and self-hosting documentation for your team.",
+			"Comprehensive API reference, integration guides, and setup documentation for your team.",
 		width: 1440,
 		height: 900,
 	},

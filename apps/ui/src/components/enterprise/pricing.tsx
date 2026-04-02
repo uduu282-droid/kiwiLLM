@@ -6,13 +6,12 @@ import { Card } from "@/lib/components/card";
 
 const plans = [
 	{
-		name: "Self-Hosted",
-		description: "Deploy on your infrastructure with complete control",
+		name: "Dedicated Managed",
+		description: "Private managed deployment with complete support",
 		features: [
 			"Full admin dashboard included",
 			"Enterprise SSO integration",
 			"Provider configuration UI",
-			"Terraform modules for AWS, GCP, bare metal",
 			"White label gateway & chat playground",
 			"Prioritized feature requests",
 			"On-boarding assistance",
@@ -25,7 +24,7 @@ const plans = [
 		name: "Enterprise Cloud",
 		description: "Fully managed with custom scaling and pricing",
 		features: [
-			"Everything in Self-Hosted",
+			"Everything in Dedicated Managed",
 			"Fully managed infrastructure",
 			"Custom rate limits",
 			"Volume-based pricing",
@@ -47,8 +46,8 @@ export function PricingEnterprise() {
 						Enterprise pricing that scales with you
 					</h2>
 					<p className="text-lg text-muted-foreground text-balance leading-relaxed">
-						Choose between self-hosted control or fully managed convenience.
-						Both options include all enterprise features.
+						Choose between dedicated managed environments and fully managed
+						enterprise cloud. Both options include all enterprise features.
 					</p>
 				</div>
 				<div className="mx-auto max-w-5xl grid gap-8 lg:grid-cols-2">
