@@ -238,20 +238,68 @@
 }
 
 .dark #nd-docs-layout {
-	--color-fd-background: hsl(0 0% 3%);
+	--color-fd-background: hsl(0 0% 2%);
 	--color-fd-foreground: hsl(0 0% 100%);
-	--color-fd-muted: hsl(0 0% 10%);
-	--color-fd-muted-foreground: hsl(0 0% 82%);
-	--color-fd-popover: hsl(0 0% 5%);
+	--color-fd-muted: hsl(0 0% 8%);
+	--color-fd-muted-foreground: hsl(0 0% 96%);
+	--color-fd-popover: hsl(0 0% 4%);
 	--color-fd-popover-foreground: hsl(0 0% 100%);
-	--color-fd-card: hsl(0 0% 8%);
+	--color-fd-card: hsl(0 0% 6%);
 	--color-fd-card-foreground: hsl(0 0% 100%);
 	--color-fd-border: hsla(0 0% 100% / 0.08);
-	--color-fd-primary: oklch(0.9 0.042 258);
+	--color-fd-primary: hsl(0 0% 100%);
 	--color-fd-primary-foreground: hsl(0 0% 12%);
-	--color-fd-secondary: hsl(0 0% 12%);
+	--color-fd-secondary: hsl(0 0% 8%);
 	--color-fd-secondary-foreground: hsl(0 0% 100%);
-	--color-fd-accent: hsl(0 0% 14%);
+	--color-fd-accent: hsl(0 0% 10%);
 	--color-fd-accent-foreground: hsl(0 0% 100%);
-	--color-fd-article: hsl(0 0% 7%);
+	--color-fd-article: hsl(0 0% 5%);
+}
+
+.dark #nd-docs-layout :is(
+		article,
+		main,
+		section,
+		div,
+		span,
+		p,
+		li,
+		ol,
+		ul,
+		blockquote,
+		dt,
+		dd,
+		label,
+		small,
+		strong,
+		em,
+		a,
+		button,
+		[data-card] p,
+		[class*="text-fd-muted"],
+		[class*="text-fd-secondary"],
+		.text-fd-muted-foreground,
+		.prose
+	) {
+	color: hsl(0 0% 100%) !important;
+}
+
+.dark #nd-docs-layout :is(
+		h1,
+		h2,
+		h3,
+		h4,
+		h5,
+		h6,
+		.text-fd-link,
+		.text-fd-foreground,
+		.text-fd-primary,
+		.text-fd-card-foreground
+	) {
+	color: hsl(0 0% 100%) !important;
+}
+
+.dark #nd-docs-layout pre,
+.dark #nd-docs-layout code {
+	color: inherit;
 }
