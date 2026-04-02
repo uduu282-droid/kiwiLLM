@@ -43,6 +43,7 @@ import {
 	getProviderMetricsForCombinations,
 	type InferSelectModel,
 	isCachingEnabled,
+	type ProviderKeyOptions,
 	shortid,
 	type tables,
 } from "@llmgateway/db";
@@ -130,12 +131,52 @@ const dashboardUrl = process.env.APP_URL ?? "https://app.kiwillm.in";
 export const chat = new OpenAPIHono<ServerTypes>();
 
 const hostedProviderFallbackBaseUrls: Partial<Record<Provider, string>> = {
+	"kiwillm-claude-talkai": "https://claude-talkai.ronitshrimankar1.workers.dev",
 	"kiwillm-grok-proxy": "https://grok-proxy.qwen4346.workers.dev",
 	"kiwillm-gpt-oss-worker": "https://gpt-oss-worker.llamai.workers.dev",
 };
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
 	return !getProviderEnvConfig(providerId)?.required.apiKey;
+}
+
+function resolveProviderEndpointWithFallback(options: {
+	providerId: Provider;
+	baseUrl?: string;
+	modelName: string;
+	googleApiKey?: string;
+	stream?: boolean;
+	reasoning?: boolean;
+	hasExistingToolCalls?: boolean;
+	providerOptions?: ProviderKeyOptions;
+	configIndex?: number;
+	imageGenerations?: boolean;
+}): string {
+	try {
+		return getProviderEndpoint(
+			options.providerId,
+			options.baseUrl,
+			options.modelName,
+			options.googleApiKey,
+			options.stream,
+			options.reasoning,
+			options.hasExistingToolCalls,
+			options.providerOptions,
+			options.configIndex,
+			options.imageGenerations,
+		);
+	} catch (error) {
+		const hostedFallbackBaseUrl =
+			hostedProviderFallbackBaseUrls[options.providerId];
+		if (
+			hostedFallbackBaseUrl &&
+			error instanceof Error &&
+			error.message.includes("requires a baseUrl")
+		) {
+			return `${hostedFallbackBaseUrl}/v1/chat/completions`;
+		}
+		throw error;
+	}
 }
 
 function serializeJsonResponse(data: unknown): string {
@@ -816,20 +857,21 @@ chat.openapi(completions, async (c) => {
 					routingConfigIndex = envResult.configIndex;
 				}
 
-				const endpoint = getProviderEndpoint(
+				const endpoint = resolveProviderEndpointWithFallback({
 					providerId,
-					providerKey?.baseUrl ?? undefined,
-					providerMapping.modelName,
-					providerId === "google-ai-studio" || providerId === "google-vertex"
-						? routingToken
-						: undefined,
+					baseUrl: providerKey?.baseUrl ?? undefined,
+					modelName: providerMapping.modelName,
+					googleApiKey:
+						providerId === "google-ai-studio" || providerId === "google-vertex"
+							? routingToken
+							: undefined,
 					stream,
-					providerMapping.reasoning === true,
+					reasoning: providerMapping.reasoning === true,
 					hasExistingToolCalls,
-					providerKey?.options ?? undefined,
-					routingConfigIndex,
-					providerMapping.imageGenerations === true,
-				);
+					providerOptions: providerKey?.options ?? undefined,
+					configIndex: routingConfigIndex,
+					imageGenerations: providerMapping.imageGenerations === true,
+				});
 
 				return Boolean(endpoint);
 			} catch (error) {
@@ -1251,21 +1293,22 @@ chat.openapi(completions, async (c) => {
 							}
 
 							return Boolean(
-								getProviderEndpoint(
-									provider.providerId,
-									providerKey?.baseUrl ?? undefined,
-									provider.modelName,
-									provider.providerId === "google-ai-studio" ||
+								resolveProviderEndpointWithFallback({
+									providerId: provider.providerId,
+									baseUrl: providerKey?.baseUrl ?? undefined,
+									modelName: provider.modelName,
+									googleApiKey:
+										provider.providerId === "google-ai-studio" ||
 										provider.providerId === "google-vertex"
-										? routingToken
-										: undefined,
+											? routingToken
+											: undefined,
 									stream,
-									providerMapping.reasoning === true,
+									reasoning: providerMapping.reasoning === true,
 									hasExistingToolCalls,
-									providerKey?.options ?? undefined,
-									routingConfigIndex,
-									providerMapping.imageGenerations === true,
-								),
+									providerOptions: providerKey?.options ?? undefined,
+									configIndex: routingConfigIndex,
+									imageGenerations: providerMapping.imageGenerations === true,
+								}),
 							);
 						} catch {
 							return false;
@@ -1503,21 +1546,22 @@ chat.openapi(completions, async (c) => {
 						}
 
 						return Boolean(
-							getProviderEndpoint(
-								provider.providerId,
-								providerKey?.baseUrl ?? undefined,
-								provider.modelName,
-								provider.providerId === "google-ai-studio" ||
+							resolveProviderEndpointWithFallback({
+								providerId: provider.providerId,
+								baseUrl: providerKey?.baseUrl ?? undefined,
+								modelName: provider.modelName,
+								googleApiKey:
+									provider.providerId === "google-ai-studio" ||
 									provider.providerId === "google-vertex"
-									? routingToken
-									: undefined,
+										? routingToken
+										: undefined,
 								stream,
-								providerMapping.reasoning === true,
+								reasoning: providerMapping.reasoning === true,
 								hasExistingToolCalls,
-								providerKey?.options ?? undefined,
-								routingConfigIndex,
-								providerMapping.imageGenerations === true,
-							),
+								providerOptions: providerKey?.options ?? undefined,
+								configIndex: routingConfigIndex,
+								imageGenerations: providerMapping.imageGenerations === true,
+							}),
 						);
 					} catch {
 						return false;
@@ -1915,36 +1959,23 @@ chat.openapi(completions, async (c) => {
 			});
 		}
 
-		url = getProviderEndpoint(
-			usedProvider,
-			providerKey?.baseUrl ?? undefined,
-			usedModel,
-			usedProvider === "google-ai-studio" || usedProvider === "google-vertex"
-				? usedToken
-				: undefined,
+		url = resolveProviderEndpointWithFallback({
+			providerId: usedProvider,
+			baseUrl: providerKey?.baseUrl ?? undefined,
+			modelName: usedModel,
+			googleApiKey:
+				usedProvider === "google-ai-studio" || usedProvider === "google-vertex"
+					? usedToken
+					: undefined,
 			stream,
-			supportsReasoning,
+			reasoning: supportsReasoning,
 			hasExistingToolCalls,
-			providerKey?.options ?? undefined,
+			providerOptions: providerKey?.options ?? undefined,
 			configIndex,
-			isImageGeneration,
-		);
+			imageGenerations: isImageGeneration,
+		});
 	} catch (error) {
-		const hostedFallbackBaseUrl = usedProvider
-			? hostedProviderFallbackBaseUrls[usedProvider]
-			: undefined;
-		if (
-			hostedFallbackBaseUrl &&
-			error instanceof Error &&
-			error.message.includes("requires a baseUrl")
-		) {
-			logger.warn("Falling back to hosted provider default base URL", {
-				provider: usedProvider,
-				model: usedModel,
-				hostedFallbackBaseUrl,
-			});
-			url = `${hostedFallbackBaseUrl}/v1/chat/completions`;
-		} else if (usedProvider === "llmgateway" && usedModel !== "custom") {
+		if (usedProvider === "llmgateway" && usedModel !== "custom") {
 			throw new HTTPException(400, {
 				message: `Invalid model: ${usedModel} for provider: ${usedProvider}`,
 			});
