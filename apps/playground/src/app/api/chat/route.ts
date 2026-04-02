@@ -8,7 +8,6 @@ import {
 	convertToModelMessages,
 	createUIMessageStream,
 	createUIMessageStreamResponse,
-	JsonToSseTransformStream,
 } from "ai";
 import { z } from "zod";
 
@@ -826,64 +825,16 @@ export async function POST(req: Request) {
 			},
 		});
 
-		// Build the UI message stream and pipe through SSE formatting
+		// Return the native AI SDK UI message stream so useChat can parse it correctly.
 		const uiStream = result.toUIMessageStream({
 			sendReasoning: true,
 			sendSources: true,
 		});
-		const sseStream = uiStream.pipeThrough(new JsonToSseTransformStream());
-
-		// Add SSE keepalive comments (`: ping`) to prevent proxy/load balancer
-		// timeouts on long-running requests (e.g. tool calls, reasoning).
-		// Uses a push-based ReadableStream with setInterval so that pings are
-		// flushed to the response independently of consumer backpressure.
-		const KEEPALIVE_INTERVAL_MS = 15_000;
-		const encoder = new TextEncoder();
-		const reader = sseStream.getReader();
-
-		const streamWithKeepalive = new ReadableStream<Uint8Array>({
-			start(controller) {
-				// Send a keepalive ping every KEEPALIVE_INTERVAL_MS.
-				const keepaliveTimer = setInterval(() => {
-					try {
-						controller.enqueue(encoder.encode(": ping\n\n"));
-					} catch {
-						// Stream already closed, clean up.
-						clearInterval(keepaliveTimer);
-					}
-				}, KEEPALIVE_INTERVAL_MS);
-
-				// Read upstream chunks in a loop and forward them.
-				void (async () => {
-					try {
-						while (true) {
-							const { done, value } = await reader.read();
-							if (done) {
-								clearInterval(keepaliveTimer);
-								controller.close();
-								return;
-							}
-							controller.enqueue(
-								typeof value === "string" ? encoder.encode(value) : value,
-							);
-						}
-					} catch (err) {
-						clearInterval(keepaliveTimer);
-						controller.error(err);
-					}
-				})();
-			},
-			cancel() {
-				void reader.cancel();
-			},
-		});
-
-		return new Response(streamWithKeepalive, {
+		return createUIMessageStreamResponse({
+			stream: uiStream,
 			headers: {
-				"content-type": "text/event-stream",
 				"cache-control": "no-cache",
 				connection: "keep-alive",
-				"x-vercel-ai-ui-message-stream": "v1",
 				"x-accel-buffering": "no",
 			},
 		});
