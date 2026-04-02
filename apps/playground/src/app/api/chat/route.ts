@@ -8,7 +8,6 @@ import {
 	convertToModelMessages,
 	createUIMessageStream,
 	createUIMessageStreamResponse,
-	JsonToSseTransformStream,
 } from "ai";
 import { z } from "zod";
 
@@ -293,6 +292,22 @@ interface McpClientWrapper {
 	name: string;
 }
 
+const ROUTE_DEBUG_PREFIX = "[KiwiLLM Playground API]";
+
+function jsonErrorResponse(
+	error: string,
+	status: number,
+	additionalBody?: Record<string, unknown>,
+) {
+	return Response.json(
+		{
+			error,
+			...(additionalBody ?? {}),
+		},
+		{ status },
+	);
+}
+
 function extractProviderErrorMessage(error: unknown): string | undefined {
 	const queue: unknown[] = [error];
 	const visited = new Set<unknown>();
@@ -355,26 +370,35 @@ export async function POST(req: Request) {
 	}: ChatRequestBody = body;
 
 	if (!messages || !Array.isArray(messages)) {
-		return new Response(JSON.stringify({ error: "Missing messages" }), {
-			status: 400,
-		});
+		return jsonErrorResponse("Missing messages", 400);
 	}
 
 	const headerApiKey = req.headers.get("x-llmgateway-key") ?? undefined;
 	const headerModel = req.headers.get("x-llmgateway-model") ?? undefined;
 	const noFallbackHeader = req.headers.get("x-no-fallback") ?? undefined;
 	const finalApiKey = apiKey ?? headerApiKey;
+	console.info(`${ROUTE_DEBUG_PREFIX} incoming request`, {
+		hasMessages: Array.isArray(messages),
+		messageCount: Array.isArray(messages) ? messages.length : 0,
+		model,
+		headerModel,
+		provider,
+		hasApiKeyInBody: typeof apiKey === "string" && apiKey.length > 0,
+		hasApiKeyInHeader:
+			typeof headerApiKey === "string" && headerApiKey.length > 0,
+		hasFinalApiKey: typeof finalApiKey === "string" && finalApiKey.length > 0,
+		reasoning_effort,
+		web_search: web_search === true,
+		is_image_gen: is_image_gen === true,
+		mcpServerCount: Array.isArray(mcp_servers) ? mcp_servers.length : 0,
+	});
 	if (!finalApiKey) {
-		return new Response(JSON.stringify({ error: "Missing API key" }), {
-			status: 400,
-		});
+		return jsonErrorResponse("Missing API key", 400);
 	}
 
 	let selectedModel = (model ?? headerModel)?.trim();
 	if (!selectedModel) {
-		return new Response(JSON.stringify({ error: "Missing model" }), {
-			status: 400,
-		});
+		return jsonErrorResponse("Missing model", 400);
 	}
 
 	const gatewayUrl =
@@ -382,6 +406,12 @@ export async function POST(req: Request) {
 		(process.env.NODE_ENV === "development"
 			? "http://localhost:4001/v1"
 			: "https://api.kiwillm.in/v1");
+	console.info(`${ROUTE_DEBUG_PREFIX} resolved routing`, {
+		selectedModel,
+		provider,
+		gatewayUrl,
+		noFallbackHeader,
+	});
 
 	const llmgateway = createLLMGateway({
 		apiKey: finalApiKey,
@@ -442,10 +472,7 @@ export async function POST(req: Request) {
 			}
 
 			if (!prompt.trim()) {
-				return new Response(
-					JSON.stringify({ error: "Missing prompt for image generation" }),
-					{ status: 400 },
-				);
+				return jsonErrorResponse("Missing prompt for image generation", 400);
 			}
 
 			const result = await generateImage({
@@ -507,8 +534,14 @@ export async function POST(req: Request) {
 			const message =
 				extractProviderErrorMessage(error) ??
 				(error instanceof Error ? error.message : "Image generation failed");
+			console.error(`${ROUTE_DEBUG_PREFIX} image generation failed`, {
+				status,
+				message,
+				selectedModel,
+				error,
+			});
 
-			return new Response(JSON.stringify({ error: message }), { status });
+			return jsonErrorResponse(message, status);
 		}
 	}
 
@@ -792,62 +825,16 @@ export async function POST(req: Request) {
 			},
 		});
 
-		// Build the UI message stream and pipe through SSE formatting
+		// Return the native AI SDK UI message stream so useChat can parse it correctly.
 		const uiStream = result.toUIMessageStream({
 			sendReasoning: true,
 			sendSources: true,
 		});
-		const sseStream = uiStream.pipeThrough(new JsonToSseTransformStream());
-
-		// Add SSE keepalive comments (`: ping`) to prevent proxy/load balancer
-		// timeouts on long-running requests (e.g. tool calls, reasoning).
-		// Uses a push-based ReadableStream with setInterval so that pings are
-		// flushed to the response independently of consumer backpressure.
-		const KEEPALIVE_INTERVAL_MS = 15_000;
-		const encoder = new TextEncoder();
-		const reader = sseStream.getReader();
-
-		const streamWithKeepalive = new ReadableStream<Uint8Array>({
-			start(controller) {
-				// Send a keepalive ping every KEEPALIVE_INTERVAL_MS.
-				const keepaliveTimer = setInterval(() => {
-					try {
-						controller.enqueue(encoder.encode(": ping\n\n"));
-					} catch {
-						// Stream already closed, clean up.
-						clearInterval(keepaliveTimer);
-					}
-				}, KEEPALIVE_INTERVAL_MS);
-
-				// Read upstream chunks in a loop and forward them.
-				void (async () => {
-					try {
-						while (true) {
-							const { done, value } = await reader.read();
-							if (done) {
-								clearInterval(keepaliveTimer);
-								controller.close();
-								return;
-							}
-							controller.enqueue(encoder.encode(value));
-						}
-					} catch (err) {
-						clearInterval(keepaliveTimer);
-						controller.error(err);
-					}
-				})();
-			},
-			cancel() {
-				void reader.cancel();
-			},
-		});
-
-		return new Response(streamWithKeepalive, {
+		return createUIMessageStreamResponse({
+			stream: uiStream,
 			headers: {
-				"content-type": "text/event-stream",
 				"cache-control": "no-cache",
 				connection: "keep-alive",
-				"x-vercel-ai-ui-message-stream": "v1",
 				"x-accel-buffering": "no",
 			},
 		});
@@ -871,8 +858,17 @@ export async function POST(req: Request) {
 			typeof (error as { status: unknown }).status === "number"
 				? (error as { status: number }).status
 				: 500;
-		return new Response(JSON.stringify({ error: message }), {
+		console.error(`${ROUTE_DEBUG_PREFIX} chat request failed`, {
 			status,
+			message,
+			error,
+			selectedModel,
+			gatewayUrl:
+				process.env.GATEWAY_URL ??
+				(process.env.NODE_ENV === "development"
+					? "http://localhost:4001/v1"
+					: "https://api.kiwillm.in/v1"),
 		});
+		return jsonErrorResponse(message, status);
 	}
 }

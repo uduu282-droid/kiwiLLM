@@ -1,10 +1,14 @@
 import { publishToQueue, LOG_QUEUE } from "@llmgateway/cache";
-import { UnifiedFinishReason, type LogInsertData } from "@llmgateway/db";
+import {
+	db,
+	log as logTable,
+	UnifiedFinishReason,
+	type LogInsertData,
+} from "@llmgateway/db";
 import { recordChatCompletionMetrics } from "@llmgateway/instrumentation";
 import { logger } from "@llmgateway/logger";
 
 import type { InferInsertModel } from "@llmgateway/db";
-import type { log } from "@llmgateway/db";
 
 /**
  * Check if a finish reason is expected to map to UNKNOWN
@@ -176,7 +180,37 @@ export function calculateDataStorageCost(
  * This function is extracted to prepare for future implementation using a message queue.
  */
 
-export type LogData = InferInsertModel<typeof log>;
+export type LogData = InferInsertModel<typeof logTable>;
+
+async function getPersistedLogData(
+	logData: LogInsertData,
+): Promise<LogInsertData | Omit<LogInsertData, "messages" | "content">> {
+	const organization = await db.query.organization.findFirst({
+		where: {
+			id: {
+				eq: logData.organizationId,
+			},
+		},
+		columns: {
+			retentionLevel: true,
+		},
+	});
+
+	if (organization?.retentionLevel === "none") {
+		const {
+			messages: _messages,
+			content: _content,
+			reasoningContent: _reasoningContent,
+			tools: _tools,
+			toolChoice: _toolChoice,
+			toolResults: _toolResults,
+			...metadataOnly
+		} = logData;
+		return metadataOnly;
+	}
+
+	return logData;
+}
 
 export async function insertLog(logData: LogInsertData): Promise<unknown> {
 	if (logData.unifiedFinishReason === undefined) {
@@ -232,6 +266,16 @@ export async function insertLog(logData: LogInsertData): Promise<unknown> {
 			: undefined,
 		errorType,
 	});
+
+	try {
+		const persistedLogData = await getPersistedLogData(logData);
+		await db.insert(logTable).values(persistedLogData).onConflictDoNothing();
+	} catch (error) {
+		logger.error(
+			"Failed to persist log directly",
+			error instanceof Error ? error : new Error(String(error)),
+		);
+	}
 
 	await publishToQueue(LOG_QUEUE, logData);
 	return 1; // Return 1 to match test expectations

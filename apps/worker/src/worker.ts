@@ -802,7 +802,10 @@ export async function processLogQueue(): Promise<void> {
 		for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
 			try {
 				// Type assertion is safe here as both LogInsertData and its subset are compatible with the log insert schema
-				await db.insert(log).values(processedLogData as LogInsertData[]);
+				await db
+					.insert(log)
+					.values(processedLogData as LogInsertData[])
+					.onConflictDoNothing();
 				return; // Success, exit function
 			} catch (insertError) {
 				lastError =
