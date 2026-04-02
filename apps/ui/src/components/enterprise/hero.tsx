@@ -50,9 +50,9 @@ export function HeroEnterprise() {
 						Enterprise KiwiLLM for mission-critical applications
 					</h1>
 					<p className="mb-10 text-lg text-muted-foreground text-balance sm:text-xl max-w-3xl mx-auto leading-relaxed">
-						Deploy a fully-managed or self-hosted LLM gateway with enterprise
-						SSO, white-labeling, and infrastructure-as-code support for your
-						cloud or bare metal infrastructure.
+						Run KiwiLLM as a fully managed enterprise platform with SSO,
+						white-labeling, and dedicated infrastructure tailored for your
+						organization.
 					</p>
 					<div className="flex flex-col sm:flex-row items-center justify-center gap-4">
 						<Button size="lg" className="w-full sm:w-auto" asChild>
@@ -93,4 +93,3 @@ export function HeroEnterprise() {
 		</section>
 	);
 }
-

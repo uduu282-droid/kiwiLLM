@@ -21,9 +21,6 @@ export function PricingPlans() {
 
 	const handlePlanSelection = (planName: string) => {
 		switch (planName) {
-			case "Self-Host":
-				router.push("https://kiwillm.in");
-				return;
 			case "Enterprise":
 				router.push("/enterprise");
 				return;
@@ -37,21 +34,6 @@ export function PricingPlans() {
 	};
 
 	const plans = [
-		{
-			name: "Self-Host",
-			description: "Host on your own infrastructure",
-			price: "Free",
-			features: [
-				"100% free forever",
-				"Full control over your data",
-				"Host on your infrastructure",
-				"No usage limits",
-				"Community support",
-				"Regular updates",
-			],
-			cta: "View Documentation",
-			popular: false,
-		},
 		{
 			name: "Free",
 			description: "Full-featured plan for everyone",
@@ -100,7 +82,8 @@ export function PricingPlans() {
 						Start for free, Scale with low fees
 					</h2>
 					<p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-						All features included in our free plan. No hidden fees or surprises.
+						Start with the hosted free plan, then scale into enterprise support
+						when you need it.
 					</p>
 				</div>
 

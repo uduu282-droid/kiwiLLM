@@ -10,7 +10,7 @@ export default function CompareLiteLLMPage() {
 					content={{
 						heading: "Why Choose KiwiLLM Over LiteLLM?",
 						description:
-							"Compare our production-ready managed gateway with advanced analytics, routing, and enterprise features against LiteLLM's self-hosted proxy solution.",
+							"Compare KiwiLLM's production-ready managed gateway with advanced analytics, routing, and enterprise features against LiteLLM.",
 						badges: [
 							"Managed Infrastructure",
 							"Advanced Analytics",
@@ -41,18 +41,18 @@ export async function generateMetadata() {
 	return {
 		title: "KiwiLLM vs LiteLLM - Feature Comparison | KiwiLLM",
 		description:
-			"Compare KiwiLLM's managed infrastructure, advanced analytics, and enterprise features against LiteLLM's self-hosted proxy solution. See why teams choose our production-ready API gateway.",
+			"Compare KiwiLLM's managed infrastructure, advanced analytics, and enterprise features against LiteLLM. See why teams choose our production-ready API gateway.",
 		openGraph: {
 			title: "KiwiLLM vs LiteLLM - Feature Comparison",
 			description:
-				"Compare KiwiLLM's managed infrastructure, advanced analytics, and enterprise features against LiteLLM's self-hosted proxy solution. See why teams choose our production-ready API gateway.",
+				"Compare KiwiLLM's managed infrastructure, advanced analytics, and enterprise features against LiteLLM. See why teams choose our production-ready API gateway.",
 			type: "website",
 		},
 		twitter: {
 			card: "summary_large_image",
 			title: "KiwiLLM vs LiteLLM - Feature Comparison",
 			description:
-				"Compare KiwiLLM's managed infrastructure, advanced analytics, and enterprise features against LiteLLM's self-hosted proxy solution.",
+				"Compare KiwiLLM's managed infrastructure, advanced analytics, and enterprise features against LiteLLM.",
 		},
 	};
 }

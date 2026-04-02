@@ -23,10 +23,10 @@ const comparisonData = [
 				openrouter: "1M free reqs/mo, then 5% fee",
 			},
 			{
-				title: "Self-hosting option",
-				description: "Deploy on your infrastructure for free (See license)",
-				llmgateway: "Free for non-commercial use",
-				openrouter: false,
+				title: "Managed platform",
+				description: "Hosted infrastructure with built-in dashboarding and controls",
+				llmgateway: true,
+				openrouter: "Limited",
 			},
 		],
 	},
@@ -163,7 +163,7 @@ export function Comparison() {
 								</p>
 								<p className="text-2xl font-bold text-primary">From $0</p>
 								<p className="text-xs text-muted-foreground mt-1">
-									Self-host free forever
+									Hosted free plan available
 								</p>
 							</div>
 						</div>
@@ -224,8 +224,8 @@ export function Comparison() {
 						</Button>
 					</div>
 					<p className="text-sm text-muted-foreground mt-3">
-						No credit card required • Self-host option available • Enterprise
-						support included
+						No credit card required • Hosted onboarding • Enterprise support
+						available
 					</p>
 				</div>
 			</div>

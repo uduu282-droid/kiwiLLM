@@ -44,8 +44,8 @@ export default function CallToAction() {
 							className="border-border bg-transparent text-foreground hover:bg-muted px-8 py-6 text-base w-full sm:w-auto"
 							asChild
 						>
-							<a href={config.githubUrl ?? ""} target="_blank">
-								Self-host KiwiLLM
+							<a href="/docs" target="_self">
+								Read the Docs
 							</a>
 						</Button>
 					</AnimatedGroup>
