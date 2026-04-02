@@ -1,6 +1,5 @@
 import { DocsLayout as FumaDocsLayout } from "fumadocs-ui/layouts/docs";
 import { RootProvider } from "fumadocs-ui/provider/next";
-import Link from "next/link";
 
 
 import { source } from "@/lib/docs-source";
@@ -23,14 +22,14 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
 				tree={source.pageTree}
 				nav={{
 					title: (
-						<Link href="/" className="flex items-center gap-3 font-semibold">
+						<div className="flex items-center gap-3 font-semibold">
 							<img
 								src="/brand/kiwillm-logo.png"
 								alt="KiwiLLM"
 								className="h-8 w-8 object-contain"
 							/>
 							<span>KiwiLLM Docs</span>
-						</Link>
+						</div>
 					),
 					url: "/docs",
 				}}
