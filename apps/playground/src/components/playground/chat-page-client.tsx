@@ -228,7 +228,9 @@ export default function ChatPageClient({
 	const playgroundLockReason =
 		"Paste a KiwiLLM API key in the config panel before sending a prompt.";
 	const isAuthenticated = !isUserLoading && !!user;
-	const canPersistChats = isAuthenticated && !!selectedProject;
+	const [chatPersistenceDisabled, setChatPersistenceDisabled] = useState(false);
+	const canPersistChats =
+		isAuthenticated && !!selectedProject && !chatPersistenceDisabled;
 
 	// MCP servers management
 	const {
@@ -414,6 +416,10 @@ export default function ChatPageClient({
 						error?.message?.includes("Chat not found")
 					) {
 						clearCurrentChatState(true);
+					} else if (error?.status === 401 || error?.status === 403) {
+						disableChatPersistence(
+							"Saved chat history is unavailable for this session. Continuing in API key mode.",
+						);
 					} else {
 						toast.error(
 							`Failed to save AI response: ${getErrorMessage(error)}`,
@@ -721,6 +727,17 @@ export default function ChatPageClient({
 		[pathname, router, searchParams, setMessages],
 	);
 
+	const disableChatPersistence = useCallback(
+		(reason?: string) => {
+			setChatPersistenceDisabled(true);
+			clearCurrentChatState();
+			if (reason) {
+				toast.error(reason);
+			}
+		},
+		[clearCurrentChatState],
+	);
+
 	useEffect(() => {
 		if (!canPersistChats && currentChatId) {
 			clearCurrentChatState();
@@ -734,8 +751,14 @@ export default function ChatPageClient({
 		} | null;
 		if (error?.status === 404 || error?.message?.includes("Chat not found")) {
 			clearCurrentChatState(true);
+			return;
 		}
-	}, [clearCurrentChatState, currentChatError]);
+		if (error?.status === 401 || error?.status === 403) {
+			disableChatPersistence(
+				"Saved chat history is unavailable for this session. Continuing in API key mode.",
+			);
+		}
+	}, [clearCurrentChatState, currentChatError, disableChatPersistence]);
 
 	useEffect(() => {
 		if (!currentChatData?.messages) {
@@ -915,6 +938,13 @@ export default function ChatPageClient({
 					setIsLoading(false);
 					return;
 				}
+			}
+
+			if (error?.status === 401 || error?.status === 403) {
+				disableChatPersistence(
+					"Saved chat history is unavailable for this session. Continuing in API key mode.",
+				);
+				return;
 			}
 
 			// If free limit or message limit is hit, keep the existing UI state and show a
@@ -1262,7 +1292,7 @@ export default function ChatPageClient({
 												imageCount={imageCount}
 												setImageCount={setImageCount}
 												onUserMessage={
-													isAuthenticated ? handleUserMessage : undefined
+													canPersistChats ? handleUserMessage : undefined
 												}
 												isLoading={isLoading || isChatLoading}
 												error={error}
@@ -1302,7 +1332,7 @@ export default function ChatPageClient({
 											webSearchEnabled={webSearchEnabled}
 											setWebSearchEnabled={setWebSearchEnabled}
 											onUserMessage={
-												isAuthenticated ? handleUserMessage : undefined
+												canPersistChats ? handleUserMessage : undefined
 											}
 											isLoading={isLoading || isChatLoading}
 											error={error}
