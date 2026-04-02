@@ -256,32 +256,26 @@
 	--color-fd-article: hsl(0 0% 5%);
 }
 
-.dark #nd-docs-layout :is(
-		article,
-		main,
-		section,
-		div,
-		span,
+.dark #nd-docs-layout .prose :is(
 		p,
 		li,
-		ol,
-		ul,
 		blockquote,
 		dt,
 		dd,
 		label,
 		small,
 		strong,
-		em,
-		a,
-		button,
-		[data-card] p,
-		[class*="text-fd-muted"],
-		[class*="text-fd-secondary"],
-		.text-fd-muted-foreground,
-		.prose
+		em
 	) {
 	color: hsl(0 0% 100%) !important;
+}
+
+.dark #nd-docs-layout .prose a,
+.dark #nd-docs-layout .prose :is(ol, ul) > li::marker,
+.dark #nd-docs-layout [class*="text-fd-muted"],
+.dark #nd-docs-layout [class*="text-fd-secondary"],
+.dark #nd-docs-layout .text-fd-muted-foreground {
+	color: hsl(0 0% 96%) !important;
 }
 
 .dark #nd-docs-layout :is(
