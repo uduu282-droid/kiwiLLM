@@ -1424,13 +1424,99 @@ chat.openapi(completions, async (c) => {
 	}
 
 	if (!usedProvider) {
-		if (iamFilteredModelProviders.length === 0) {
+		if (!requestedProvider) {
+			const preferredHostedProviders: ProviderModelMapping[] = [];
+
+			for (const provider of modelInfo.providers) {
+				if (!provider.providerId.startsWith("kiwillm-")) {
+					continue;
+				}
+				if (webSearchTool && (provider as ProviderModelMapping).webSearch !== true) {
+					continue;
+				}
+				if (
+					(response_format?.type === "json_object" ||
+						response_format?.type === "json_schema") &&
+					(provider as ProviderModelMapping).jsonOutput !== true
+				) {
+					continue;
+				}
+				if (
+					response_format?.type === "json_schema" &&
+					(provider as ProviderModelMapping).jsonOutputSchema !== true
+				) {
+					continue;
+				}
+				if (hasImages && (provider as ProviderModelMapping).vision !== true) {
+					continue;
+				}
+				if (
+					reasoning_effort !== undefined &&
+					(provider as ProviderModelMapping).reasoning !== true
+				) {
+					continue;
+				}
+
+				const hostedIamValidation = await validateModelAccess(
+					apiKey.id,
+					modelInfo.id,
+					provider.providerId,
+					modelInfo,
+				);
+				if (!hostedIamValidation.allowed) {
+					continue;
+				}
+
+				try {
+					resolveProviderEndpointWithFallback({
+						providerId: provider.providerId,
+						modelName: provider.modelName,
+						stream,
+						reasoning: (provider as ProviderModelMapping).reasoning === true,
+						hasExistingToolCalls: messages.some(
+							(msg: any) => msg.tool_calls ?? msg.role === "tool",
+						),
+						imageGenerations:
+							(provider as ProviderModelMapping).imageGenerations === true,
+					});
+					preferredHostedProviders.push(provider as ProviderModelMapping);
+				} catch {
+					continue;
+				}
+			}
+
+			if (preferredHostedProviders.length > 0) {
+				const hostedModelWithPricing = models.find((m) => m.id === modelInfo.id);
+				if (hostedModelWithPricing) {
+					const cheapestHostedResult = getCheapestFromAvailableProviders(
+						preferredHostedProviders,
+						hostedModelWithPricing,
+						{ isStreaming: stream },
+					);
+					if (cheapestHostedResult) {
+						usedProvider = cheapestHostedResult.provider.providerId;
+						usedModel = cheapestHostedResult.provider.modelName;
+						routingMetadata = {
+							...cheapestHostedResult.metadata,
+							selectionReason: "hosted-provider-preferred",
+						};
+					}
+				}
+
+				if (!usedProvider) {
+					usedProvider = preferredHostedProviders[0].providerId;
+					usedModel = preferredHostedProviders[0].modelName;
+				}
+			}
+		}
+
+		if (usedProvider) {
+			// Hosted provider preference above resolved the model.
+		} else if (iamFilteredModelProviders.length === 0) {
 			throw new HTTPException(403, {
 				message: `Access denied: No providers are allowed for model ${modelInfo.id} after applying IAM rules. All active providers for this model are denied by your API key's IAM configuration.`,
 			});
-		}
-
-		if (iamFilteredModelProviders.length === 1) {
+		} else if (iamFilteredModelProviders.length === 1) {
 			usedProvider = iamFilteredModelProviders[0].providerId;
 			usedModel = iamFilteredModelProviders[0].modelName;
 		} else {
