@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@import "fumadocs-ui/css/solar.css";
+@import "fumadocs-ui/css/preset.css";
+@import "fumadocs-openapi/css/preset.css";
 
 @plugin "tailwindcss-animate";
 @plugin "@tailwindcss/typography";
@@ -6,6 +9,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+	--fd-layout-width: 1600px;
 	--font-mono: var(--font-geist-mono);
 	--font-sans: var(--font-inter);
 	--background: oklch(1 0 0);
