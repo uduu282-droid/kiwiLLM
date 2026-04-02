@@ -60,6 +60,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-chatai-proxy",
+		name: "KiwiLLM ChatAI Proxy",
+		description:
+			"KiwiLLM-hosted multi-provider ChatAI proxy exposing OpenAI-compatible chat models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_CHATAI_PROXY_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://chatai-proxy.revai.workers.dev",
+		announcement: null,
+	},
+	{
 		id: "kiwillm-qwen",
 		name: "KiwiLLM Qwen",
 		description:

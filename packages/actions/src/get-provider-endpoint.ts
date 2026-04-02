@@ -61,6 +61,15 @@ export function getProviderEndpoint(
 						"https://qwen-worker-proxy.ronitshrimankar1.workers.dev",
 					) ?? "https://qwen-worker-proxy.ronitshrimankar1.workers.dev";
 				break;
+			case "kiwillm-chatai-proxy":
+				url =
+					getProviderEnvValue(
+						"kiwillm-chatai-proxy",
+						"baseUrl",
+						configIndex,
+						"https://chatai-proxy.revai.workers.dev",
+					) ?? "https://chatai-proxy.revai.workers.dev";
+				break;
 			case "kiwillm-kimi":
 				url =
 					getProviderEnvValue(
@@ -114,6 +123,51 @@ export function getProviderEndpoint(
 						configIndex,
 						"https://claude-talkai.ronitshrimankar1.workers.dev",
 					) ?? "https://claude-talkai.ronitshrimankar1.workers.dev";
+				break;
+			case "kiwillm-chatbot-ai":
+				url =
+					getProviderEnvValue(
+						"kiwillm-chatbot-ai",
+						"baseUrl",
+						configIndex,
+						"https://chatbot-ai.qwen4346.workers.dev",
+					) ?? "https://chatbot-ai.qwen4346.workers.dev";
+				break;
+			case "kiwillm-cerebras-ai":
+				url =
+					getProviderEnvValue(
+						"kiwillm-cerebras-ai",
+						"baseUrl",
+						configIndex,
+						"https://cerebras-ai.qwen4346.workers.dev",
+					) ?? "https://cerebras-ai.qwen4346.workers.dev";
+				break;
+			case "kiwillm-grok-proxy":
+				url =
+					getProviderEnvValue(
+						"kiwillm-grok-proxy",
+						"baseUrl",
+						configIndex,
+						"https://grok-proxy.qwen4346.workers.dev",
+					) ?? "https://grok-proxy.qwen4346.workers.dev";
+				break;
+			case "kiwillm-gpt-oss-worker":
+				url =
+					getProviderEnvValue(
+						"kiwillm-gpt-oss-worker",
+						"baseUrl",
+						configIndex,
+						"https://gpt-oss-worker.llamai.workers.dev",
+					) ?? "https://gpt-oss-worker.llamai.workers.dev";
+				break;
+			case "kiwillm-claude-v3xg":
+				url =
+					getProviderEnvValue(
+						"kiwillm-claude-v3xg",
+						"baseUrl",
+						configIndex,
+						"https://claude-v3xg.onrender.com",
+					) ?? "https://claude-v3xg.onrender.com";
 				break;
 			case "anthropic":
 				url = "https://api.anthropic.com";
@@ -403,12 +457,18 @@ export function getProviderEndpoint(
 			return `${url}/v1/chat/completions`;
 		}
 		case "kiwillm-qwen":
+		case "kiwillm-chatai-proxy":
 		case "kiwillm-kimi":
 		case "kiwillm-deepseek":
 		case "kiwillm-minimax":
 		case "kiwillm-free-ai-hub":
 		case "kiwillm-n33-ai":
 		case "kiwillm-claude-talkai":
+		case "kiwillm-chatbot-ai":
+		case "kiwillm-cerebras-ai":
+		case "kiwillm-grok-proxy":
+		case "kiwillm-gpt-oss-worker":
+		case "kiwillm-claude-v3xg":
 			return `${url}/v1/chat/completions`;
 		case "alibaba":
 			if (imageGenerations) {

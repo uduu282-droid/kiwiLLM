@@ -1,6 +1,10 @@
 import { alibabaModels } from "./models/alibaba.js";
 import { anthropicModels } from "./models/anthropic.js";
 import { bytedanceModels } from "./models/bytedance.js";
+import {
+	chataiProxyModels,
+	chataiProxyProviderAugments,
+} from "./models/chatai-proxy.js";
 import { deepseekModels } from "./models/deepseek.js";
 import { googleModels } from "./models/google.js";
 import { llmgatewayModels } from "./models/llmgateway.js";
@@ -259,7 +263,7 @@ export interface ModelDefinition {
 	releasedAt?: Date;
 }
 
-export const models = [
+const baseModels: ModelDefinition[] = [
 	...llmgatewayModels,
 	...openaiModels,
 	...anthropicModels,
@@ -276,4 +280,18 @@ export const models = [
 	...bytedanceModels,
 	...nousresearchModels,
 	...zaiModels,
-] as const satisfies ModelDefinition[];
+] as const;
+
+export const models: ModelDefinition[] = [
+	...baseModels.map((model) => {
+		const proxyProviders = chataiProxyProviderAugments[model.id];
+		if (!proxyProviders) {
+			return model;
+		}
+		return {
+			...model,
+			providers: [...model.providers, ...proxyProviders],
+		};
+	}),
+	...chataiProxyModels,
+];
