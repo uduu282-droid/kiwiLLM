@@ -21,7 +21,6 @@ import {
 	useDeleteChat,
 } from "@/hooks/useChats";
 import { useMcpServers } from "@/hooks/useMcpServers";
-import { useUser } from "@/hooks/useUser";
 import { parseImageFile } from "@/lib/image-utils";
 import { mapModels } from "@/lib/mapmodels";
 import { getErrorMessage } from "@/lib/utils";
@@ -174,7 +173,6 @@ export default function ChatPageClient({
 	initialPrompt,
 	enableWebSearch = false,
 }: ChatPageClientProps) {
-	const { user, isLoading: isUserLoading } = useUser();
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
@@ -228,11 +226,8 @@ export default function ChatPageClient({
 	const canUsePlayground = apiKey.trim().length > 0;
 	const playgroundLockReason =
 		"Paste a KiwiLLM API key in the config panel before sending a prompt.";
-	const isAuthenticated = !isUserLoading && !!user;
 	const [chatPersistenceDisabled, setChatPersistenceDisabled] = useState(false);
-	const canPersistChats = SIMPLE_PLAYGROUND_MODE
-		? false
-		: isAuthenticated && !!selectedProject && !chatPersistenceDisabled;
+	const canPersistChats = false;
 
 	// MCP servers management
 	const {

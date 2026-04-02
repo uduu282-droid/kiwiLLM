@@ -1,266 +1,20 @@
-import { createMCPClient } from "@ai-sdk/mcp";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
-	streamText,
 	generateImage,
-	tool,
 	type UIMessage,
-	convertToModelMessages,
 	createUIMessageStream,
 	createUIMessageStreamResponse,
 } from "ai";
-import { z } from "zod";
 
 import { createLLMGateway } from "@llmgateway/ai-sdk-provider";
 
 export const maxDuration = 300; // 5 minutes
 
-/**
- * MCP Content Types - Based on MCP SDK CallToolResult content types
- */
-interface McpTextContent {
-	type: "text";
-	text: string;
-}
-
-interface McpImageContent {
-	type: "image";
-	data: string;
-	mimeType: string;
-}
-
-interface McpResourceContent {
-	type: "resource";
-	resource: {
-		uri: string;
-		text?: string;
-		blob?: string;
-		mimeType?: string;
-	};
-}
-
-type McpContent = McpTextContent | McpImageContent | McpResourceContent;
-
-interface McpCallToolResult {
-	content: McpContent[];
-	isError?: boolean;
-}
-
-/**
- * Type guard to check if a value is an MCP CallToolResult
- */
-function isMcpCallToolResult(value: unknown): value is McpCallToolResult {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"content" in value &&
-		Array.isArray((value as McpCallToolResult).content)
-	);
-}
-
-/**
- * Type guard to check if an MCP content item is text content
- */
-function isMcpTextContent(value: unknown): value is McpTextContent {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"type" in value &&
-		(value as McpTextContent).type === "text" &&
-		"text" in value &&
-		typeof (value as McpTextContent).text === "string"
-	);
-}
-
-/**
- * Type guard to check if an MCP content item is image content
- */
-function isMcpImageContent(value: unknown): value is McpImageContent {
-	return (
-		typeof value === "object" &&
-		value !== null &&
-		"type" in value &&
-		(value as McpImageContent).type === "image" &&
-		"data" in value &&
-		typeof (value as McpImageContent).data === "string" &&
-		"mimeType" in value &&
-		typeof (value as McpImageContent).mimeType === "string"
-	);
-}
-
-/**
- * MCP Tool type from client.tools() return value
- * The execute function is typed loosely to accommodate different MCP tool implementations
- */
-interface McpToolDefinition {
-	description?: string;
-	execute: (...args: unknown[]) => Promise<unknown> | unknown;
-}
-
-/**
- * SSRF Protection: Validate MCP server URLs to prevent Server-Side Request Forgery
- * Blocks private/local addresses and validates against allowlist if configured
- */
-function validateMcpServerUrl(urlString: string): {
-	valid: boolean;
-	error?: string;
-	url?: URL;
-} {
-	let url: URL;
-	try {
-		url = new URL(urlString);
-	} catch {
-		return { valid: false, error: "Invalid URL format" };
-	}
-
-	// Only allow HTTP(S) protocols
-	if (!["http:", "https:"].includes(url.protocol)) {
-		return {
-			valid: false,
-			error: `Invalid protocol: ${url.protocol}. Only HTTP(S) allowed.`,
-		};
-	}
-
-	const hostname = url.hostname.toLowerCase();
-
-	// Allow localhost in development mode
-	const isDevelopment = process.env.NODE_ENV === "development";
-
-	// Block localhost and common local hostnames (except in development)
-	const blockedHostnames = [
-		"localhost",
-		"127.0.0.1",
-		"0.0.0.0",
-		"[::1]",
-		"::1",
-		"local",
-		"internal",
-		"intranet",
-		"corp",
-		"private",
-	];
-
-	if (!isDevelopment) {
-		if (
-			blockedHostnames.includes(hostname) ||
-			hostname.endsWith(".local") ||
-			hostname.endsWith(".localhost") ||
-			hostname.endsWith(".internal")
-		) {
-			return {
-				valid: false,
-				error: `Blocked hostname: ${hostname}. Local/internal addresses not allowed.`,
-			};
-		}
-	}
-
-	// Check if hostname is an IP address and validate against private ranges (except in development)
-	if (!isDevelopment) {
-		const ipValidation = validateIpAddress(hostname);
-		if (ipValidation.isIp && !ipValidation.isPublic) {
-			return {
-				valid: false,
-				error: `Blocked IP address: ${hostname}. Private/reserved IP ranges not allowed.`,
-			};
-		}
-	}
-
-	// Optional: Check against allowlist if configured
-	const allowedHosts = process.env.MCP_ALLOWED_HOSTS?.split(",").map((h) =>
-		h.trim().toLowerCase(),
-	);
-	if (allowedHosts && allowedHosts.length > 0) {
-		const isAllowed = allowedHosts.some(
-			(allowed) => hostname === allowed || hostname.endsWith(`.${allowed}`),
-		);
-		if (!isAllowed) {
-			return {
-				valid: false,
-				error: `Hostname ${hostname} not in allowlist`,
-			};
-		}
-	}
-
-	return { valid: true, url };
-}
-
-/**
- * Validate if a string is an IP address and check if it's in private/reserved ranges
- */
-function validateIpAddress(hostname: string): {
-	isIp: boolean;
-	isPublic: boolean;
-} {
-	// IPv4 pattern
-	const ipv4Pattern = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-	const ipv4Match = hostname.match(ipv4Pattern);
-
-	if (ipv4Match) {
-		const octets = ipv4Match.slice(1, 5).map(Number);
-
-		// Validate octet ranges
-		if (octets.some((o) => o > 255)) {
-			return { isIp: true, isPublic: false };
-		}
-
-		const [a, b, c] = octets;
-
-		// Check private/reserved IPv4 ranges
-		const isPrivate =
-			a === 0 || // 0.0.0.0/8 - Current network
-			a === 10 || // 10.0.0.0/8 - Private
-			(a === 100 && b >= 64 && b <= 127) || // 100.64.0.0/10 - Carrier-grade NAT
-			a === 127 || // 127.0.0.0/8 - Loopback
-			(a === 169 && b === 254) || // 169.254.0.0/16 - Link-local
-			(a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12 - Private
-			(a === 192 && b === 0 && c === 0) || // 192.0.0.0/24 - IETF Protocol
-			(a === 192 && b === 0 && c === 2) || // 192.0.2.0/24 - TEST-NET-1
-			(a === 192 && b === 88 && c === 99) || // 192.88.99.0/24 - 6to4 relay
-			(a === 192 && b === 168) || // 192.168.0.0/16 - Private
-			(a === 198 && b >= 18 && b <= 19) || // 198.18.0.0/15 - Benchmark
-			(a === 198 && b === 51 && c === 100) || // 198.51.100.0/24 - TEST-NET-2
-			(a === 203 && b === 0 && c === 113) || // 203.0.113.0/24 - TEST-NET-3
-			a >= 224; // 224.0.0.0+ - Multicast and reserved
-
-		return { isIp: true, isPublic: !isPrivate };
-	}
-
-	// IPv6 pattern (simplified - handles bracketed and non-bracketed)
-	const ipv6Hostname = hostname.replace(/^\[|\]$/g, "");
-	if (ipv6Hostname.includes(":")) {
-		// Check common private/reserved IPv6 patterns
-		const lowerIpv6 = ipv6Hostname.toLowerCase();
-		const isPrivate =
-			lowerIpv6 === "::1" || // Loopback
-			lowerIpv6 === "::" || // Unspecified
-			lowerIpv6.startsWith("fc") || // fc00::/7 - Unique local
-			lowerIpv6.startsWith("fd") || // fc00::/7 - Unique local
-			lowerIpv6.startsWith("fe80") || // fe80::/10 - Link-local
-			lowerIpv6.startsWith("::ffff:127.") || // IPv4-mapped loopback
-			lowerIpv6.startsWith("::ffff:10.") || // IPv4-mapped private
-			lowerIpv6.startsWith("::ffff:192.168.") || // IPv4-mapped private
-			lowerIpv6.startsWith("::ffff:172."); // IPv4-mapped private (partial check)
-
-		return { isIp: true, isPublic: !isPrivate };
-	}
-
-	return { isIp: false, isPublic: true };
-}
-
-interface McpServerConfig {
-	id: string;
-	name: string;
-	url: string;
-	apiKey: string;
-	enabled: boolean;
-}
-
 interface ChatRequestBody {
 	messages: UIMessage[];
 	model?: string;
 	apiKey?: string;
-	provider?: string; // optional provider override
-	mode?: "image" | "chat"; // optional hint to force image generation path
+	provider?: string;
+	mode?: "image" | "chat";
 	image_config?: {
 		aspect_ratio?:
 			| "auto"
@@ -278,18 +32,31 @@ interface ChatRequestBody {
 			| "4:1"
 			| "1:8"
 			| "8:1";
-		image_size?: "0.5K" | "1K" | "2K" | "4K" | string; // string for Alibaba WIDTHxHEIGHT format
+		image_size?: "0.5K" | "1K" | "2K" | "4K" | string;
 		n?: number;
 	};
 	reasoning_effort?: "minimal" | "low" | "medium" | "high";
 	web_search?: boolean;
-	mcp_servers?: McpServerConfig[];
+	mcp_servers?: unknown[];
 	is_image_gen?: boolean;
 }
 
-interface McpClientWrapper {
-	client: Awaited<ReturnType<typeof createMCPClient>>;
-	name: string;
+interface OpenAICompatibleMessage {
+	role: "system" | "user" | "assistant";
+	content:
+		| string
+		| Array<
+				| {
+						type: "text";
+						text: string;
+				  }
+				| {
+						type: "image_url";
+						image_url: {
+							url: string;
+						};
+				  }
+		  >;
 }
 
 const ROUTE_DEBUG_PREFIX = "[KiwiLLM Playground API]";
@@ -308,64 +75,198 @@ function jsonErrorResponse(
 	);
 }
 
-function extractProviderErrorMessage(error: unknown): string | undefined {
-	const queue: unknown[] = [error];
-	const visited = new Set<unknown>();
+function normalizeMessageText(content: unknown): string {
+	if (typeof content === "string") {
+		return content;
+	}
 
-	while (queue.length > 0) {
-		const current = queue.shift();
-		if (!current || typeof current !== "object" || visited.has(current)) {
+	if (!Array.isArray(content)) {
+		return "";
+	}
+
+	return content
+		.map((part) => {
+			if (
+				typeof part === "object" &&
+				part !== null &&
+				"text" in part &&
+				typeof (part as { text?: unknown }).text === "string"
+			) {
+				return (part as { text: string }).text;
+			}
+
+			return "";
+		})
+		.join("");
+}
+
+function toOpenAICompatibleMessages(
+	messages: UIMessage[],
+): OpenAICompatibleMessage[] {
+	const result: OpenAICompatibleMessage[] = [];
+
+	for (const message of messages) {
+		const textParts = message.parts
+			.filter(
+				(part): part is { type: "text"; text: string } => part.type === "text",
+			)
+			.map((part) => part.text)
+			.filter(Boolean);
+
+		const imageParts = message.parts
+			.filter(
+				(
+					part,
+				): part is {
+					type: "file";
+					url: string;
+					mediaType: string;
+				} =>
+					part.type === "file" &&
+					"url" in part &&
+					typeof part.url === "string" &&
+					"mediaType" in part &&
+					typeof part.mediaType === "string" &&
+					part.mediaType.startsWith("image/"),
+			)
+			.map((part) => ({
+				type: "image_url" as const,
+				image_url: {
+					url: part.url,
+				},
+			}));
+
+		const role =
+			message.role === "assistant" || message.role === "system"
+				? message.role
+				: "user";
+
+		if (imageParts.length === 0) {
+			const content = textParts.join("\n").trim();
+			if (content) {
+				result.push({
+					role,
+					content,
+				});
+			}
 			continue;
 		}
-		visited.add(current);
 
-		const candidate = current as Record<string, unknown>;
-		const directMessage = candidate.message;
-		if (
-			typeof directMessage === "string" &&
-			directMessage.trim() &&
-			directMessage !== "Failed to process error response"
-		) {
-			return directMessage;
-		}
+		const contentParts = [
+			...textParts.map((text) => ({
+				type: "text" as const,
+				text,
+			})),
+			...imageParts,
+		];
 
-		const responseBody = candidate.responseBody;
-		if (typeof responseBody === "string" && responseBody.trim()) {
-			try {
-				const parsed = JSON.parse(responseBody) as Record<string, unknown>;
-				const nestedMessage =
-					(typeof parsed.message === "string" && parsed.message) ||
-					(typeof parsed.error === "string" && parsed.error) ||
-					(typeof parsed.detail === "string" && parsed.detail);
-				if (nestedMessage) {
-					return nestedMessage;
-				}
-			} catch {
-				return responseBody;
-			}
+		if (contentParts.length > 0) {
+			result.push({
+				role,
+				content: contentParts,
+			});
 		}
+	}
 
-		for (const key of ["cause", "error", "data", "response"]) {
-			if (key in candidate) {
-				queue.push(candidate[key]);
-			}
-		}
+	return result;
+}
+
+function extractAssistantTextFromResponse(data: Record<string, unknown>): string {
+	const choices = data.choices;
+	if (!Array.isArray(choices) || choices.length === 0) {
+		return "";
+	}
+
+	const firstChoice = choices[0];
+	if (typeof firstChoice !== "object" || firstChoice === null) {
+		return "";
+	}
+
+	const message = (firstChoice as { message?: unknown }).message;
+	if (typeof message !== "object" || message === null) {
+		return "";
+	}
+
+	return normalizeMessageText((message as { content?: unknown }).content);
+}
+
+function extractErrorMessageFromJson(data: Record<string, unknown> | null) {
+	if (!data) {
+		return undefined;
+	}
+
+	if (typeof data.message === "string" && data.message.trim()) {
+		return data.message;
+	}
+
+	if (typeof data.error === "string" && data.error.trim()) {
+		return data.error;
+	}
+
+	if (
+		typeof data.error === "object" &&
+		data.error !== null &&
+		"message" in data.error &&
+		typeof (data.error as { message?: unknown }).message === "string"
+	) {
+		return (data.error as { message: string }).message;
 	}
 
 	return undefined;
 }
 
+function createTextResponseStream(text: string) {
+	const textPartId = crypto.randomUUID();
+
+	return createUIMessageStream({
+		execute: async ({ writer }) => {
+			writer.write({
+				type: "start",
+				messageId: crypto.randomUUID(),
+			});
+			writer.write({ type: "start-step" });
+			writer.write({
+				type: "text-start",
+				id: textPartId,
+			});
+
+			if (text) {
+				writer.write({
+					type: "text-delta",
+					id: textPartId,
+					delta: text,
+				});
+			}
+
+			writer.write({
+				type: "text-end",
+				id: textPartId,
+			});
+			writer.write({ type: "finish-step" });
+			writer.write({
+				type: "finish",
+				finishReason: "stop",
+			});
+		},
+	});
+}
+
 export async function POST(req: Request) {
-	const body = await req.json();
+	let body: ChatRequestBody;
+
+	try {
+		body = (await req.json()) as ChatRequestBody;
+	} catch {
+		return jsonErrorResponse("Malformed JSON in request body", 400);
+	}
+
 	const {
 		messages,
 		model,
 		apiKey,
-		provider,
 		image_config,
 		reasoning_effort,
 		web_search,
-		mcp_servers,
 		is_image_gen,
 	}: ChatRequestBody = body;
 
@@ -377,12 +278,12 @@ export async function POST(req: Request) {
 	const headerModel = req.headers.get("x-llmgateway-model") ?? undefined;
 	const noFallbackHeader = req.headers.get("x-no-fallback") ?? undefined;
 	const finalApiKey = apiKey ?? headerApiKey;
+
 	console.info(`${ROUTE_DEBUG_PREFIX} incoming request`, {
 		hasMessages: Array.isArray(messages),
 		messageCount: Array.isArray(messages) ? messages.length : 0,
 		model,
 		headerModel,
-		provider,
 		hasApiKeyInBody: typeof apiKey === "string" && apiKey.length > 0,
 		hasApiKeyInHeader:
 			typeof headerApiKey === "string" && headerApiKey.length > 0,
@@ -390,13 +291,13 @@ export async function POST(req: Request) {
 		reasoning_effort,
 		web_search: web_search === true,
 		is_image_gen: is_image_gen === true,
-		mcpServerCount: Array.isArray(mcp_servers) ? mcp_servers.length : 0,
 	});
+
 	if (!finalApiKey) {
 		return jsonErrorResponse("Missing API key", 400);
 	}
 
-	let selectedModel = (model ?? headerModel)?.trim();
+	const selectedModel = (model ?? headerModel)?.trim();
 	if (!selectedModel) {
 		return jsonErrorResponse("Missing model", 400);
 	}
@@ -406,67 +307,57 @@ export async function POST(req: Request) {
 		(process.env.NODE_ENV === "development"
 			? "http://localhost:4001/v1"
 			: "https://api.kiwillm.in/v1");
+
 	console.info(`${ROUTE_DEBUG_PREFIX} resolved routing`, {
 		selectedModel,
-		provider,
 		gatewayUrl,
 		noFallbackHeader,
 	});
 
-	const llmgateway = createLLMGateway({
-		apiKey: finalApiKey,
-		baseURL: gatewayUrl,
-		headers: {
-			"x-source": "chat.kiwillm.in",
-			...(noFallbackHeader ? { "x-no-fallback": noFallbackHeader } : {}),
-		},
-		extraBody: {
-			reasoning_effort,
-			image_config,
-			web_search,
-		},
-	}) as any;
-
-	// Respect root model IDs passed from the client without adding a provider prefix.
-	// Only apply provider-based prefixing when the client did NOT explicitly specify a model
-	// (i.e. we're using a header/default model value).
-	if (!model && provider && typeof provider === "string") {
-		const alreadyPrefixed = String(selectedModel).includes("/");
-		if (!alreadyPrefixed) {
-			selectedModel = `${provider}/${selectedModel}`;
-		}
-	}
-
-	// Use generateImage for dedicated image generation models
 	if (is_image_gen) {
 		try {
-			// Extract prompt and file parts from the last user message
+			const llmgateway = createLLMGateway({
+				apiKey: finalApiKey,
+				baseURL: gatewayUrl,
+				headers: {
+					"x-source": "chat.kiwillm.in",
+					...(noFallbackHeader ? { "x-no-fallback": noFallbackHeader } : {}),
+				},
+				extraBody: {
+					reasoning_effort,
+					image_config,
+					web_search,
+				},
+			}) as ReturnType<typeof createLLMGateway>;
+
 			const lastUserMessage = [...messages]
 				.reverse()
-				.find((m) => m.role === "user");
+				.find((message) => message.role === "user");
+
 			let prompt = "";
 			const fileParts: { url: string; mediaType: string }[] = [];
+
 			if (lastUserMessage) {
-				if (Array.isArray(lastUserMessage.parts)) {
-					prompt = lastUserMessage.parts
-						.filter(
-							(p): p is { type: "text"; text: string } => p.type === "text",
-						)
-						.map((p) => p.text)
-						.join("\n");
-					for (const p of lastUserMessage.parts) {
-						if (
-							p.type === "file" &&
-							"url" in p &&
-							typeof p.url === "string" &&
-							"mediaType" in p &&
-							typeof p.mediaType === "string"
-						) {
-							fileParts.push({
-								url: p.url,
-								mediaType: p.mediaType,
-							});
-						}
+				prompt = lastUserMessage.parts
+					.filter(
+						(part): part is { type: "text"; text: string } =>
+							part.type === "text",
+					)
+					.map((part) => part.text)
+					.join("\n");
+
+				for (const part of lastUserMessage.parts) {
+					if (
+						part.type === "file" &&
+						"url" in part &&
+						typeof part.url === "string" &&
+						"mediaType" in part &&
+						typeof part.mediaType === "string"
+					) {
+						fileParts.push({
+							url: part.url,
+							mediaType: part.mediaType,
+						});
 					}
 				}
 			}
@@ -479,7 +370,7 @@ export async function POST(req: Request) {
 				model: llmgateway.image(selectedModel),
 				prompt:
 					fileParts.length > 0
-						? { images: fileParts.map((fp) => fp.url), text: prompt }
+						? { images: fileParts.map((file) => file.url), text: prompt }
 						: prompt,
 				n: image_config?.n ?? 1,
 				...(image_config?.image_size
@@ -492,20 +383,21 @@ export async function POST(req: Request) {
 
 			const uiStream = createUIMessageStream({
 				execute: async ({ writer }) => {
-					const messageId = crypto.randomUUID();
 					writer.write({
 						type: "start",
-						messageId,
+						messageId: crypto.randomUUID(),
 					});
 					writer.write({ type: "start-step" });
+
 					for (const image of result.images) {
-						const mt = image.mediaType || "image/png";
+						const mediaType = image.mediaType || "image/png";
 						writer.write({
 							type: "file",
-							url: `data:${mt};base64,${image.base64}`,
-							mediaType: mt,
+							url: `data:${mediaType};base64,${image.base64}`,
+							mediaType,
 						});
 					}
+
 					writer.write({ type: "finish-step" });
 					writer.write({
 						type: "finish",
@@ -523,17 +415,16 @@ export async function POST(req: Request) {
 				},
 			});
 		} catch (error: unknown) {
+			const message =
+				error instanceof Error ? error.message : "Image generation failed";
 			const status =
 				typeof error === "object" &&
 				error !== null &&
 				"status" in error &&
-				typeof (error as { status: unknown }).status === "number"
+				typeof (error as { status?: unknown }).status === "number"
 					? (error as { status: number }).status
 					: 500;
 
-			const message =
-				extractProviderErrorMessage(error) ??
-				(error instanceof Error ? error.message : "Image generation failed");
 			console.error(`${ROUTE_DEBUG_PREFIX} image generation failed`, {
 				status,
 				message,
@@ -545,291 +436,55 @@ export async function POST(req: Request) {
 		}
 	}
 
-	// Initialize MCP clients if servers are provided
-	const mcpClients: McpClientWrapper[] = [];
-	const enabledMcpServers =
-		mcp_servers?.filter((server) => server.enabled) ?? [];
-
 	try {
-		// Create MCP clients for each enabled server (with timeout)
-		for (const server of enabledMcpServers) {
-			try {
-				// SSRF Protection: Validate URL before creating transport
-				const urlValidation = validateMcpServerUrl(server.url);
-				if (!urlValidation.valid) {
-					continue; // Skip this server
-				}
-
-				// Use the official MCP SDK transport for better compatibility
-				const transport = new StreamableHTTPClientTransport(
-					urlValidation.url!,
-					{
-						requestInit: {
-							headers: server.apiKey
-								? { Authorization: `Bearer ${server.apiKey}` }
-								: undefined,
-						},
-					},
-				);
-
-				const clientPromise = createMCPClient({ transport });
-
-				// Add 10 second timeout to prevent hanging
-				const timeoutPromise = new Promise<never>((_, reject) => {
-					setTimeout(
-						() =>
-							reject(new Error(`MCP connection timeout for ${server.name}`)),
-						10000,
-					);
-				});
-
-				const client = await Promise.race([clientPromise, timeoutPromise]);
-				mcpClients.push({ client, name: server.name });
-			} catch {
-				// Continue with other servers
-			}
-		}
-
-		// Collect tools from all MCP clients and create typed wrappers
-		// Type assertion needed to allow heterogeneous tool schemas in a single record
-		const allTools: Record<string, ReturnType<typeof tool<any, any>>> = {};
-
-		// Helper to extract text from MCP result format using type guards
-		const extractMcpResult = (result: unknown): string => {
-			if (isMcpCallToolResult(result)) {
-				const textParts = result.content
-					.filter(isMcpTextContent)
-					.map((c) => c.text)
-					// Filter out structured data comments
-					.filter((text) => !text.startsWith("<!--STRUCTURED_DATA:"));
-				return textParts.join("\n");
-			}
-			return typeof result === "string" ? result : JSON.stringify(result);
-		};
-
-		// Helper to extract structured data from MCP result (embedded as HTML comment)
-		const extractStructuredData = (
-			result: unknown,
-		): { type: string; data: unknown } | null => {
-			if (isMcpCallToolResult(result)) {
-				for (const content of result.content) {
-					if (isMcpTextContent(content)) {
-						const match = content.text.match(
-							/<!--STRUCTURED_DATA:([\s\S]+?)-->/,
-						);
-						if (match) {
-							try {
-								return JSON.parse(match[1]);
-							} catch {
-								return null;
-							}
-						}
-					}
-				}
-			}
-			return null;
-		};
-
-		// Helper to extract images from MCP result format
-		// Returns array of image objects with base64 and mediaType for the Image component
-		const extractMcpImages = (
-			result: unknown,
-		): { images: { base64: string; mediaType: string }[]; text: string } => {
-			if (isMcpCallToolResult(result)) {
-				const images = result.content
-					.filter(isMcpImageContent)
-					.map((c) => ({ base64: c.data, mediaType: c.mimeType }));
-				const textParts = result.content
-					.filter(isMcpTextContent)
-					.map((c) => c.text);
-				return { images, text: textParts.join("\n") };
-			}
-			return { images: [], text: extractMcpResult(result) };
-		};
-
-		for (const { client, name } of mcpClients) {
-			try {
-				const mcpTools = await client.tools();
-
-				for (const [toolName, mcpTool] of Object.entries(mcpTools)) {
-					const prefixedName =
-						mcpClients.length > 1 ? `${name}_${toolName}` : toolName;
-					// Cast to McpToolDefinition - the MCP client returns tools with description and execute
-					const originalTool = mcpTool as McpToolDefinition;
-
-					// Create typed tool wrappers with explicit schemas
-					// This ensures the LLM knows exactly what parameters are required
-					if (toolName === "list-models") {
-						allTools[prefixedName] = tool({
-							description:
-								"List and discover available LLM models. Use this ONLY when the user asks to see what models are available, NOT when they want to actually use a model. For generating content or images, use the 'chat' tool instead.",
-							inputSchema: z.object({
-								include_deactivated: z
-									.boolean()
-									.optional()
-									.default(false)
-									.describe("Include deactivated models"),
-								exclude_deprecated: z
-									.boolean()
-									.optional()
-									.default(false)
-									.describe("Exclude deprecated models"),
-								limit: z
-									.number()
-									.optional()
-									.default(20)
-									.describe("Maximum number of models to return"),
-								family: z
-									.string()
-									.optional()
-									.describe(
-										"Filter by model family (e.g., 'openai', 'anthropic')",
-									),
-							}),
-							execute: async (args) => {
-								const result = await originalTool.execute(args);
-								const extracted = extractMcpResult(result);
-								const structured = extractStructuredData(result);
-								return {
-									text: extracted,
-									...(structured?.type === "models"
-										? { models: structured.data }
-										: {}),
-								};
-							},
-						});
-					} else if (toolName === "chat") {
-						// Chat tool - send a message to another LLM
-						// Rename to "generate_content" for better model understanding
-						const generateToolName =
-							mcpClients.length > 1
-								? `${name}_generate_content`
-								: "generate_content";
-
-						allTools[generateToolName] = tool({
-							description:
-								"Generate TEXT responses using a language model. Use this for text-based tasks like answering questions, writing, analysis, coding, etc. Do NOT use this for image generation - use 'generate-image' tool instead when the user wants to create, draw, or generate images.",
-							inputSchema: z.object({
-								model: z
-									.string()
-									.describe(
-										"The language model ID to use for text generation, e.g. 'gpt-4o', 'claude-sonnet-4-20250514', 'gemini-2.0-flash'",
-									),
-								prompt: z
-									.string()
-									.describe(
-										"The text prompt for the language model, e.g. 'explain quantum physics' or 'write a poem about nature'",
-									),
-							}),
-							execute: async (args) => {
-								// Convert simple prompt to messages array format for the MCP tool
-								const mcpArgs = {
-									model: args.model,
-									messages: [{ role: "user" as const, content: args.prompt }],
-								};
-								const result = await originalTool.execute(mcpArgs);
-								const extracted = extractMcpResult(result);
-								return { response: extracted };
-							},
-						});
-					} else if (toolName === "generate-image") {
-						// Generate image tool - requires prompt parameter
-						allTools[prefixedName] = tool({
-							description:
-								"CREATE AND GENERATE IMAGES from text descriptions. Use this tool whenever the user wants to create, draw, generate, make, or produce an image, picture, illustration, artwork, or visual content. This is the ONLY tool for image generation - do not use generate_content for images.",
-							inputSchema: z.object({
-								prompt: z
-									.string()
-									.describe(
-										"Detailed text description of the image to create, e.g. 'a futuristic city skyline at sunset with flying cars'",
-									),
-								model: z
-									.string()
-									.optional()
-									.default("qwen-image-plus")
-									.describe(
-										"Image generation model to use (e.g., 'qwen-image-plus', 'qwen-image-max')",
-									),
-								size: z
-									.string()
-									.optional()
-									.default("1024x1024")
-									.describe(
-										"Image size in WxH format (e.g., '1024x1024', '1024x768', '768x1024')",
-									),
-								n: z
-									.number()
-									.optional()
-									.default(1)
-									.describe("Number of images to generate (1-4)"),
-							}),
-							execute: async (args) => {
-								const result = await originalTool.execute(args);
-								const { images, text } = extractMcpImages(result);
-								return { images, text };
-							},
-						});
-					} else if (toolName === "list-image-models") {
-						// List image models tool - no required parameters
-						allTools[prefixedName] = tool({
-							description:
-								"List all available image generation models with their capabilities and pricing. Use this to discover which models can be used with generate-image.",
-							inputSchema: z.object({}),
-							execute: async (args) => {
-								const result = await originalTool.execute(args);
-								const extracted = extractMcpResult(result);
-								const structured = extractStructuredData(result);
-								return {
-									text: extracted,
-									...(structured?.type === "image-models"
-										? { imageModels: structured.data }
-										: {}),
-								};
-							},
-						});
-					} else {
-						// For unknown tools, use a permissive schema
-						allTools[prefixedName] = tool({
-							description:
-								originalTool.description ?? `MCP tool: ${prefixedName}`,
-							inputSchema: z.object({}).passthrough(),
-							execute: async (args) => {
-								const result = await originalTool.execute(args);
-								const extracted = extractMcpResult(result);
-								return { result: extracted };
-							},
-						});
-					}
-				}
-			} catch {
-				// Failed to get tools from MCP server
-			}
-		}
-
-		const hasTools = Object.keys(allTools).length > 0;
-
-		// Streaming chat with optional MCP tools
-		const result = streamText({
-			model: llmgateway.chat(selectedModel),
-			messages: await convertToModelMessages(messages),
-			...(hasTools ? { tools: allTools, maxSteps: 10 } : {}),
-			onFinish: async () => {
-				// Clean up MCP clients when streaming is done
-				for (const { client } of mcpClients) {
-					try {
-						await client.close();
-					} catch {
-						// Ignore close errors
-					}
-				}
+		const response = await fetch(`${gatewayUrl}/chat/completions`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${finalApiKey}`,
+				"x-source": "chat.kiwillm.in",
+				...(noFallbackHeader ? { "x-no-fallback": noFallbackHeader } : {}),
 			},
+			body: JSON.stringify({
+				model: selectedModel,
+				messages: toOpenAICompatibleMessages(messages),
+				stream: false,
+				...(reasoning_effort ? { reasoning_effort } : {}),
+				...(web_search ? { web_search: true } : {}),
+				...(image_config ? { image_config } : {}),
+			}),
+			cache: "no-store",
 		});
 
-		// Return the native AI SDK UI message stream so useChat can parse it correctly.
-		const uiStream = result.toUIMessageStream({
-			sendReasoning: true,
-			sendSources: true,
-		});
+		const responseText = await response.text();
+		let responseJson: Record<string, unknown> | null = null;
+
+		try {
+			responseJson = responseText
+				? (JSON.parse(responseText) as Record<string, unknown>)
+				: null;
+		} catch {
+			responseJson = null;
+		}
+
+		if (!response.ok) {
+			const message =
+				extractErrorMessageFromJson(responseJson) ??
+				responseText ??
+				"KiwiLLM request failed";
+			return jsonErrorResponse(message, response.status);
+		}
+
+		if (!responseJson) {
+			return jsonErrorResponse(
+				"KiwiLLM returned an invalid response body",
+				502,
+			);
+		}
+
+		const assistantText = extractAssistantTextFromResponse(responseJson);
+		const uiStream = createTextResponseStream(assistantText);
+
 		return createUIMessageStreamResponse({
 			stream: uiStream,
 			headers: {
@@ -839,36 +494,16 @@ export async function POST(req: Request) {
 			},
 		});
 	} catch (error: unknown) {
-		// Clean up MCP clients on error
-		for (const { client } of mcpClients) {
-			try {
-				await client.close();
-			} catch {
-				// Ignore close errors
-			}
-		}
-
 		const message =
-			extractProviderErrorMessage(error) ??
-			(error instanceof Error ? error.message : "KiwiLLM request failed");
-		const status =
-			typeof error === "object" &&
-			error !== null &&
-			"status" in error &&
-			typeof (error as { status: unknown }).status === "number"
-				? (error as { status: number }).status
-				: 500;
+			error instanceof Error ? error.message : "KiwiLLM request failed";
+
 		console.error(`${ROUTE_DEBUG_PREFIX} chat request failed`, {
-			status,
 			message,
 			error,
 			selectedModel,
-			gatewayUrl:
-				process.env.GATEWAY_URL ??
-				(process.env.NODE_ENV === "development"
-					? "http://localhost:4001/v1"
-					: "https://api.kiwillm.in/v1"),
+			gatewayUrl,
 		});
-		return jsonErrorResponse(message, status);
+
+		return jsonErrorResponse(message, 500);
 	}
 }
