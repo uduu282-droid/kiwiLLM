@@ -2,8 +2,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
 	BanIcon,
 	BarChart3Icon,
+	CheckIcon,
+	CopyIcon,
 	EditIcon,
+	EyeIcon,
+	EyeOffIcon,
 	KeyIcon,
+	Loader2,
 	MoreHorizontal,
 	PlusIcon,
 	Shield,
@@ -61,6 +66,7 @@ import {
 	TooltipTrigger,
 } from "@/lib/components/tooltip";
 import { toast } from "@/lib/components/use-toast";
+import { useAppConfig } from "@/lib/config";
 import { useApi } from "@/lib/fetch-client";
 import { extractOrgAndProjectFromPath } from "@/lib/navigation-utils";
 
@@ -83,6 +89,7 @@ export function ApiKeysList({
 }: ApiKeysListProps) {
 	const queryClient = useQueryClient();
 	const api = useApi();
+	const config = useAppConfig();
 	const pathname = usePathname();
 	const { orgId, projectId } = useMemo(
 		() => extractOrgAndProjectFromPath(pathname),
@@ -90,6 +97,12 @@ export function ApiKeysList({
 	);
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
 	const [creatorFilter, setCreatorFilter] = useState<CreatorFilter>("all");
+	const [revealedTokens, setRevealedTokens] = useState<Record<string, string>>(
+		{},
+	);
+	const [tokenActionState, setTokenActionState] = useState<
+		Record<string, "idle" | "loading" | "copied">
+	>({});
 
 	const getIamRulesUrl = (keyId: string) =>
 		`/dashboard/${orgId}/${projectId}/api-keys/${keyId}/iam` as Route;
@@ -334,6 +347,101 @@ export function ApiKeysList({
 		);
 	};
 
+	const loadApiKeyToken = async (id: string) => {
+		const cachedToken = revealedTokens[id];
+		if (cachedToken) {
+			return cachedToken;
+		}
+
+		setTokenActionState((prev) => ({
+			...prev,
+			[id]: "loading",
+		}));
+
+		try {
+			const response = await fetch(`${config.apiUrl}/keys/api/${id}/token`, {
+				credentials: "include",
+				cache: "no-store",
+			});
+
+			const data = (await response.json()) as {
+				token?: string;
+				message?: string;
+			};
+
+			if (!response.ok || !data.token) {
+				throw new Error(data.message ?? "Failed to reveal API key");
+			}
+
+			setRevealedTokens((prev) => ({
+				...prev,
+				[id]: data.token!,
+			}));
+			setTokenActionState((prev) => ({
+				...prev,
+				[id]: "idle",
+			}));
+
+			return data.token;
+		} catch (error) {
+			setTokenActionState((prev) => ({
+				...prev,
+				[id]: "idle",
+			}));
+			throw error;
+		}
+	};
+
+	const toggleTokenVisibility = async (id: string) => {
+		if (revealedTokens[id]) {
+			setRevealedTokens((prev) => {
+				const next = { ...prev };
+				delete next[id];
+				return next;
+			});
+			return;
+		}
+
+		try {
+			await loadApiKeyToken(id);
+		} catch (error) {
+			toast({
+				title: "Could not reveal API key",
+				description:
+					error instanceof Error ? error.message : "Please try again.",
+				variant: "destructive",
+			});
+		}
+	};
+
+	const copyApiKey = async (id: string) => {
+		try {
+			const token = (await loadApiKeyToken(id)) ?? "";
+			await navigator.clipboard.writeText(token);
+			setTokenActionState((prev) => ({
+				...prev,
+				[id]: "copied",
+			}));
+			toast({
+				title: "API key copied",
+				description: "The full API key has been copied to your clipboard.",
+			});
+			window.setTimeout(() => {
+				setTokenActionState((prev) => ({
+					...prev,
+					[id]: prev[id] === "copied" ? "idle" : prev[id],
+				}));
+			}, 2000);
+		} catch (error) {
+			toast({
+				title: "Could not copy API key",
+				description:
+					error instanceof Error ? error.message : "Please try again.",
+				variant: "destructive",
+			});
+		}
+	};
+
 	if (allKeys.length === 0) {
 		return (
 			<div className="flex flex-col items-center justify-center py-16 text-muted-foreground text-center">
@@ -471,8 +579,44 @@ export function ApiKeysList({
 								<TableCell className="min-w-40 max-w-40">
 									<div className="flex items-center space-x-2">
 										<span className="font-mono text-xs truncate">
-											{key.maskedToken}
+											{revealedTokens[key.id] ?? key.maskedToken}
 										</span>
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon"
+											className="h-7 w-7"
+											onClick={() => void toggleTokenVisibility(key.id)}
+											disabled={tokenActionState[key.id] === "loading"}
+										>
+											{tokenActionState[key.id] === "loading" ? (
+												<Loader2 className="h-3.5 w-3.5 animate-spin" />
+											) : revealedTokens[key.id] ? (
+												<EyeOffIcon className="h-3.5 w-3.5" />
+											) : (
+												<EyeIcon className="h-3.5 w-3.5" />
+											)}
+											<span className="sr-only">
+												{revealedTokens[key.id]
+													? "Hide API key"
+													: "Reveal API key"}
+											</span>
+										</Button>
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon"
+											className="h-7 w-7"
+											onClick={() => void copyApiKey(key.id)}
+											disabled={tokenActionState[key.id] === "loading"}
+										>
+											{tokenActionState[key.id] === "copied" ? (
+												<CheckIcon className="h-3.5 w-3.5" />
+											) : (
+												<CopyIcon className="h-3.5 w-3.5" />
+											)}
+											<span className="sr-only">Copy API key</span>
+										</Button>
 									</div>
 								</TableCell>
 								<TableCell>
@@ -855,8 +999,40 @@ export function ApiKeysList({
 						</div>
 						<div className="pt-2 border-t">
 							<div className="text-xs text-muted-foreground mb-1">API Key</div>
-							<div className="font-mono text-xs break-all">
-								{key.maskedToken}
+							<div className="flex items-center gap-2">
+								<div className="font-mono text-xs break-all flex-1">
+									{revealedTokens[key.id] ?? key.maskedToken}
+								</div>
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon"
+									className="h-7 w-7 shrink-0"
+									onClick={() => void toggleTokenVisibility(key.id)}
+									disabled={tokenActionState[key.id] === "loading"}
+								>
+									{tokenActionState[key.id] === "loading" ? (
+										<Loader2 className="h-3.5 w-3.5 animate-spin" />
+									) : revealedTokens[key.id] ? (
+										<EyeOffIcon className="h-3.5 w-3.5" />
+									) : (
+										<EyeIcon className="h-3.5 w-3.5" />
+									)}
+								</Button>
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon"
+									className="h-7 w-7 shrink-0"
+									onClick={() => void copyApiKey(key.id)}
+									disabled={tokenActionState[key.id] === "loading"}
+								>
+									{tokenActionState[key.id] === "copied" ? (
+										<CheckIcon className="h-3.5 w-3.5" />
+									) : (
+										<CopyIcon className="h-3.5 w-3.5" />
+									)}
+								</Button>
 							</div>
 						</div>
 						<div className="pt-2 border-t grid grid-cols-2">

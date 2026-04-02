@@ -321,6 +321,7 @@ export interface paths {
                                 id: string;
                                 email: string;
                                 name: string | null;
+                                image: string | null;
                                 onboardingCompleted: boolean;
                                 emailVerified: boolean;
                                 isAdmin: boolean;
@@ -410,6 +411,7 @@ export interface paths {
                                 id: string;
                                 email: string;
                                 name: string | null;
+                                image: string | null;
                                 onboardingCompleted: boolean;
                                 emailVerified: boolean;
                                 isAdmin: boolean;
@@ -597,6 +599,7 @@ export interface paths {
                                 id: string;
                                 email: string;
                                 name: string | null;
+                                image: string | null;
                                 onboardingCompleted: boolean;
                                 emailVerified: boolean;
                                 isAdmin: boolean;

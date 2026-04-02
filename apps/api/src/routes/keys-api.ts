@@ -90,6 +90,10 @@ const updateApiKeyUsageLimitSchema = z.object({
 	usageLimit: z.string().nullable(),
 });
 
+const revealApiKeyResponseSchema = z.object({
+	token: z.string(),
+});
+
 // Schema for IAM rule
 const iamRuleSchema = z.object({
 	id: z.string(),
@@ -432,6 +436,132 @@ keysApi.openapi(list, async (c) => {
 			: undefined,
 		userRole,
 	});
+});
+
+const revealKeyToken = createRoute({
+	method: "get",
+	path: "/api/{id}/token",
+	request: {
+		params: z.object({
+			id: z.string(),
+		}),
+	},
+	responses: {
+		200: {
+			content: {
+				"application/json": {
+					schema: revealApiKeyResponseSchema,
+				},
+			},
+			description: "API key token revealed successfully.",
+		},
+		401: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						message: z.string(),
+					}),
+				},
+			},
+			description: "Unauthorized.",
+		},
+		403: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						message: z.string(),
+					}),
+				},
+			},
+			description: "Forbidden.",
+		},
+		404: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						message: z.string(),
+					}),
+				},
+			},
+			description: "API key not found.",
+		},
+	},
+});
+
+keysApi.openapi(revealKeyToken, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		throw new HTTPException(401, {
+			message: "Unauthorized",
+		});
+	}
+
+	const { id } = c.req.param();
+
+	const userOrgs = await db.query.userOrganization.findMany({
+		where: {
+			userId: {
+				eq: user.id,
+			},
+		},
+		with: {
+			organization: {
+				with: {
+					projects: true,
+				},
+			},
+		},
+	});
+
+	const projectIds = userOrgs.flatMap((org) =>
+		org
+			.organization!.projects.filter((project) => project.status !== "deleted")
+			.map((project) => project.id),
+	);
+
+	const apiKey = await db.query.apiKey.findFirst({
+		where: {
+			id: {
+				eq: id,
+			},
+			projectId: {
+				in: projectIds,
+			},
+		},
+		with: {
+			project: true,
+		},
+	});
+
+	if (!apiKey) {
+		throw new HTTPException(404, {
+			message: "API key not found",
+		});
+	}
+
+	if (!apiKey.project) {
+		throw new HTTPException(404, {
+			message: "Project not found for API key",
+		});
+	}
+
+	const userOrg = userOrgs.find(
+		(org) => org.organizationId === apiKey.project!.organizationId,
+	);
+	const userRole = userOrg?.role as "owner" | "admin" | "developer" | undefined;
+
+	if (userRole === "developer" && apiKey.createdBy !== user.id) {
+		throw new HTTPException(403, {
+			message: "You don't have permission to reveal this API key",
+		});
+	}
+
+	return c.json(
+		{
+			token: apiKey.token,
+		},
+		200,
+	);
 });
 
 // Soft-delete an API key
