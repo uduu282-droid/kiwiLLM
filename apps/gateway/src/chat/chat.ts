@@ -1570,93 +1570,98 @@ chat.openapi(completions, async (c) => {
 			);
 
 			if (availableModelProviders.length === 0) {
-				const hostedFallbackCandidateProviders = iamAllowedProviders
-					? iamFilteredModelProviders
-					: modelInfo.providers;
-				const hostedFallbackProviders = hostedFallbackCandidateProviders.filter(
-					(provider) => {
-						if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
-							return false;
+				const hostedFallbackProviders: ProviderModelMapping[] = [];
+				for (const provider of modelInfo.providers) {
+					if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
+						continue;
+					}
+					if (webSearchTool) {
+						if ((provider as ProviderModelMapping).webSearch !== true) {
+							continue;
 						}
-						if (webSearchTool) {
-							if ((provider as ProviderModelMapping).webSearch !== true) {
-								return false;
-							}
+					}
+					if (
+						response_format?.type === "json_object" ||
+						response_format?.type === "json_schema"
+					) {
+						if ((provider as ProviderModelMapping).jsonOutput !== true) {
+							continue;
 						}
+					}
+					if (response_format?.type === "json_schema") {
+						if ((provider as ProviderModelMapping).jsonOutputSchema !== true) {
+							continue;
+						}
+					}
+					if (hasImages && (provider as ProviderModelMapping).vision !== true) {
+						continue;
+					}
+					if (reasoning_effort !== undefined) {
+						if ((provider as ProviderModelMapping).reasoning !== true) {
+							continue;
+						}
+					}
+					if (reasoning_effort === undefined) {
+						const hasNonReasoningAlternative = modelInfo.providers.some(
+							(p) =>
+								p.providerId === provider.providerId &&
+								(p as ProviderModelMapping).reasoning !== true,
+						);
 						if (
-							response_format?.type === "json_object" ||
-							response_format?.type === "json_schema"
+							hasNonReasoningAlternative &&
+							(provider as ProviderModelMapping).reasoning === true
 						) {
-							if ((provider as ProviderModelMapping).jsonOutput !== true) {
-								return false;
-							}
+							continue;
 						}
-						if (response_format?.type === "json_schema") {
-							if ((provider as ProviderModelMapping).jsonOutputSchema !== true) {
-								return false;
-							}
-						}
-						if (hasImages && (provider as ProviderModelMapping).vision !== true) {
-							return false;
-						}
-						if (reasoning_effort !== undefined) {
-							if ((provider as ProviderModelMapping).reasoning !== true) {
-								return false;
-							}
-						}
-						if (reasoning_effort === undefined) {
-							const hasNonReasoningAlternative = modelInfo.providers.some(
-								(p) =>
-									p.providerId === provider.providerId &&
-									(p as ProviderModelMapping).reasoning !== true,
-							);
-							if (
-								hasNonReasoningAlternative &&
-								(provider as ProviderModelMapping).reasoning === true
-							) {
-								return false;
-							}
+					}
+
+					const hostedIamValidation = await validateModelAccess(
+						apiKey.id,
+						modelInfo.id,
+						provider.providerId,
+						modelInfo,
+					);
+					if (!hostedIamValidation.allowed) {
+						continue;
+					}
+
+					const providerMapping = provider as ProviderModelMapping;
+					const providerKey = providerKeyMap.get(provider.providerId);
+					let routingToken = "";
+					let routingConfigIndex = 0;
+
+					try {
+						if (providerKey?.token) {
+							routingToken = providerKey.token;
+						} else if (project.mode !== "api-keys") {
+							const envResult = getProviderEnv(provider.providerId);
+							routingToken = envResult.token;
+							routingConfigIndex = envResult.configIndex;
 						}
 
-						const providerMapping = provider as ProviderModelMapping;
-						const providerKey = providerKeyMap.get(provider.providerId);
-						let routingToken = "";
-						let routingConfigIndex = 0;
-
-						try {
-							if (providerKey?.token) {
-								routingToken = providerKey.token;
-							} else if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
-								return false;
-							} else if (project.mode !== "api-keys") {
-								const envResult = getProviderEnv(provider.providerId);
-								routingToken = envResult.token;
-								routingConfigIndex = envResult.configIndex;
-							}
-
-							return Boolean(
-								resolveProviderEndpointWithFallback({
-									providerId: provider.providerId,
-									baseUrl: providerKey?.baseUrl ?? undefined,
-									modelName: provider.modelName,
-									googleApiKey:
-										provider.providerId === "google-ai-studio" ||
-										provider.providerId === "google-vertex"
-											? routingToken
-											: undefined,
-									stream,
-									reasoning: providerMapping.reasoning === true,
-									hasExistingToolCalls,
-									providerOptions: providerKey?.options ?? undefined,
-									configIndex: routingConfigIndex,
-									imageGenerations: providerMapping.imageGenerations === true,
-								}),
-							);
-						} catch {
-							return false;
-						}
-					},
-				);
+						resolveProviderEndpointWithFallback({
+							providerId: provider.providerId,
+							baseUrl: providerKey?.baseUrl ?? undefined,
+							modelName: provider.modelName,
+							googleApiKey:
+								provider.providerId === "google-ai-studio" ||
+								provider.providerId === "google-vertex"
+									? routingToken
+									: undefined,
+							stream,
+							reasoning: providerMapping.reasoning === true,
+							hasExistingToolCalls: messages.some(
+								(msg: any) => msg.tool_calls ?? msg.role === "tool",
+							),
+							providerOptions: providerKey?.options ?? undefined,
+							configIndex: routingConfigIndex,
+							imageGenerations: providerMapping.imageGenerations === true,
+						});
+						hostedFallbackProviders.push(providerMapping);
+					} catch {
+						continue;
+					}
+				}
 
 				if (hostedFallbackProviders.length > 0) {
 					logger.warn("Using hosted explicit-model fallback providers", {
