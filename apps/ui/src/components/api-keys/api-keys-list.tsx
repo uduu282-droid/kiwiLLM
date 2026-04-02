@@ -557,7 +557,7 @@ export function ApiKeysList({
 					<TableHeader>
 						<TableRow>
 							<TableHead>Name</TableHead>
-							<TableHead className="w-40">API Key</TableHead>
+							<TableHead className="w-80">API Key</TableHead>
 							<TableHead>Status</TableHead>
 							<TableHead>Created</TableHead>
 							<TableHead>Created By</TableHead>
@@ -576,9 +576,21 @@ export function ApiKeysList({
 								<TableCell className="font-medium">
 									<span className="text-sm font-medium">{key.description}</span>
 								</TableCell>
-								<TableCell className="min-w-40 max-w-40">
-									<div className="flex items-center space-x-2">
-										<span className="font-mono text-xs truncate">
+								<TableCell
+									className={
+										revealedTokens[key.id]
+											? "min-w-80 max-w-80 align-top"
+											: "min-w-40 max-w-40"
+									}
+								>
+									<div className="flex items-start space-x-2">
+										<span
+											className={
+												revealedTokens[key.id]
+													? "font-mono text-xs break-all whitespace-normal leading-5"
+													: "font-mono text-xs truncate"
+											}
+										>
 											{revealedTokens[key.id] ?? key.maskedToken}
 										</span>
 										<Button
