@@ -77,6 +77,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-literouter-proxy",
+		name: "KiwiLLM LiteRouter Proxy",
+		description:
+			"KiwiLLM-hosted LiteRouter proxy exposing OpenAI-compatible chat models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_LITEROUTER_PROXY_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#0f766e",
+		website: "https://literouter-proxy.revai.workers.dev",
+		announcement: null,
+	},
+	{
 		id: "kiwillm-qwen",
 		name: "KiwiLLM Qwen",
 		description:

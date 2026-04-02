@@ -7,6 +7,10 @@ import {
 } from "./models/chatai-proxy.js";
 import { deepseekModels } from "./models/deepseek.js";
 import { googleModels } from "./models/google.js";
+import {
+	literouterProxyModels,
+	literouterProxyProviderAugments,
+} from "./models/literouter-proxy.js";
 import { llmgatewayModels } from "./models/llmgateway.js";
 import { metaModels } from "./models/meta.js";
 import { microsoftModels } from "./models/microsoft.js";
@@ -283,15 +287,25 @@ const baseModels: ModelDefinition[] = [
 ] as const;
 
 export const models: ModelDefinition[] = [
-	...baseModels.map((model) => {
-		const proxyProviders = chataiProxyProviderAugments[model.id];
-		if (!proxyProviders) {
-			return model;
-		}
-		return {
-			...model,
-			providers: [...model.providers, ...proxyProviders],
-		};
-	}),
-	...chataiProxyModels,
+	...[...baseModels, ...chataiProxyModels, ...literouterProxyModels].map(
+		(model) => {
+			const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
+			const literouterProviders =
+				literouterProxyProviderAugments[model.id] ?? [];
+			if (
+				chataiProviders.length === 0 &&
+				literouterProviders.length === 0
+			) {
+				return model;
+			}
+			return {
+				...model,
+				providers: [
+					...model.providers,
+					...chataiProviders,
+					...literouterProviders,
+				],
+			};
+		},
+	),
 ];

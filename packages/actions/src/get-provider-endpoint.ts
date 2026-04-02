@@ -70,6 +70,15 @@ export function getProviderEndpoint(
 						"https://chatai-proxy.revai.workers.dev",
 					) ?? "https://chatai-proxy.revai.workers.dev";
 				break;
+			case "kiwillm-literouter-proxy":
+				url =
+					getProviderEnvValue(
+						"kiwillm-literouter-proxy",
+						"baseUrl",
+						configIndex,
+						"https://literouter-proxy.revai.workers.dev",
+					) ?? "https://literouter-proxy.revai.workers.dev";
+				break;
 			case "kiwillm-kimi":
 				url =
 					getProviderEnvValue(
