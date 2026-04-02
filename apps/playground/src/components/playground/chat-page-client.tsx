@@ -38,6 +38,7 @@ const STRICT_PROVIDER_ROUTING_STORAGE_KEY =
 	"kiwillm_playground_strict_provider_routing";
 const PLAYGROUND_DEBUG_PREFIX = "[KiwiLLM Playground]";
 const DEFAULT_PUBLIC_MODEL = "minimax-m1";
+const SIMPLE_PLAYGROUND_MODE = true;
 
 async function debugChatFetch(input: RequestInfo | URL, init?: RequestInit) {
 	const startedAt = Date.now();
@@ -229,8 +230,9 @@ export default function ChatPageClient({
 		"Paste a KiwiLLM API key in the config panel before sending a prompt.";
 	const isAuthenticated = !isUserLoading && !!user;
 	const [chatPersistenceDisabled, setChatPersistenceDisabled] = useState(false);
-	const canPersistChats =
-		isAuthenticated && !!selectedProject && !chatPersistenceDisabled;
+	const canPersistChats = SIMPLE_PLAYGROUND_MODE
+		? false
+		: isAuthenticated && !!selectedProject && !chatPersistenceDisabled;
 
 	// MCP servers management
 	const {
@@ -1145,6 +1147,7 @@ export default function ChatPageClient({
 					onChatSelect={handleChatSelect}
 					currentChatId={currentChatId ?? undefined}
 					clearMessages={clearMessages}
+					historyEnabled={!SIMPLE_PLAYGROUND_MODE}
 					isLoading={isLoading}
 					organizations={organizations}
 					selectedOrganization={selectedOrganization}

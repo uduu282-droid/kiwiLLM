@@ -67,6 +67,7 @@ interface ChatSidebarProps {
 	onChatSelect?: (chatId: string) => void;
 	onNewChat?: () => void;
 	clearMessages: () => void;
+	historyEnabled?: boolean;
 	className?: string;
 	isLoading?: boolean;
 	organizations: Organization[];
@@ -84,6 +85,7 @@ export function ChatSidebar({
 	onChatSelect,
 	onNewChat,
 	clearMessages,
+	historyEnabled = true,
 	className,
 	isLoading: isPageLoading = false,
 	// organizations,
@@ -104,8 +106,9 @@ export function ChatSidebar({
 	const isAuthenticated = !isUserLoading && !!user;
 
 	// Use real chat data from API
-	const { data: chatsData, isLoading: isChatsLoading } =
-		useChats(isAuthenticated);
+	const { data: chatsData, isLoading: isChatsLoading } = useChats(
+		isAuthenticated && historyEnabled,
+	);
 	const deleteChat = useDeleteChat();
 	const updateChat = useUpdateChat();
 
@@ -322,6 +325,67 @@ export function ChatSidebar({
 	// Loading auth state → show lightweight skeleton to avoid hydration issues
 	if (isUserLoading) {
 		return <ChatSidebarSkeleton organization={null} isOrgLoading={true} />;
+	}
+
+	if (!historyEnabled) {
+		return (
+			<Sidebar className={className + " max-md:hidden"}>
+				<SidebarHeader>
+					<div className="flex flex-col items-center gap-4 mb-4">
+						<Link
+							href="/"
+							className="flex self-start items-center gap-2 my-2"
+							prefetch={true}
+						>
+							<Logo className="h-10 w-10" />
+							<h1 className="text-xl font-semibold">KiwiLLM</h1>
+							<Badge>Playground</Badge>
+						</Link>
+						<Button
+							variant="outline"
+							className="w-full flex items-center gap-2"
+							onClick={onNewChat}
+							disabled={isPageLoading}
+						>
+							{isPageLoading ? (
+								<Loader2 className="h-4 w-4 animate-spin" />
+							) : (
+								<Plus className="h-4 w-4" />
+							)}
+							New Chat
+						</Button>
+						<Button
+							variant="ghost"
+							className="w-full flex items-center gap-2"
+							asChild
+						>
+							<Link href="/image">
+								<ImagePlus className="h-4 w-4" />
+								Image Studio
+							</Link>
+						</Button>
+					</div>
+				</SidebarHeader>
+
+				<SidebarContent className="px-4 py-4">
+					<div className="rounded-lg border border-border bg-card/60 p-4 text-sm">
+						<div className="font-medium mb-2">Simple API-key mode</div>
+						<p className="text-muted-foreground leading-relaxed">
+							This Playground sends requests directly with your KiwiLLM API key.
+							Chat history is intentionally disabled here so model testing stays
+							simple and reliable.
+						</p>
+					</div>
+				</SidebarContent>
+
+				<SidebarFooter className="border-t">
+					<div className="p-4 text-xs text-muted-foreground">
+						Use the config panel to paste your API key, choose a model, and test
+						the hosted OpenAI-compatible API.
+					</div>
+				</SidebarFooter>
+			</Sidebar>
+		);
 	}
 
 	// Unauthenticated → show CTA instead of org/project/chats UI
