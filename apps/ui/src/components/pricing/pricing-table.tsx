@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import CountUp from "@/components/shared/count-up";
 import { AuthLink } from "@/components/shared/auth-link";
 import { useUser } from "@/hooks/useUser";
 import { Badge } from "@/lib/components/badge";
@@ -262,6 +263,8 @@ function formatPrice(price: PriceDefinition, isIndian: boolean, cycle: BillingCy
 		return {
 			main: price.label,
 			sub: isIndian ? "Start from ₹399 • no expiry" : "Start from $5 • no expiry",
+			numericValue: null,
+			prefix: "",
 		};
 	}
 
@@ -271,6 +274,8 @@ function formatPrice(price: PriceDefinition, isIndian: boolean, cycle: BillingCy
 		return {
 			main: "",
 			sub: "",
+			numericValue: null,
+			prefix: "",
 		};
 	}
 
@@ -278,16 +283,19 @@ function formatPrice(price: PriceDefinition, isIndian: boolean, cycle: BillingCy
 		return {
 			main: isIndian ? "₹0" : "$0",
 			sub: cycle === "yearly" ? "forever" : "forever",
+			numericValue: 0,
+			prefix: isIndian ? "₹" : "$",
 		};
 	}
 
 	const billedValue = cycle === "yearly" ? Math.round(base * 0.8) : base;
-	const currencyValue = isIndian ? `₹${billedValue}` : `$${billedValue}`;
 	const suffix = cycle === "yearly" ? "/mo billed yearly" : "/month";
 
 	return {
-		main: currencyValue,
+		main: isIndian ? `₹${billedValue}` : `$${billedValue}`,
 		sub: suffix,
+		numericValue: billedValue,
+		prefix: isIndian ? "₹" : "$",
 	};
 }
 
@@ -342,7 +350,19 @@ function PricingCard({
 			<div className="mt-7">
 				<div className="flex flex-wrap items-end gap-2">
 					<span className="text-4xl font-semibold tracking-[-0.05em] text-white md:text-5xl">
-						{price.main}
+						{price.numericValue === null ? (
+							price.main
+						) : (
+							<CountUp
+								key={`${plan.name}-${cycle}-${isIndian ? "inr" : "usd"}`}
+								from={0}
+								to={price.numericValue}
+								duration={0.8}
+								separator=","
+								prefix={price.prefix}
+								className="tabular-nums"
+							/>
+						)}
 					</span>
 					{price.sub && (
 						<span className="pb-1.5 text-base text-white/66">{price.sub}</span>
