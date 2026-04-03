@@ -8,12 +8,15 @@ import {
 } from "@llmgateway/models";
 import { providerLogoUrls } from "@llmgateway/shared/components";
 
+import type { Route } from "next";
+
 interface HeroProps {
 	providerId: ProviderId;
 }
 
 export function Hero({ providerId }: HeroProps) {
 	const provider = providerDefinitions.find((p) => p.id === providerId)!;
+	const isKiwiHostedProvider = provider.id.startsWith("kiwillm-");
 
 	const getProviderIcon = (providerId: ProviderId) => {
 		const LogoComponent = providerLogoUrls[providerId];
@@ -47,14 +50,23 @@ export function Hero({ providerId }: HeroProps) {
 						<Button asChild>
 							<AuthLink href="/signup">Get started</AuthLink>
 						</Button>
-						<Button variant="outline" asChild>
-							<a
-								href={`${provider.website}?utm_source=llmgateway-models`}
-								target="_blank"
-							>
-								Visit company
-							</a>
-						</Button>
+						{isKiwiHostedProvider ? (
+							<Button variant="outline" asChild>
+								<AuthLink href={"/docs/quick-start" as Route}>
+									View Quick Start
+								</AuthLink>
+							</Button>
+						) : provider.website ? (
+							<Button variant="outline" asChild>
+								<a
+									href={`${provider.website}?utm_source=llmgateway-models`}
+									target="_blank"
+									rel="noopener noreferrer"
+								>
+									Visit company
+								</a>
+							</Button>
+						) : null}
 					</div>
 				</div>
 				<div className="flex items-center justify-center gap-8 relative mt-20 lg:mt-0">
