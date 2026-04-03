@@ -5,6 +5,8 @@ import { OnboardingClient } from "./onboarding-client";
 
 import type { User } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function OnboardingPage() {
 	const initialUserData = await fetchServerData<{ user: User }>(
 		"GET",

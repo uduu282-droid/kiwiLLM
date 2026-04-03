@@ -5,6 +5,8 @@ import { fetchServerData } from "@/lib/server-api";
 
 import type { User } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
 	const [initialUserData, initialOrganizationsData] = await Promise.all([
 		fetchServerData<{ user: User } | undefined | null>("GET", "/user/me"),
