@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { getLastUsedProjectId } from "@/lib/last-used-project-server";
+import { resolvePreferredProjectId } from "@/lib/default-project-server";
 import { fetchServerData } from "@/lib/server-api";
 
 interface OrgPageProps {
@@ -38,13 +38,22 @@ export default async function OrgPage({ params }: OrgPageProps) {
 		};
 
 		if (projects.projects && projects.projects.length > 0) {
-			// Check for last used project first, fallback to first project
-			const lastUsedProjectId = await getLastUsedProjectId(orgId);
-			const defaultProjectId =
-				lastUsedProjectId &&
-				projects.projects.some((p) => p.id === lastUsedProjectId)
-					? lastUsedProjectId
-					: projects.projects[0].id;
+			const defaultProjectId = await resolvePreferredProjectId(
+				orgId,
+				projects.projects,
+			);
+
+			if (!defaultProjectId) {
+				return (
+					<div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+						<h1 className="text-2xl font-bold">No Projects Found</h1>
+						<p className="text-muted-foreground">
+							This organization doesn&apos;t have any projects yet. Create a
+							project to get started.
+						</p>
+					</div>
+				);
+			}
 
 			// Redirect to the selected project
 			redirect(`/dashboard/${orgId}/${defaultProjectId}`);
