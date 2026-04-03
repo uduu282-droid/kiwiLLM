@@ -205,4 +205,56 @@ describe("parseProviderResponse", () => {
 			expect(result.cachedTokens).toBe(0);
 		});
 	});
+
+	describe("openai-style text extraction", () => {
+		it("extracts only text parts and preserves spacing", () => {
+			const json = {
+				choices: [
+					{
+						message: {
+							content: [
+								{ type: "output_text", text: "Hello" },
+								{ type: "output_text", text: " world" },
+								{ type: "metadata", index: -1 },
+							],
+						},
+						finish_reason: "stop",
+					},
+				],
+				usage: {
+					prompt_tokens: 5,
+					completion_tokens: 2,
+					total_tokens: 7,
+				},
+			};
+
+			const result = parseProviderResponse("openai", "gpt-4o-mini", json);
+
+			expect(result.content).toBe("Hello world");
+		});
+
+		it("extracts all responses api text segments in order", () => {
+			const json = {
+				output: [
+					{
+						type: "message",
+						content: [
+							{ type: "output_text", text: "Hello" },
+							{ type: "output_text", text: " world" },
+						],
+					},
+				],
+				status: "completed",
+				usage: {
+					input_tokens: 5,
+					output_tokens: 2,
+					total_tokens: 7,
+				},
+			};
+
+			const result = parseProviderResponse("openai", "gpt-4o-mini", json);
+
+			expect(result.content).toBe("Hello world");
+		});
+	});
 });

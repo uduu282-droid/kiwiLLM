@@ -234,4 +234,52 @@ describe("transformOpenaiStreaming", () => {
 
 		expect(result.usage).toBeNull();
 	});
+
+	test("should normalize negative choice indexes without touching content", () => {
+		const input = {
+			id: "test-id",
+			object: "chat.completion.chunk",
+			created: 1234567890,
+			model: "test-model",
+			choices: [
+				{
+					index: -1,
+					delta: {
+						content: " world",
+					},
+				},
+			],
+			usage: null,
+		};
+
+		const result = transformOpenaiStreaming(input, "test-model");
+
+		expect(result.choices[0].index).toBe(0);
+		expect(result.choices[0].delta.content).toBe(" world");
+	});
+
+	test("should preserve exact spacing in array-based delta content", () => {
+		const input = {
+			id: "test-id",
+			object: "chat.completion.chunk",
+			created: 1234567890,
+			model: "test-model",
+			choices: [
+				{
+					index: 0,
+					delta: {
+						content: [
+							{ type: "output_text", text: "Hello" },
+							{ type: "output_text", text: " world" },
+						],
+					},
+				},
+			],
+			usage: null,
+		};
+
+		const result = transformOpenaiStreaming(input, "test-model");
+
+		expect(result.choices[0].delta.content).toBe("Hello world");
+	});
 });

@@ -7,6 +7,33 @@ import { adjustGoogleCandidateTokens } from "./extract-token-usage.js";
 import type { Annotation, ImageObject } from "./types.js";
 import type { Provider } from "@llmgateway/models";
 
+function extractTextContent(value: unknown): string | null {
+	if (typeof value === "string") {
+		return value;
+	}
+
+	if (!Array.isArray(value)) {
+		return null;
+	}
+
+	const text = value
+		.map((part) => {
+			if (
+				typeof part === "object" &&
+				part !== null &&
+				"text" in part &&
+				typeof (part as { text?: unknown }).text === "string"
+			) {
+				return (part as { text: string }).text;
+			}
+
+			return "";
+		})
+		.join("");
+
+	return text || null;
+}
+
 /**
  * Parses response content and metadata from different providers
  */
@@ -559,13 +586,15 @@ export function parseProviderResponse(
 				);
 
 				// Extract message content
-				if (messageOutput?.content?.[0]?.text) {
-					content = messageOutput.content[0].text;
+				const messageText = extractTextContent(messageOutput?.content);
+				if (messageText) {
+					content = messageText;
 				}
 
 				// Extract reasoning content from summary
-				if (reasoningOutput?.summary?.[0]?.text) {
-					reasoningContent = reasoningOutput.summary[0].text;
+				const reasoningText = extractTextContent(reasoningOutput?.summary);
+				if (reasoningText) {
+					reasoningContent = reasoningText;
 				}
 
 				// Extract tool calls (if any) from the output array and transform to OpenAI format
@@ -640,13 +669,12 @@ export function parseProviderResponse(
 			} else {
 				// Standard OpenAI chat completions format
 				toolResults = json.choices?.[0]?.message?.tool_calls ?? null;
-				content = json.choices?.[0]?.message?.content ?? null;
+				content = extractTextContent(json.choices?.[0]?.message?.content);
 				// Extract reasoning content for reasoning-capable models
 				// Check both reasoning and reasoning_content (GLM models use reasoning_content)
 				reasoningContent =
-					json.choices?.[0]?.message?.reasoning ??
-					json.choices?.[0]?.message?.reasoning_content ??
-					null;
+					extractTextContent(json.choices?.[0]?.message?.reasoning) ??
+					extractTextContent(json.choices?.[0]?.message?.reasoning_content);
 				finishReason = json.choices?.[0]?.finish_reason ?? null;
 
 				// ZAI-specific fix for incorrect finish_reason in tool response scenarios

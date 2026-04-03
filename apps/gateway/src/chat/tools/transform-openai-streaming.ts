@@ -42,23 +42,68 @@ function normalizeUsage(usage: any): any {
  * Helper function to transform standard OpenAI streaming format
  */
 export function transformOpenaiStreaming(data: any, usedModel: string): any {
+	const normalizeChoiceIndex = (index: unknown): number => {
+		return typeof index === "number" && Number.isFinite(index) && index >= 0
+			? index
+			: 0;
+	};
+
+	const normalizeDeltaText = (value: unknown): string | undefined => {
+		if (typeof value === "string") {
+			return value;
+		}
+
+		if (!Array.isArray(value)) {
+			return undefined;
+		}
+
+		const text = value
+			.map((part) => {
+				if (
+					typeof part === "object" &&
+					part !== null &&
+					"text" in part &&
+					typeof (part as { text?: unknown }).text === "string"
+				) {
+					return (part as { text: string }).text;
+				}
+
+				return "";
+			})
+			.join("");
+
+		return text || undefined;
+	};
+
 	// Helper to transform delta and normalize reasoning_content to reasoning
 	const transformDelta = (delta: any): any => {
 		if (!delta) {
 			return delta;
 		}
 
-		const newDelta = {
+		const normalizedContent = normalizeDeltaText(delta.content);
+		const normalizedReasoning =
+			normalizeDeltaText(delta.reasoning) ??
+			normalizeDeltaText(delta.reasoning_content);
+
+		const newDelta: Record<string, unknown> = {
 			...delta,
 			role: delta.role ?? "assistant",
 		};
 
+		if (normalizedContent !== undefined) {
+			newDelta.content = normalizedContent;
+		} else {
+			delete newDelta.content;
+		}
+
 		// Normalize reasoning_content field to reasoning for OpenAI compatibility
-		if (newDelta.reasoning_content) {
-			const { reasoning_content, ...rest } = newDelta;
+		if (normalizedReasoning !== undefined) {
+			const { reasoning_content: _reasoningContent, reasoning: _reasoning, ...rest } =
+				newDelta;
 			return {
 				...rest,
-				reasoning: reasoning_content,
+				reasoning: normalizedReasoning,
 			};
 		}
 
@@ -75,6 +120,7 @@ export function transformOpenaiStreaming(data: any, usedModel: string): any {
 	const transformedChoices = data.choices
 		? data.choices.map((choice: any) => ({
 				...choice,
+				index: normalizeChoiceIndex(choice.index),
 				delta: transformDelta(choice.delta),
 			}))
 		: null;
