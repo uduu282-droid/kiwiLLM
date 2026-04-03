@@ -51,7 +51,9 @@ type UserOrganization = InferSelectModel<typeof userOrganization>;
 export async function findApiKeyByToken(
 	token: string,
 ): Promise<ApiKey | undefined> {
-	const results = await db
+	// API keys are created/revoked by the API service, so auth lookups must not
+	// rely on Redis-cached reads that can lag behind those mutations.
+	const results = await uncachedDb
 		.select()
 		.from(apiKeyTable)
 		.where(eq(apiKeyTable.token, token))

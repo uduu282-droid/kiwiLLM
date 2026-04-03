@@ -4,6 +4,7 @@ import {
 	db,
 	apiKey,
 	apiKeyIamRule,
+	eq,
 	organization,
 	project,
 	providerKey,
@@ -142,6 +143,40 @@ describe("Cached Queries - Gateway Database Access", () => {
 			const result = await findApiKeyByToken("sk-nonexistent");
 
 			expect(result).toBeUndefined();
+		});
+
+		it("should reflect keys created after an earlier cache miss", async () => {
+			const freshToken = "sk-created-after-miss";
+
+			const missingResult = await findApiKeyByToken(freshToken);
+			expect(missingResult).toBeUndefined();
+
+			await db.insert(apiKey).values({
+				id: "test-api-key-created-after-miss",
+				token: freshToken,
+				projectId: testProjectId,
+				description: "Fresh API Key",
+				status: "active",
+				createdBy: testUserId,
+			});
+
+			const createdResult = await findApiKeyByToken(freshToken);
+			expect(createdResult).toBeDefined();
+			expect(createdResult?.token).toBe(freshToken);
+			expect(createdResult?.status).toBe("active");
+		});
+
+		it("should reflect status changes immediately", async () => {
+			const initialResult = await findApiKeyByToken(testApiKeyToken);
+			expect(initialResult?.status).toBe("active");
+
+			await db
+				.update(apiKey)
+				.set({ status: "inactive" })
+				.where(eq(apiKey.token, testApiKeyToken));
+
+			const updatedResult = await findApiKeyByToken(testApiKeyToken);
+			expect(updatedResult?.status).toBe("inactive");
 		});
 	});
 
