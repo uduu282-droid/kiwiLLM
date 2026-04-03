@@ -70,6 +70,15 @@ export function getProviderEndpoint(
 						"https://chatai-proxy.revai.workers.dev",
 					) ?? "https://chatai-proxy.revai.workers.dev";
 				break;
+			case "kiwillm-freecfmodels":
+				url =
+					getProviderEnvValue(
+						"kiwillm-freecfmodels",
+						"baseUrl",
+						configIndex,
+						"https://freecfmodels.bgmipro285.workers.dev",
+					) ?? "https://freecfmodels.bgmipro285.workers.dev";
+				break;
 			case "kiwillm-literouter-proxy":
 				url =
 					getProviderEnvValue(
@@ -490,6 +499,11 @@ export function getProviderEndpoint(
 			}
 			return `${url}/chat/completions`;
 		case "xai":
+			if (imageGenerations) {
+				return `${url}/v1/images/generations`;
+			}
+			return `${url}/v1/chat/completions`;
+		case "kiwillm-freecfmodels":
 			if (imageGenerations) {
 				return `${url}/v1/images/generations`;
 			}

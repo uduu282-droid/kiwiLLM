@@ -60,6 +60,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-freecfmodels",
+		name: "KiwiLLM Free CF Models",
+		description:
+			"KiwiLLM-hosted Cloudflare-compatible worker exposing confirmed-safe chat and image models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_FREECFMODELS_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#1d4ed8",
+		website: "https://freecfmodels.bgmipro285.workers.dev",
+		announcement: null,
+	},
+	{
 		id: "kiwillm-chatai-proxy",
 		name: "KiwiLLM ChatAI Proxy",
 		description:

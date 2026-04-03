@@ -6,6 +6,10 @@ import {
 	chataiProxyProviderAugments,
 } from "./models/chatai-proxy.js";
 import { deepseekModels } from "./models/deepseek.js";
+import {
+	freecfmodelsModels,
+	freecfmodelsProviderAugments,
+} from "./models/freecfmodels.js";
 import { googleModels } from "./models/google.js";
 import {
 	literouterProxyModels,
@@ -287,14 +291,22 @@ const baseModels: ModelDefinition[] = [
 ] as const;
 
 export const models: ModelDefinition[] = [
-	...[...baseModels, ...chataiProxyModels, ...literouterProxyModels].map(
+	...[
+		...baseModels,
+		...chataiProxyModels,
+		...literouterProxyModels,
+		...freecfmodelsModels,
+	].map(
 		(model) => {
 			const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
 			const literouterProviders =
 				literouterProxyProviderAugments[model.id] ?? [];
+			const freecfmodelsProviders =
+				freecfmodelsProviderAugments[model.id] ?? [];
 			if (
 				chataiProviders.length === 0 &&
-				literouterProviders.length === 0
+				literouterProviders.length === 0 &&
+				freecfmodelsProviders.length === 0
 			) {
 				return model;
 			}
@@ -304,6 +316,7 @@ export const models: ModelDefinition[] = [
 					...model.providers,
 					...chataiProviders,
 					...literouterProviders,
+					...freecfmodelsProviders,
 				],
 			};
 		},
