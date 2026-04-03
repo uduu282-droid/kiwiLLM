@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { useEffect } from "react";
 
+import { useAuthClient } from "@/lib/auth-client";
 import { useApi } from "@/lib/fetch-client";
 
 import type { Route } from "next";
@@ -29,12 +30,15 @@ export function useUser(options?: UseUserOptions) {
 	const router = useRouter();
 	const api = useApi();
 	const pathname = usePathname();
+	const authClient = useAuthClient();
+	const isAuthReady = authClient.isReady;
 
 	const { data, isLoading, error } = api.useQuery(
 		"get",
 		"/user/me",
 		{},
 		{
+			enabled: isAuthReady,
 			retry: 0,
 			staleTime: 5 * 60 * 1000, // 5 minutes
 			refetchOnWindowFocus: false,
@@ -61,7 +65,7 @@ export function useUser(options?: UseUserOptions) {
 
 	// Check for onboarding completion for all authenticated users
 	useEffect(() => {
-		if (!data?.user || isLoading) {
+		if (!isAuthReady || !data?.user || isLoading) {
 			return;
 		}
 
@@ -84,7 +88,7 @@ export function useUser(options?: UseUserOptions) {
 
 	// Handle existing redirect logic
 	useEffect(() => {
-		if (!options?.redirectTo || !options?.redirectWhen) {
+		if (!isAuthReady || !options?.redirectTo || !options?.redirectWhen) {
 			return;
 		}
 
@@ -113,11 +117,12 @@ export function useUser(options?: UseUserOptions) {
 		options?.redirectWhen,
 		options?.checkOnboarding,
 		options,
+		isAuthReady,
 	]);
 
 	return {
 		user: data?.user ?? null,
-		isLoading,
+		isLoading: !isAuthReady || isLoading,
 		error,
 		data,
 	};

@@ -27,8 +27,6 @@ const plusJakarta = Plus_Jakarta_Sans({
 	display: "swap",
 });
 
-export const dynamic = "force-dynamic";
-
 const siteUrl = process.env.APP_URL ?? "https://kiwi-llm.vercel.app";
 
 export const metadata: Metadata = {

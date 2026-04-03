@@ -1,13 +1,27 @@
 "use client";
 
 import Lenis from "lenis";
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 import type { ReactNode } from "react";
 
 export function SmoothScrollProvider({ children }: { children: ReactNode }) {
+	const pathname = usePathname();
+
 	useEffect(() => {
 		if (typeof window === "undefined") {
+			return;
+		}
+
+		if (
+			pathname.startsWith("/dashboard") ||
+			pathname.startsWith("/login") ||
+			pathname.startsWith("/signup") ||
+			pathname.startsWith("/onboarding") ||
+			pathname.startsWith("/auth") ||
+			pathname.startsWith("/docs")
+		) {
 			return;
 		}
 
@@ -38,7 +52,7 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
 			window.cancelAnimationFrame(frameId);
 			lenis.destroy();
 		};
-	}, []);
+	}, [pathname]);
 
 	return <>{children}</>;
 }

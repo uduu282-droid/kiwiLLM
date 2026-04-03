@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { usePathname } from "next/navigation";
 import { ThemeProvider } from "next-themes";
 import { PostHogProvider } from "posthog-js/react";
 import { Suspense, useMemo, useEffect } from "react";
@@ -43,6 +44,7 @@ function extractErrorMessage(error: unknown): string {
 }
 
 export function Providers({ children, config }: ProvidersProps) {
+	const pathname = usePathname();
 	const queryClient = useMemo(
 		() =>
 			new QueryClient({
@@ -71,6 +73,18 @@ export function Providers({ children, config }: ProvidersProps) {
 
 	// Set up Crisp if configured
 	useEffect(() => {
+		if (
+			!config.crispId ||
+			pathname.startsWith("/dashboard") ||
+			pathname.startsWith("/login") ||
+			pathname.startsWith("/signup") ||
+			pathname.startsWith("/onboarding") ||
+			pathname.startsWith("/auth") ||
+			pathname.startsWith("/docs")
+		) {
+			return;
+		}
+
 		if (config.crispId) {
 			const crispId = config.crispId;
 			// Dynamically import Crisp to avoid SSR issues
@@ -78,7 +92,7 @@ export function Providers({ children, config }: ProvidersProps) {
 				Crisp.configure(crispId);
 			});
 		}
-	}, [config.crispId]);
+	}, [config.crispId, pathname]);
 
 	return (
 		<AppConfigProvider config={config}>

@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Github, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -43,18 +43,20 @@ const formSchema = z.object({
 export default function Login() {
 	const queryClient = useQueryClient();
 	const router = useRouter();
-	const searchParams = useSearchParams();
 	const posthog = usePostHog();
 	const [loadingState, setLoadingState] = useState<
 		null | "email" | "github" | "google"
 	>(null);
 	const [isRecoveringSession, setIsRecoveringSession] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
+	const [resumeAuthState, setResumeAuthState] = useState({
+		shouldResumeAuth: false,
+		resumeAuthTarget: "/dashboard",
+	});
 	const { signIn } = useAuth();
 	const authClient = useAuthClient();
 	const { githubAuth, googleAuth } = useAppConfig();
-	const shouldResumeAuth = searchParams.get("resumeAuth") === "true";
-	const resumeAuthTarget = searchParams.get("next") ?? "/dashboard";
+	const { shouldResumeAuth, resumeAuthTarget } = resumeAuthState;
 	const [resumeAuthTimedOut, setResumeAuthTimedOut] = useState(false);
 	const { user, isLoading: isUserLoading } = useUser({
 		redirectTo: "/dashboard",
@@ -108,6 +110,14 @@ export default function Login() {
 			setLoadingState(null);
 		}
 	};
+
+	useEffect(() => {
+		const params = new URLSearchParams(window.location.search);
+		setResumeAuthState({
+			shouldResumeAuth: params.get("resumeAuth") === "true",
+			resumeAuthTarget: params.get("next") ?? "/dashboard",
+		});
+	}, []);
 
 	useEffect(() => {
 		if (!authClient.currentSession?.access_token || user || isUserLoading) {
@@ -252,7 +262,7 @@ export default function Login() {
 						email: values.email,
 					});
 					toast({ title: "Login successful" });
-					router.push("/dashboard");
+					window.location.replace("/dashboard");
 				},
 				onError: (ctx) => {
 					toast({

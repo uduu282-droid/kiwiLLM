@@ -40,6 +40,8 @@ interface PageProps {
 	params: Promise<{ name: string; provider: string }>;
 }
 
+export const dynamic = "force-dynamic";
+
 export default async function ModelProviderPage({ params }: PageProps) {
 	const config = getConfig();
 	const { name, provider } = await params;

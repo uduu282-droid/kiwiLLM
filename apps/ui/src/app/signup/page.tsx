@@ -177,7 +177,7 @@ export default function Signup() {
 							? "Please check your email to verify your account."
 							: "Your account is ready.",
 					});
-					router.push(
+					window.location.replace(
 						ctx.data.requiresEmailVerification ? "/login" : "/onboarding",
 					);
 				},

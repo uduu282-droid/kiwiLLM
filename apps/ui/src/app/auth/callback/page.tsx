@@ -1,7 +1,6 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 import { useAuthClient } from "@/lib/auth-client";
@@ -15,7 +14,6 @@ function sleep(ms: number) {
 }
 
 export default function AuthCallbackPage() {
-	const searchParams = useSearchParams();
 	const authClient = useAuthClient();
 	const hasHandledCallbackRef = useRef(false);
 
@@ -24,8 +22,9 @@ export default function AuthCallbackPage() {
 			return;
 		}
 
-		const next = searchParams.get("next") ?? "/dashboard";
-		const code = searchParams.get("code");
+		const params = new URLSearchParams(window.location.search);
+		const next = params.get("next") ?? "/dashboard";
+		const code = params.get("code");
 
 		void (async () => {
 			let exchangedSession: SupabaseSession | null = null;
@@ -83,7 +82,7 @@ export default function AuthCallbackPage() {
 				window.location.replace(resumeAuthUrl);
 			}
 		})();
-	}, [authClient, searchParams]);
+	}, [authClient]);
 
 	return (
 		<div className="flex min-h-screen items-center justify-center">

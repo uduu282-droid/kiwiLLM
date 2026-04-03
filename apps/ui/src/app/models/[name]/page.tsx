@@ -40,6 +40,8 @@ interface PageProps {
 	params: Promise<{ name: string }>;
 }
 
+export const dynamic = "force-dynamic";
+
 async function getModelDiscounts(modelId: string): Promise<DiscountData[]> {
 	const data = await fetchServerData<{ discounts: DiscountData[] }>(
 		"GET",
