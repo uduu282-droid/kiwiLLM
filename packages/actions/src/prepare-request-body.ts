@@ -746,6 +746,39 @@ export async function prepareRequestBody(
 		return bytedanceImageRequest;
 	}
 
+	// Handle KiwiLLM Free CF Models image generation
+	if (imageGenerations && usedProvider === "kiwillm-freecfmodels") {
+		const lastUserMessage = [...messages]
+			.reverse()
+			.find((m) => m.role === "user");
+		let prompt = "";
+		if (lastUserMessage) {
+			if (typeof lastUserMessage.content === "string") {
+				prompt = lastUserMessage.content;
+			} else if (Array.isArray(lastUserMessage.content)) {
+				prompt = lastUserMessage.content
+					.filter((p): p is { type: "text"; text: string } => p.type === "text")
+					.map((p) => p.text)
+					.join("\n");
+			}
+		}
+
+		const freeCfImageRequest: any = {
+			model: usedModel,
+			prompt,
+		};
+
+		if (image_config?.image_size) {
+			freeCfImageRequest.size = image_config.image_size;
+		}
+
+		if (image_config?.n) {
+			freeCfImageRequest.n = image_config.n;
+		}
+
+		return freeCfImageRequest;
+	}
+
 	// Check if the model supports system role
 	// Look up by model ID first, then fall back to provider modelName
 	const modelDef = models.find(
