@@ -7,7 +7,7 @@ import {
 	aggregateLogsForTesting,
 } from "@/testing.js";
 
-import { db, tables } from "@llmgateway/db";
+import { db, eq, tables } from "@llmgateway/db";
 
 describe("activity endpoint", () => {
 	let token: string;
@@ -304,6 +304,74 @@ describe("activity endpoint", () => {
 		expect(gpt4).toBeDefined();
 		expect(gpt4.requestCount).toBe(2);
 		expect(gpt4.totalTokens).toBe(50);
+	});
+
+	test("GET /activity should include recent logs when hourly aggregates are missing for newer hours", async () => {
+		const now = new Date();
+		const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+
+		await db.delete(tables.projectHourlyStats).where(
+			eq(tables.projectHourlyStats.projectId, "test-project-id"),
+		);
+		await db.delete(tables.projectHourlyModelStats).where(
+			eq(tables.projectHourlyModelStats.projectId, "test-project-id"),
+		);
+		await db.delete(tables.apiKeyHourlyStats).where(
+			eq(tables.apiKeyHourlyStats.apiKeyId, "test-api-key-id"),
+		);
+		await db.delete(tables.apiKeyHourlyModelStats).where(
+			eq(tables.apiKeyHourlyModelStats.apiKeyId, "test-api-key-id"),
+		);
+
+		await db.insert(tables.log).values({
+			id: "log-missing-hour-aggregate",
+			requestId: "log-missing-hour-aggregate",
+			createdAt: twoHoursAgo,
+			updatedAt: twoHoursAgo,
+			organizationId: "test-org-id",
+			projectId: "test-project-id",
+			apiKeyId: "test-api-key-id",
+			duration: 80,
+			requestedModel: "claude-opus-4-1",
+			requestedProvider: "anthropic",
+			usedModel: "claude-opus-4-1",
+			usedProvider: "anthropic",
+			responseSize: 654,
+			promptTokens: "12",
+			completionTokens: "18",
+			totalTokens: "30",
+			messages: JSON.stringify([{ role: "user", content: "Missing aggregate" }]),
+			mode: "api-keys",
+			usedMode: "api-keys",
+		});
+
+		const params = new URLSearchParams({
+			days: "7",
+			projectId: "test-project-id",
+		});
+		const res = await app.request("/activity?" + params, {
+			headers: {
+				Cookie: token,
+			},
+		});
+
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		const todayKey = now.toISOString().slice(0, 10);
+		const today = data.activity.find(
+			(day: { date: string }) => day.date === todayKey,
+		);
+
+		expect(today).toBeDefined();
+		expect(today.requestCount).toBeGreaterThanOrEqual(3);
+		expect(today.totalTokens).toBeGreaterThanOrEqual(80);
+
+		const claude = today.modelBreakdown.find(
+			(model: { id: string }) => model.id === "claude-opus-4-1",
+		);
+		expect(claude).toBeDefined();
+		expect(claude.requestCount).toBe(1);
+		expect(claude.totalTokens).toBe(30);
 	});
 
 	test("GET /activity should require authentication", async () => {
