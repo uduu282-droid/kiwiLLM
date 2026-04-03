@@ -65,7 +65,9 @@ export const providers = [
 		description:
 			"KiwiLLM-hosted completions.me proxy exposing OpenAI-compatible chat models.",
 		env: {
-			required: {},
+			required: {
+				apiKey: "LLM_KIWILLM_COMPLETIONS_ME_API_KEY",
+			},
 			optional: {
 				baseUrl: "LLM_KIWILLM_COMPLETIONS_ME_BASE_URL",
 			},
