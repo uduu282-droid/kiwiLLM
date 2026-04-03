@@ -201,9 +201,11 @@ export const completionsMeModels = [
 		"anthropic",
 		{
 			name: "Claude Opus 4.6",
-			description: "Claude Opus 4.6 exposed by the completions.me proxy.",
+			description:
+				"Claude Opus 4.6 exposed by the completions.me proxy, temporarily routed through the working Claude Opus 4.5 upstream.",
 		},
 		{
+			modelName: "claude-opus-4.5",
 			contextSize: 1000000,
 			maxOutput: 128000,
 			reasoning: true,
