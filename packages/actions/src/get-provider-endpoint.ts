@@ -485,7 +485,6 @@ export function getProviderEndpoint(
 		}
 		case "kiwillm-qwen":
 		case "kiwillm-chatai-proxy":
-		case "kiwillm-completions-me":
 		case "kiwillm-kimi":
 		case "kiwillm-deepseek":
 		case "kiwillm-minimax":
@@ -498,6 +497,8 @@ export function getProviderEndpoint(
 		case "kiwillm-gpt-oss-worker":
 		case "kiwillm-claude-v3xg":
 			return `${url}/v1/chat/completions`;
+		case "kiwillm-completions-me":
+			return `${url}/chat/completions`;
 		case "alibaba":
 			if (imageGenerations) {
 				return `${url}/api/v1/services/aigc/multimodal-generation/generation`;
