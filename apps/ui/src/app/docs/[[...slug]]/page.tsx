@@ -12,6 +12,7 @@ import { source } from "@/lib/docs-source";
 
 import type { Metadata } from "next";
 
+export const dynamic = "force-dynamic";
 export async function generateMetadata({
 	params,
 }: {
@@ -62,7 +63,6 @@ export default async function DocsRoutePage({
 					tableOfContent={{
 						style: "clerk",
 					}}
-					lastUpdate={new Date()}
 				>
 					<DocsTitle>{page.data.title}</DocsTitle>
 					<DocsDescription>{page.data.description}</DocsDescription>
@@ -77,8 +77,4 @@ export default async function DocsRoutePage({
 			</div>
 		</div>
 	);
-}
-
-export function generateStaticParams() {
-	return source.generateParams();
 }

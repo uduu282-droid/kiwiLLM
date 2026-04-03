@@ -1,3 +1,4 @@
+import { customIcons } from "@kiwi-docs/lib/custom-icons";
 import { loader } from "fumadocs-core/source";
 import { lucideIconsPlugin } from "fumadocs-core/source/lucide-icons";
 import { createMDXSource } from "fumadocs-mdx/runtime/next";
@@ -5,7 +6,6 @@ import { createOpenAPI, openapiPlugin } from "fumadocs-openapi/server";
 import { icons } from "lucide-react";
 import { createElement } from "react";
 
-import { customIcons } from "@kiwi-docs/lib/custom-icons";
 import { docs, meta } from "../../.source";
 
 import type { InferPageType } from "fumadocs-core/source";
@@ -30,7 +30,7 @@ export const source = loader({
 });
 
 export const openapi = createOpenAPI({
-	input: ["../gateway/openapi.json"],
+	input: ["../api/openapi.json", "../gateway/openapi.json"],
 });
 
 export interface DocsNavGroup {
