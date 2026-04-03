@@ -1,10 +1,13 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import {
 	Activity,
 	BookOpen,
 	Bot,
 	ChevronDown,
+	LayoutDashboard,
+	LogOut,
 	Menu,
 	MessagesSquare,
 	Network,
@@ -17,14 +20,27 @@ import {
 	Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { usePostHog } from "posthog-js/react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { AuthLink } from "@/components/shared/auth-link";
 import { BrandMark } from "@/components/shared/brand-mark";
 import { ModelSearch } from "@/components/shared/model-search";
 import { useUser } from "@/hooks/useUser";
+import { clearLastUsedProjectCookiesAction } from "@/lib/actions/last-used-project";
+import { useAuth } from "@/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/lib/components/avatar";
 import { Button } from "@/lib/components/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/lib/components/dropdown-menu";
 import {
 	NavigationMenu,
 	NavigationMenuContent,
@@ -99,45 +115,82 @@ function getUserInitials(user: PublicUser) {
 }
 
 function UserNavigation({ user }: { user: PublicUser }) {
+	const queryClient = useQueryClient();
+	const router = useRouter();
+	const posthog = usePostHog();
+	const { signOut } = useAuth();
 	const destination = user.onboardingCompleted ? "/dashboard" : "/onboarding";
 	const destinationLabel = user.onboardingCompleted
 		? "Dashboard"
 		: "Continue setup";
+	const userDisplayName = user.name ?? user.email;
+
+	const logout = async () => {
+		posthog.reset();
+
+		try {
+			await clearLastUsedProjectCookiesAction();
+		} catch {
+			toast.error("Failed to clear last used project cookies");
+		}
+
+		await signOut({
+			fetchOptions: {
+				onSuccess: () => {
+					queryClient.clear();
+					router.push("/login");
+				},
+			},
+		});
+	};
 
 	return (
 		<div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit items-center">
 			<ThemeToggle />
-			<Link
-				href={destination as Route}
-				prefetch={true}
-				className="hidden nav:flex items-center gap-3 rounded-full border border-border/80 bg-background/80 px-2 py-1.5 text-sm transition-colors hover:bg-accent"
-			>
-				<Avatar className="size-8 border border-border/80">
-					<AvatarImage
-						src={user.image ?? undefined}
-						alt={user.name ?? user.email}
-					/>
-					<AvatarFallback className="text-xs font-semibold">
-						{getUserInitials(user)}
-					</AvatarFallback>
-				</Avatar>
-				<div className="min-w-0 text-left">
-					<div className="truncate font-medium text-foreground">
-						{user.name ?? user.email}
-					</div>
-					<div className="truncate text-xs text-muted-foreground">
-						{destinationLabel}
-					</div>
-				</div>
-			</Link>
-			<Button
-				asChild
-				className="bg-zinc-900 dark:bg-white text-white dark:text-black hover:bg-zinc-700 dark:hover:bg-zinc-200 font-medium w-full md:w-fit"
-			>
-				<Link href={destination as Route} prefetch={true}>
-					{destinationLabel}
-				</Link>
-			</Button>
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<button
+						type="button"
+						className="flex w-full items-center justify-center rounded-full border border-border/80 bg-background/80 p-1.5 transition-colors hover:bg-accent md:w-auto"
+						aria-label="Open account menu"
+					>
+						<Avatar className="size-9 border border-border/80">
+							<AvatarImage
+								src={user.image ?? undefined}
+								alt={userDisplayName}
+							/>
+							<AvatarFallback className="text-xs font-semibold">
+								{getUserInitials(user)}
+							</AvatarFallback>
+						</Avatar>
+					</button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end" className="w-56 rounded-2xl p-2">
+					<DropdownMenuLabel className="px-3 py-2">
+						<div className="truncate text-sm font-medium text-foreground">
+							{userDisplayName}
+						</div>
+						<div className="truncate text-xs font-normal text-muted-foreground">
+							{destinationLabel}
+						</div>
+					</DropdownMenuLabel>
+					<DropdownMenuSeparator />
+					<DropdownMenuItem
+						className="cursor-pointer rounded-xl px-3 py-2"
+						onSelect={() => router.push(destination as Route)}
+					>
+						<LayoutDashboard className="mr-2 size-4" />
+						<span>Dashboard</span>
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						className="cursor-pointer rounded-xl px-3 py-2 text-destructive focus:text-destructive"
+						onSelect={() => void logout()}
+					>
+						<LogOut className="mr-2 size-4" />
+						<span>Sign out</span>
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
 		</div>
 	);
 }
@@ -256,6 +309,11 @@ export const Navbar = ({
 			description: "What's new in KiwiLLM across releases.",
 		},
 		{
+			title: "About",
+			href: "/about",
+			description: "Learn what KiwiLLM is building and why it exists.",
+		},
+		{
 			title: "Providers",
 			href: "/providers",
 			description: "Connect and manage your provider API keys.",
@@ -264,6 +322,11 @@ export const Navbar = ({
 			title: "Models",
 			href: "/models",
 			description: "Browse all available LLM models and capabilities.",
+		},
+		{
+			title: "Rankings",
+			href: "/ranking",
+			description: "See the most popular models on KiwiLLM.",
 		},
 		{
 			title: "Model Timeline",
@@ -649,6 +712,19 @@ export const Navbar = ({
 									<NavigationMenuItem>
 										<NavigationMenuLink asChild>
 											<Link
+												href={"/ranking" as Route}
+												prefetch={true}
+												className="text-muted-foreground hover:text-accent-foreground block duration-150 px-4 py-2"
+											>
+												Ranking
+											</Link>
+										</NavigationMenuLink>
+									</NavigationMenuItem>
+
+									{/* Pricing link */}
+									<NavigationMenuItem>
+										<NavigationMenuLink asChild>
+											<Link
 												href="/pricing"
 												prefetch={true}
 												className="text-muted-foreground hover:text-accent-foreground block duration-150 px-4 py-2"
@@ -669,6 +745,15 @@ export const Navbar = ({
 									<ModelSearch />
 								</div>
 								<ul className="space-y-6 text-base">
+									<li>
+										<Link
+											href={"/ranking" as Route}
+											className="text-muted-foreground hover:text-accent-foreground block duration-150"
+											prefetch={true}
+										>
+											Ranking
+										</Link>
+									</li>
 									<li>
 										<Link
 											href="/pricing"

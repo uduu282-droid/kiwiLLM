@@ -23,6 +23,7 @@ import { beacon } from "./routes/beacon.js";
 import { routes } from "./routes/index.js";
 import { internalModels } from "./routes/internal-models.js";
 import { publicDiscounts } from "./routes/public-discounts.js";
+import { publicRankings } from "./routes/public-rankings.js";
 import { referral } from "./routes/referral.js";
 import { stripeRoutes } from "./stripe.js";
 
@@ -233,6 +234,7 @@ app.route("/", referral);
 app.route("/internal", internalModels);
 
 app.route("/public/discounts", publicDiscounts);
+app.route("/public/rankings", publicRankings);
 
 app.use("/v1", proxyV1Request);
 app.use("/v1/*", proxyV1Request);
