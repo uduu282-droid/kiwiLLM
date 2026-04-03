@@ -70,6 +70,15 @@ export function getProviderEndpoint(
 						"https://chatai-proxy.revai.workers.dev",
 					) ?? "https://chatai-proxy.revai.workers.dev";
 				break;
+			case "kiwillm-completions-me":
+				url =
+					getProviderEnvValue(
+						"kiwillm-completions-me",
+						"baseUrl",
+						configIndex,
+						"https://completions.me/api/v1",
+					) ?? "https://completions.me/api/v1";
+				break;
 			case "kiwillm-freecfmodels":
 				url =
 					getProviderEnvValue(
@@ -476,6 +485,7 @@ export function getProviderEndpoint(
 		}
 		case "kiwillm-qwen":
 		case "kiwillm-chatai-proxy":
+		case "kiwillm-completions-me":
 		case "kiwillm-kimi":
 		case "kiwillm-deepseek":
 		case "kiwillm-minimax":

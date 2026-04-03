@@ -60,6 +60,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-completions-me",
+		name: "KiwiLLM Completions.me",
+		description:
+			"KiwiLLM-hosted completions.me proxy exposing OpenAI-compatible chat models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_COMPLETIONS_ME_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://completions.me/api/v1",
+		announcement: null,
+	},
+	{
 		id: "kiwillm-freecfmodels",
 		name: "KiwiLLM Free CF Models",
 		description:

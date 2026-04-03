@@ -5,6 +5,10 @@ import {
 	chataiProxyModels,
 	chataiProxyProviderAugments,
 } from "./models/chatai-proxy.js";
+import {
+	completionsMeModels,
+	completionsMeProviderAugments,
+} from "./models/completions-me.js";
 import { deepseekModels } from "./models/deepseek.js";
 import {
 	freecfmodelsModels,
@@ -294,31 +298,32 @@ export const models: ModelDefinition[] = [
 	...[
 		...baseModels,
 		...chataiProxyModels,
+		...completionsMeModels,
 		...literouterProxyModels,
 		...freecfmodelsModels,
-	].map(
-		(model) => {
-			const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
-			const literouterProviders =
-				literouterProxyProviderAugments[model.id] ?? [];
-			const freecfmodelsProviders =
-				freecfmodelsProviderAugments[model.id] ?? [];
-			if (
-				chataiProviders.length === 0 &&
-				literouterProviders.length === 0 &&
-				freecfmodelsProviders.length === 0
-			) {
-				return model;
-			}
-			return {
-				...model,
-				providers: [
-					...model.providers,
-					...chataiProviders,
-					...literouterProviders,
-					...freecfmodelsProviders,
-				],
-			};
-		},
-	),
+	].map((model) => {
+		const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
+		const completionsMeProviders =
+			completionsMeProviderAugments[model.id] ?? [];
+		const literouterProviders = literouterProxyProviderAugments[model.id] ?? [];
+		const freecfmodelsProviders = freecfmodelsProviderAugments[model.id] ?? [];
+		if (
+			chataiProviders.length === 0 &&
+			completionsMeProviders.length === 0 &&
+			literouterProviders.length === 0 &&
+			freecfmodelsProviders.length === 0
+		) {
+			return model;
+		}
+		return {
+			...model,
+			providers: [
+				...model.providers,
+				...chataiProviders,
+				...completionsMeProviders,
+				...literouterProviders,
+				...freecfmodelsProviders,
+			],
+		};
+	}),
 ];
