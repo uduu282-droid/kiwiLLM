@@ -130,7 +130,7 @@ Authentication uses the same API key you use for the REST API.
 - if tools do not appear, reconnect the MCP server in the client
 
 <Callout type="info">
-	If you need filesystem write paths or local upload directories for image
-	workflows, that is a better fit for a self-hosted gateway deployment than the
-	shared hosted endpoint.
+	If your workflow needs local filesystem access or client-side upload
+	directories, keep those concerns in your local tool or MCP client and use
+	KiwiLLM as the hosted model endpoint.
 </Callout>

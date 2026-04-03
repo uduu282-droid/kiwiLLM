@@ -1,6 +1,6 @@
 ---
 title: Dashboard
-description: Your central hub for monitoring LLM usage, costs, and performance
+description: Your central hub for monitoring KiwiLLM usage, costs, and performance
 icon: LayoutDashboard
 ---
 
@@ -20,16 +20,16 @@ At the top of the page, you can toggle the date range for all dashboard metrics:
 
 ## Stat Cards
 
-The dashboard displays eight metric cards in two rows:
+The dashboard displays key project metrics in two rows:
 
 ### Top Row
 
-| Card                     | Description                                                              |
-| ------------------------ | ------------------------------------------------------------------------ |
-| **Organization Credits** | Your current available credit balance                                    |
-| **Total Requests**       | Number of API requests in the selected period, with cache hit percentage |
-| **Total Cost**           | Total inference cost for the period, including storage costs             |
-| **Total Savings**        | Savings from discounts during the selected period                        |
+| Card               | Description                                                              |
+| ------------------ | ------------------------------------------------------------------------ |
+| **Usage Summary**  | A project-level snapshot of requests and current usage state             |
+| **Total Requests** | Number of API requests in the selected period, with cache hit percentage |
+| **Total Cost**     | Total inference cost for the period, including storage costs             |
+| **Total Savings**  | Savings from discounts during the selected period                        |
 
 ### Bottom Row
 
@@ -38,7 +38,7 @@ The dashboard displays eight metric cards in two rows:
 | **Input Tokens & Cost**  | Total prompt tokens sent and their associated cost                  |
 | **Output Tokens & Cost** | Total completion tokens received and their associated cost          |
 | **Cached Tokens & Cost** | Tokens served from cache (if caching is enabled) and the cost saved |
-| **Most Used Model**      | The model with the highest request count, along with its provider   |
+| **Top Model**            | The model driving the most meaningful usage in the selected period  |
 
 ## Usage Overview Chart
 
@@ -61,7 +61,7 @@ A sidebar panel provides shortcuts to common tasks:
 
 ## Header Actions
 
-Two buttons in the top-right corner:
+Common header actions include:
 
 - **Create API Key** — Quickly create a new API key for your project
-- **Top Up Credits** — Add credits to your organization balance
+- **Billing / Plan actions** — Manage your hosted KiwiLLM billing setup when available

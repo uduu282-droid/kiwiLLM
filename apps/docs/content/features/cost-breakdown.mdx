@@ -11,8 +11,8 @@ import { Callout } from "fumadocs-ui/components/callout";
 KiwiLLM includes cost information directly in API responses so you can measure usage programmatically without polling the dashboard.
 
 <Callout type="info">
-	Cost fields are available on both hosted and self-hosted deployments when the
-	model/provider path supports pricing metadata.
+	Cost fields are available when the model/provider path supports pricing
+	metadata in hosted KiwiLLM.
 </Callout>
 
 ## Response format
@@ -88,7 +88,7 @@ console.log("output", usage?.cost_usd_output);
 
 When data retention is enabled, KiwiLLM may store request and response payloads for observability and debugging. That storage cost is reported separately from inference cost so your accounting stays clear.
 
-If you are using hosted KiwiLLM with credits and retention enabled, make sure you monitor storage-related spend as well as inference spend.
+If you are using hosted KiwiLLM with retention enabled, make sure you monitor storage-related spend as well as inference spend.
 
 <Callout type="success">
 	Cost breakdown is one of the easiest ways to build usage caps, alerts, and

@@ -14,7 +14,7 @@ KiwiLLM gives you one OpenAI-compatible endpoint for routing requests across mod
 - Change the base URL to `https://api.kiwillm.in/v1`
 - Use a KiwiLLM API key instead of a provider key
 
-> **TL;DR** — Point your requests to `https://api.kiwillm.in/v1`, send `Authorization: Bearer $KIWILLM_API_KEY`, and keep the rest of your payload shape the same. The hosted docs domain may still be `docs.llmgateway.io`, but the product and API shown here are KiwiLLM.
+> **TL;DR** — Point your requests to `https://api.kiwillm.in/v1`, send `Authorization: Bearer $KIWILLM_API_KEY`, and keep the rest of your payload shape the same.
 
 ## 1 · Create an API key
 
@@ -45,7 +45,7 @@ export KIWILLM_API_KEY="kiwillm_xxxxxxxxxxxxxxxxx"
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer $KIWILLM_API_KEY" \\
   -d '{
-  "model": "gpt-4o",
+  "model": "minimax-m1",
   "messages": [
     {"role": "user", "content": "Reply with exactly: hello from KiwiLLM"}
   ]
@@ -62,7 +62,7 @@ export KIWILLM_API_KEY="kiwillm_xxxxxxxxxxxxxxxxx"
 		Authorization: \`Bearer \${process.env.KIWILLM_API_KEY}\`,
 	},
 	body: JSON.stringify({
-		model: "gpt-4o",
+		model: "minimax-m1",
 		messages: [
 			{ role: "user", content: "Reply with exactly: hello from KiwiLLM" },
 		],
@@ -90,7 +90,7 @@ headers={
 "Content-Type": "application/json",
 },
 json={
-"model": "gpt-4o",
+"model": "minimax-m1",
 "messages": [
 {"role": "user", "content": "Reply with exactly: hello from KiwiLLM"}
 ],
@@ -112,7 +112,7 @@ baseURL: "https://api.kiwillm.in/v1",
 });
 
 const response = await client.chat.completions.create({
-model: "gpt-4o",
+model: "minimax-m1",
 messages: [
 { role: "user", content: "Reply with exactly: hello from KiwiLLM" },
 ],
@@ -133,7 +133,7 @@ baseURL: "https://api.kiwillm.in/v1",
 });
 
 const { text } = await generateText({
-model: kiwillm("gpt-4o"),
+model: kiwillm("minimax-m1"),
 prompt: "Reply with exactly: hello from KiwiLLM",
 });
 
@@ -148,8 +148,8 @@ console.log(text);`}
 
 KiwiLLM accepts either of these model formats:
 
-- Short ID: `gpt-4o`
-- Provider-qualified ID: `openai/gpt-4o`
+- Short ID: `minimax-m1`
+- Provider-qualified ID: `kiwillm-minimax/minimax-m1`
 
 Browse the full catalog on the [Models page](https://kiwillm.in/models).
 

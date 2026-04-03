@@ -1,18 +1,18 @@
 ---
 title: Billing
-description: Manage your credits, subscription plan, and payment methods
+description: Manage your plan, payments, and hosted KiwiLLM usage settings
 icon: CreditCard
 ---
 
 import { ThemedImage } from "@/components/themed-image";
 
-The Billing page is your central hub for managing credits, plans, and payment methods.
+The Billing page is your central hub for managing plans, payment methods, and hosted KiwiLLM billing settings.
 
 <ThemedImage alt="Billing" basePath="/learn/billing" />
 
-## Credits
+## Billing overview
 
-Displays your current credit balance. Credits are consumed as you make API requests through the gateway. Click **Top Up Credits** to add more credits to your account.
+The billing area can show your current hosted billing state, recent payment activity, and any plan-specific limits that apply to your organization.
 
 ## Plan Management
 
@@ -30,12 +30,12 @@ Manage your saved payment methods:
 - View existing payment methods
 - Update billing information
 
-## Auto Top-up Settings
+## Usage and spend controls
 
-Configure automatic credit top-ups so you never run out:
+Depending on your plan, billing can also include controls such as:
 
-- **Enable/disable** auto top-up
-- **Threshold** — The credit balance that triggers a top-up
-- **Amount** — How many credits to add when the threshold is reached
+- current spend visibility
+- payment and invoice history
+- hosted usage settings tied to your organization
 
-This ensures uninterrupted service by automatically replenishing your credits when they run low.
+For free-tier traffic, rate limits still apply even if billing is configured elsewhere in the product. See [Rate Limits](/resources/rate-limits) for the current hosted limits.

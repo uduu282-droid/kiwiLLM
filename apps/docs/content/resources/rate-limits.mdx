@@ -10,52 +10,45 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 KiwiLLM applies rate limits to protect shared infrastructure and keep access fair across users.
 
-## Free models
+## Free-tier hosted usage
 
-Free models typically use tighter limits than paid usage.
+For the current hosted KiwiLLM free tier, requests are limited to:
 
-### Base limit
-
-For organizations with no paid credit history:
-
-- `5 requests per 10 minutes`
-
-### Elevated limit
-
-For organizations that have added credits:
-
-- `20 requests per minute`
+- `10 requests per minute`
+- `200 requests per day`
 
 <Callout type="info">
-	Elevated limits for free models do not mean those requests are billed. It is a
-	rate-limit tier change, not a hidden charge.
+	These limits apply to Kiwi-managed hosted usage for free-tier organizations.
+	They are enforced by the gateway and can return both minute and day quota
+	headers.
 </Callout>
 
-## Paid models
+## Paid and provider-key traffic
 
-Paid models are generally constrained by:
+Higher-throughput traffic can still be constrained by:
 
 - your account balance or billing mode
 - upstream provider limits
 - any product-level fairness or safety controls
 
-They are not described by the same simple free-model limit bucket.
+These requests are not described by the same simple free-tier bucket above.
 
 ## Rate limit headers
 
 Responses can include headers like:
 
 ```http
-X-RateLimit-Limit: 20
-X-RateLimit-Remaining: 19
-X-RateLimit-Reset: 1640995200
+X-RateLimit-Limit-Minute: 10
+X-RateLimit-Remaining-Minute: 9
+X-RateLimit-Limit-Day: 200
+X-RateLimit-Remaining-Day: 199
 ```
 
 These tell you:
 
-- the current limit
-- how many requests remain
-- when the window resets
+- your minute bucket
+- your day bucket
+- how much quota remains in each window
 
 ## Exceeded limit response
 
@@ -75,5 +68,5 @@ If you exceed the active limit, KiwiLLM returns `429 Too Many Requests`.
 
 - use backoff and retry logic for `429`s
 - monitor the remaining quota headers
-- use paid models for higher-throughput production traffic
-- top up credits if you want the higher free-tier allowance
+- use a project API key per environment so rate limits are easier to reason about
+- plan for burst control if you expect production traffic above the free tier
