@@ -2,20 +2,22 @@ import { Badge } from "@/lib/components/badge";
 
 export function PricingHero() {
 	return (
-		<section className="w-full pt-24 pb-12 md:pt-32 md:pb-16">
-			<div className="container mx-auto px-4 md:px-6">
-				<div className="text-center max-w-3xl mx-auto">
-					<Badge variant="outline" className="mb-4">
-						Pricing
-					</Badge>
-					<h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl mb-4">
-						Simple, Transparent Pricing
-					</h1>
-					<p className="text-xl text-muted-foreground">
-						Start free with no credit card. Pay only for what you use with
-						transparent pricing.
-					</p>
-				</div>
+		<section className="w-full px-5 pb-10 pt-16 md:px-6 md:pb-14 md:pt-24">
+			<div className="mx-auto max-w-3xl text-center">
+				<Badge
+					variant="outline"
+					className="mb-5 border-white/12 bg-white/5 px-3 py-1 text-white/78"
+				>
+					Pricing
+				</Badge>
+				<h1 className="text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl md:text-6xl">
+					Clear plans for teams shipping with KiwiLLM
+				</h1>
+				<p className="mt-5 text-base leading-7 text-white/64 sm:text-lg">
+					Start with a simple monthly plan or keep things flexible with
+					usage-based credits. Every option gives you the same clean KiwiLLM
+					experience across API, Playground, and dashboard.
+				</p>
 			</div>
 		</section>
 	);
