@@ -7,11 +7,11 @@ import {
 	ImageIcon,
 	Layers3,
 	Shield,
-	Sparkles,
 	Star,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 import { AuthLink } from "@/components/shared/auth-link";
 import { useUser } from "@/hooks/useUser";
@@ -22,12 +22,19 @@ import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import type { Route } from "next";
 
+type BillingCycle = "monthly" | "yearly";
+
+interface PriceDefinition {
+	inrMonthly: number | null;
+	usdMonthly: number | null;
+	label?: string;
+}
+
 interface PricingPlan {
 	name: string;
 	description: string;
-	priceLabel: string;
-	priceSuffix?: string;
 	secondaryLabel: string;
+	price: PriceDefinition;
 	cta: string;
 	ctaHref?: Route;
 	ctaAction?: "dashboard";
@@ -46,11 +53,60 @@ interface PricingPlan {
 
 const plans: PricingPlan[] = [
 	{
+		name: "Free",
+		description: "Start testing KiwiLLM with no upfront payment.",
+		secondaryLabel: "Best for quick evaluation, Playground testing, and early integration work.",
+		price: {
+			inrMonthly: 0,
+			usdMonthly: 0,
+		},
+		cta: "Start for Free",
+		ctaAction: "dashboard",
+		highlightClassName:
+			"border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] shadow-[0_20px_60px_rgba(0,0,0,0.24)]",
+		ctaClassName:
+			"bg-[linear-gradient(180deg,#21242b,#15181f)] text-white hover:brightness-110",
+		headlineIcon: Shield,
+		metrics: [
+			{
+				icon: Gauge,
+				title: "10 RPM / 200 RPD",
+				subtitle: "Current hosted free-tier limits across Kiwi-managed usage",
+			},
+			{
+				icon: Layers3,
+				title: "API + Playground access",
+				subtitle: "Test prompts, compare models, and integrate fast",
+			},
+			{
+				icon: Shield,
+				title: "Dashboard visibility",
+				subtitle: "See usage, activity, and model analytics in one place",
+			},
+			{
+				icon: ImageIcon,
+				title: "BYOK supported",
+				subtitle: "Use your own provider keys whenever you want full control",
+			},
+		],
+		includesLabel: "Free includes:",
+		includes: [
+			"No card required to get started",
+			"OpenAI-compatible API access",
+			"Playground and dashboard access",
+			"Activity, usage, and model visibility",
+			"Basic rate-limited hosted usage",
+			"Bring your own provider keys",
+		],
+	},
+	{
 		name: "Starter",
-		description: "For solo builders and early product teams shipping every day.",
-		priceLabel: "$20",
-		priceSuffix: "/month",
-		secondaryLabel: "Higher daily limits and fast throughput for real usage.",
+		description: "For solo builders and small teams moving into real usage.",
+		secondaryLabel: "Higher throughput, smoother testing, and more room for production traffic.",
+		price: {
+			inrMonthly: 999,
+			usdMonthly: 12,
+		},
 		cta: "Upgrade to Starter",
 		ctaAction: "dashboard",
 		popular: true,
@@ -62,41 +118,43 @@ const plans: PricingPlan[] = [
 		metrics: [
 			{
 				icon: Layers3,
-				title: "2,000 hosted requests / day",
-				subtitle: "Daily allocation for everyday product traffic",
+				title: "Higher hosted request limits",
+				subtitle: "Built for teams actively shipping and testing every day",
 			},
 			{
 				icon: Shield,
 				title: "BYOK + hosted access",
-				subtitle: "Use Kiwi-managed routing or bring your own provider keys",
+				subtitle: "Choose Kiwi-managed routing or bring your own keys",
 			},
 			{
 				icon: Gauge,
-				title: "10 RPM / 3,500 RPD",
-				subtitle: "Higher throughput with predictable free-tier style guardrails",
+				title: "Priority throughput",
+				subtitle: "More breathing room for apps, demos, and internal tools",
 			},
 			{
 				icon: ImageIcon,
-				title: "Image generation support",
-				subtitle: "Use image-capable models from the same account",
+				title: "Multimodal workflows",
+				subtitle: "Use image-capable models from the same product surface",
 			},
 		],
 		includesLabel: "Starter includes:",
 		includes: [
-			"Dashboard, activity logs, and model usage views",
-			"Playground and OpenAI-compatible API access",
+			"Everything in Free",
+			"Higher usage limits and faster throughput",
+			"Better room for production-grade testing",
+			"Dashboard, Playground, and API access",
 			"Prompt caching and routing controls",
-			"Provider switching without app rewrites",
-			"Team-ready project structure",
-			"Fast path to production testing",
+			"Better everyday experience for active projects",
 		],
 	},
 	{
 		name: "Pro",
-		description: "For teams that need more throughput, better support, and room to grow.",
-		priceLabel: "$40",
-		priceSuffix: "/month",
-		secondaryLabel: "More volume, stronger limits, and better support for serious workloads.",
+		description: "For growing teams that need more headroom and stronger support.",
+		secondaryLabel: "More capacity, cleaner scaling, and a better fit for serious workloads.",
+		price: {
+			inrMonthly: 1999,
+			usdMonthly: 24,
+		},
 		cta: "Upgrade to Pro",
 		ctaAction: "dashboard",
 		highlightClassName:
@@ -107,41 +165,45 @@ const plans: PricingPlan[] = [
 		metrics: [
 			{
 				icon: Layers3,
-				title: "4,500 hosted requests / day",
-				subtitle: "Designed for heavier production usage and active teams",
+				title: "Larger hosted allocation",
+				subtitle: "Designed for heavier workloads and more active teams",
 			},
 			{
 				icon: Star,
-				title: "Priority access to premium model classes",
-				subtitle: "Use the broad Kiwi catalog with stronger limits",
+				title: "Premium-ready path",
+				subtitle: "Better fit for reasoning-heavy and premium model usage",
 			},
 			{
 				icon: Gauge,
-				title: "20 RPM / 8,000 RPD",
-				subtitle: "More room for apps, internal tools, and power users",
+				title: "Higher throughput ceilings",
+				subtitle: "More room for apps, power users, and internal tools",
 			},
 			{
 				icon: ImageIcon,
-				title: "Higher media generation capacity",
-				subtitle: "Better support for image-heavy and multimodal workflows",
+				title: "More room for media generation",
+				subtitle: "Better support for multimodal and image-heavy workflows",
 			},
 		],
 		includesLabel: "Everything in Starter, plus:",
 		includes: [
-			"Higher throughput and larger daily allowance",
+			"More capacity for daily usage",
 			"Better support response and onboarding help",
-			"More room for premium and reasoning-heavy usage",
-			"Stronger production headroom for teams",
-			"Better scaling path before enterprise",
-			"Cleaner handoff to custom contracts later",
+			"Stronger production headroom",
+			"Cleaner scaling path before enterprise",
+			"More comfortable premium-model usage",
+			"Built for teams moving beyond experimentation",
 		],
 	},
 	{
 		name: "Pay as You Go",
 		description:
-			"Stay flexible and top up credits whenever you need direct usage-based access.",
-		priceLabel: "Credits",
-		secondaryLabel: "Start from $5 and pay based on actual model and token pricing.",
+			"Stay flexible and only pay when you actually need direct usage-based access.",
+		secondaryLabel: "Top up credits anytime and pay against real model and token pricing.",
+		price: {
+			inrMonthly: null,
+			usdMonthly: null,
+			label: "Credits",
+		},
 		cta: "Add Credits",
 		ctaAction: "dashboard",
 		highlightClassName:
@@ -153,12 +215,12 @@ const plans: PricingPlan[] = [
 			{
 				icon: CreditCard,
 				title: "No monthly commitment",
-				subtitle: "Add balance when you need it and stay flexible",
+				subtitle: "Add balance whenever you need it and stay flexible",
 			},
 			{
 				icon: Layers3,
 				title: "All accessible Kiwi models",
-				subtitle: "Usage charged against model and token pricing",
+				subtitle: "Usage is charged against model and token pricing",
 			},
 			{
 				icon: ImageIcon,
@@ -167,26 +229,81 @@ const plans: PricingPlan[] = [
 			},
 			{
 				icon: Gauge,
-				title: "20 RPM rate limit",
-				subtitle: "Consistent throughput without a fixed subscription",
+				title: "Usage without subscription lock-in",
+				subtitle: "Great for bursts, client work, and experiment-heavy teams",
 			},
 		],
 		includesLabel: "Pay as You Go includes:",
 		includes: [
-			"Credits starting from $5",
-			"Usage-based billing instead of monthly commitment",
-			"Great fit for bursts, experiments, and agencies",
-			"Same API, dashboard, and Playground experience",
-			"Model and token-based charging",
-			"Simple scale-up path when demand grows",
+			"Top up balance only when needed",
+			"Credits for model and token-based pricing",
+			"Good fit for bursts and agency-style work",
+			"Same API, dashboard, and Playground",
+			"No subscription commitment",
+			"Easy path to scale later",
 		],
 	},
 ];
 
-function PricingCard({ plan }: { plan: PricingPlan }) {
+function detectIndianVisitor() {
+	if (typeof window === "undefined") {
+		return true;
+	}
+
+	const locale = navigator.language.toLowerCase();
+	const timeZone =
+		Intl.DateTimeFormat().resolvedOptions().timeZone?.toLowerCase() ?? "";
+
+	return locale.includes("-in") || locale.startsWith("hi") || timeZone.includes("kolkata");
+}
+
+function formatPrice(price: PriceDefinition, isIndian: boolean, cycle: BillingCycle) {
+	if (price.label) {
+		return {
+			main: price.label,
+			sub: isIndian ? "Start from ₹399 • no expiry" : "Start from $5 • no expiry",
+		};
+	}
+
+	const base = isIndian ? price.inrMonthly : price.usdMonthly;
+
+	if (base === null) {
+		return {
+			main: "",
+			sub: "",
+		};
+	}
+
+	if (base === 0) {
+		return {
+			main: isIndian ? "₹0" : "$0",
+			sub: cycle === "yearly" ? "forever" : "forever",
+		};
+	}
+
+	const billedValue = cycle === "yearly" ? Math.round(base * 0.8) : base;
+	const currencyValue = isIndian ? `₹${billedValue}` : `$${billedValue}`;
+	const suffix = cycle === "yearly" ? "/mo billed yearly" : "/month";
+
+	return {
+		main: currencyValue,
+		sub: suffix,
+	};
+}
+
+function PricingCard({
+	plan,
+	isIndian,
+	cycle,
+}: {
+	plan: PricingPlan;
+	isIndian: boolean;
+	cycle: BillingCycle;
+}) {
 	const router = useRouter();
 	const { user } = useUser();
 	const HeadlineIcon = plan.headlineIcon;
+	const price = formatPrice(plan.price, isIndian, cycle);
 
 	const handlePrimaryAction = () => {
 		if (plan.ctaAction === "dashboard") {
@@ -197,16 +314,16 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 	return (
 		<div
 			className={cn(
-				"relative flex h-full flex-col rounded-[2rem] border p-7 text-white md:p-8",
+				"relative flex h-full flex-col rounded-[1.8rem] border p-6 text-white md:p-7",
 				plan.highlightClassName,
 			)}
 		>
-			<div className="flex items-start justify-between gap-4">
+			<div className="flex items-start justify-between gap-3">
 				<div className="flex items-center gap-3">
 					<div className="rounded-2xl border border-white/10 bg-white/[0.05] p-2.5 text-white/82">
 						<HeadlineIcon className="size-5" />
 					</div>
-					<h2 className="text-2xl font-semibold tracking-tight text-white md:text-[2rem]">
+					<h2 className="text-[1.95rem] font-semibold tracking-tight text-white">
 						{plan.name}
 					</h2>
 				</div>
@@ -217,28 +334,28 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 				)}
 			</div>
 
-			<p className="mt-6 min-h-16 text-[0.98rem] leading-7 text-white/66">
+			<p className="mt-5 min-h-14 text-[0.96rem] leading-7 text-white/66">
 				{plan.secondaryLabel}
 			</p>
 			<p className="mt-1 text-sm leading-6 text-white/48">{plan.description}</p>
 
-			<div className="mt-8">
-				<div className="flex items-end gap-2">
-					<span className="text-5xl font-semibold tracking-[-0.05em] text-white">
-						{plan.priceLabel}
+			<div className="mt-7">
+				<div className="flex flex-wrap items-end gap-2">
+					<span className="text-4xl font-semibold tracking-[-0.05em] text-white md:text-5xl">
+						{price.main}
 					</span>
-					{plan.priceSuffix && (
-						<span className="pb-2 text-lg text-white/66">{plan.priceSuffix}</span>
+					{price.sub && (
+						<span className="pb-1.5 text-base text-white/66">{price.sub}</span>
 					)}
 				</div>
 			</div>
 
-			<div className="mt-8">
+			<div className="mt-7">
 				{plan.ctaHref ? (
 					<Button
 						asChild
 						className={cn(
-							"h-14 w-full rounded-[1.35rem] text-lg font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]",
+							"h-12 w-full rounded-[1.2rem] text-base font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]",
 							plan.ctaClassName,
 						)}
 					>
@@ -247,7 +364,7 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 				) : user ? (
 					<Button
 						className={cn(
-							"h-14 w-full rounded-[1.35rem] text-lg font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]",
+							"h-12 w-full rounded-[1.2rem] text-base font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]",
 							plan.ctaClassName,
 						)}
 						onClick={handlePrimaryAction}
@@ -258,7 +375,7 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 					<Button
 						asChild
 						className={cn(
-							"h-14 w-full rounded-[1.35rem] text-lg font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]",
+							"h-12 w-full rounded-[1.2rem] text-base font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]",
 							plan.ctaClassName,
 						)}
 					>
@@ -267,7 +384,7 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 				)}
 			</div>
 
-			<div className="mt-10 space-y-6">
+			<div className="mt-8 space-y-5">
 				{plan.metrics.map((metric) => {
 					const MetricIcon = metric.icon;
 
@@ -277,10 +394,10 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 								<MetricIcon className="size-4" />
 							</div>
 							<div>
-								<p className="text-xl font-semibold leading-7 text-white">
+								<p className="text-lg font-semibold leading-7 text-white">
 									{metric.title}
 								</p>
-								<p className="mt-1 text-sm leading-6 text-white/50">
+								<p className="mt-0.5 text-sm leading-6 text-white/50">
 									{metric.subtitle}
 								</p>
 							</div>
@@ -289,13 +406,13 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 				})}
 			</div>
 
-			<div className="mt-8 border-t border-white/10 pt-7">
-				<p className="text-xl font-semibold text-white">{plan.includesLabel}</p>
-				<ul className="mt-5 space-y-3">
+			<div className="mt-7 border-t border-white/10 pt-6">
+				<p className="text-lg font-semibold text-white">{plan.includesLabel}</p>
+				<ul className="mt-4 space-y-2.5">
 					{plan.includes.map((item) => (
 						<li key={item} className="flex items-start gap-3 text-white/78">
-							<CheckCircle2 className="mt-0.5 size-5 shrink-0 text-white/80" />
-							<span className="text-[1rem] leading-7">{item}</span>
+							<CheckCircle2 className="mt-0.5 size-4.5 shrink-0 text-white/80" />
+							<span className="text-[0.97rem] leading-6">{item}</span>
 						</li>
 					))}
 				</ul>
@@ -305,29 +422,90 @@ function PricingCard({ plan }: { plan: PricingPlan }) {
 }
 
 export function PricingTable() {
+	const [cycle, setCycle] = useState<BillingCycle>("monthly");
+	const [isIndian, setIsIndian] = useState(true);
+
+	useEffect(() => {
+		setIsIndian(detectIndianVisitor());
+	}, []);
+
+	const currencyLabel = useMemo(
+		() => (isIndian ? "Showing prices in INR" : "Showing prices in USD"),
+		[isIndian],
+	);
+
 	return (
 		<section className="w-full px-5 pb-20 md:px-6 md:pb-24">
-			<div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-3">
-				{plans.map((plan) => (
-					<PricingCard key={plan.name} plan={plan} />
-				))}
-			</div>
+			<div className="mx-auto max-w-[1460px]">
+				<div className="mb-8 flex flex-col items-center gap-4">
+					<div className="inline-flex items-center rounded-full border border-white/12 bg-white/95 p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.28)]">
+						<button
+							type="button"
+							onClick={() => setCycle("monthly")}
+							className={cn(
+								"rounded-full px-7 py-3 text-base font-semibold transition-all",
+								cycle === "monthly"
+									? "bg-[linear-gradient(180deg,#35455f,#1e2a40)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+									: "text-zinc-500 hover:text-zinc-800",
+							)}
+						>
+							Monthly Billing
+						</button>
+						<button
+							type="button"
+							onClick={() => setCycle("yearly")}
+							className={cn(
+								"flex items-center gap-3 rounded-full px-7 py-3 text-base font-semibold transition-all",
+								cycle === "yearly"
+									? "bg-[linear-gradient(180deg,#35455f,#1e2a40)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+									: "text-zinc-500 hover:text-zinc-800",
+							)}
+						>
+							<span>Yearly Billing</span>
+							<span
+								className={cn(
+									"rounded-full px-3 py-1 text-sm",
+									cycle === "yearly"
+										? "bg-white/14 text-white"
+										: "bg-zinc-100 text-zinc-700",
+								)}
+							>
+								Save 20%
+							</span>
+						</button>
+					</div>
+					<p className="text-sm uppercase tracking-[0.22em] text-white/38">
+						{currencyLabel}
+					</p>
+				</div>
 
-			<div className="mx-auto mt-12 max-w-3xl text-center">
-				<p className="text-sm uppercase tracking-[0.24em] text-white/34">
-					Need enterprise controls?
-				</p>
-				<p className="mt-4 text-base leading-7 text-white/58">
-					If you need SSO, custom limits, policy enforcement, invoicing, or a
-					managed rollout for your team,{" "}
-					<Link
-						href="/enterprise"
-						className="font-medium text-white transition-colors hover:text-white/82"
-					>
-						talk to KiwiLLM Enterprise
-					</Link>
-					.
-				</p>
+				<div className="grid gap-5 xl:grid-cols-4">
+					{plans.map((plan) => (
+						<PricingCard
+							key={plan.name}
+							plan={plan}
+							isIndian={isIndian}
+							cycle={cycle}
+						/>
+					))}
+				</div>
+
+				<div className="mx-auto mt-12 max-w-3xl text-center">
+					<p className="text-sm uppercase tracking-[0.24em] text-white/34">
+						Need enterprise controls?
+					</p>
+					<p className="mt-4 text-base leading-7 text-white/58">
+						If you need SSO, custom limits, policy enforcement, invoicing, or a
+						managed rollout for your team,{" "}
+						<Link
+							href="/enterprise"
+							className="font-medium text-white transition-colors hover:text-white/82"
+						>
+							talk to KiwiLLM Enterprise
+						</Link>
+						.
+					</p>
+				</div>
 			</div>
 		</section>
 	);
