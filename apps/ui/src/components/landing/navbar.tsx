@@ -324,6 +324,11 @@ export const Navbar = ({
 			description: "Browse all available LLM models and capabilities.",
 		},
 		{
+			title: "Rankings",
+			href: "/ranking",
+			description: "See the most popular models on KiwiLLM.",
+		},
+		{
 			title: "Model Timeline",
 			href: "/timeline",
 			description: "Track the release history of all models.",
@@ -707,6 +712,19 @@ export const Navbar = ({
 									<NavigationMenuItem>
 										<NavigationMenuLink asChild>
 											<Link
+												href={"/ranking" as Route}
+												prefetch={true}
+												className="text-muted-foreground hover:text-accent-foreground block duration-150 px-4 py-2"
+											>
+												Ranking
+											</Link>
+										</NavigationMenuLink>
+									</NavigationMenuItem>
+
+									{/* Pricing link */}
+									<NavigationMenuItem>
+										<NavigationMenuLink asChild>
+											<Link
 												href="/pricing"
 												prefetch={true}
 												className="text-muted-foreground hover:text-accent-foreground block duration-150 px-4 py-2"
@@ -727,6 +745,15 @@ export const Navbar = ({
 									<ModelSearch />
 								</div>
 								<ul className="space-y-6 text-base">
+									<li>
+										<Link
+											href={"/ranking" as Route}
+											className="text-muted-foreground hover:text-accent-foreground block duration-150"
+											prefetch={true}
+										>
+											Ranking
+										</Link>
+									</li>
 									<li>
 										<Link
 											href="/pricing"
