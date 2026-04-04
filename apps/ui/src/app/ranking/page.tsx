@@ -31,6 +31,21 @@ interface RankingsPayload {
 			tokens: number;
 		}>;
 	}>;
+	fastest: Array<{
+		modelId: string;
+		providerId: string;
+		requestCount: number;
+		totalTokens: number;
+		avgLatencyMs: number;
+		throughputTokensPerSecond: number;
+		pricePerMillion: number | null;
+	}>;
+	apps: Array<{
+		appName: string;
+		subtitle: string | null;
+		requestCount: number;
+		totalTokens: number;
+	}>;
 }
 
 export const metadata: Metadata = {

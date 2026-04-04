@@ -3,22 +3,29 @@
 import { format, parseISO } from "date-fns";
 import {
 	BarChart3,
+	Boxes,
 	Flame,
+	Gauge,
 	Trophy,
 	TrendingDown,
 	TrendingUp,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
 import {
 	Bar,
 	BarChart,
 	CartesianGrid,
 	Legend,
 	ResponsiveContainer,
+	Cell,
+	Scatter,
+	ScatterChart,
 	Tooltip,
 	type TooltipProps,
 	XAxis,
 	YAxis,
+	ZAxis,
 } from "recharts";
 
 import { Badge } from "@/lib/components/badge";
@@ -68,6 +75,21 @@ interface RankingsPayload {
 	totalModels: number;
 	leaderboard: RankingEntry[];
 	chart: RankingChartPoint[];
+	fastest: Array<{
+		modelId: string;
+		providerId: string;
+		requestCount: number;
+		totalTokens: number;
+		avgLatencyMs: number;
+		throughputTokensPerSecond: number;
+		pricePerMillion: number | null;
+	}>;
+	apps: Array<{
+		appName: string;
+		subtitle: string | null;
+		requestCount: number;
+		totalTokens: number;
+	}>;
 }
 
 const WINDOW_LABELS: Record<RankingWindow, string> = {
@@ -115,6 +137,20 @@ function getProviderLabel(providerId: string): string {
 	return providerId.replace(/^kiwillm-/, "").replaceAll("-", " ");
 }
 
+function formatCurrencyPerMillion(value: number | null): string {
+	if (value === null || !Number.isFinite(value)) {
+		return "n/a";
+	}
+	return `$${value.toFixed(2)}/M`;
+}
+
+function formatLatency(value: number): string {
+	if (value >= 1000) {
+		return `${(value / 1000).toFixed(2)}s`;
+	}
+	return `${Math.round(value)}ms`;
+}
+
 function RankingsTooltip({
 	active,
 	payload,
@@ -154,6 +190,44 @@ function RankingsTooltip({
 	);
 }
 
+function FastestTooltip({
+	active,
+	payload,
+	modelNameMap,
+}: TooltipProps<number, string> & { modelNameMap: Record<string, string> }) {
+	if (!active || !payload?.length) {
+		return null;
+	}
+
+	const point = payload[0]?.payload as
+		| {
+				modelId: string;
+				providerId: string;
+				throughputTokensPerSecond: number;
+				avgLatencyMs: number;
+				pricePerMillion: number | null;
+		  }
+		| undefined;
+
+	if (!point) {
+		return null;
+	}
+
+	return (
+		<div className="rounded-2xl border border-white/10 bg-[#090b10] px-3 py-2 text-sm text-white shadow-2xl">
+			<p className="font-medium text-white">
+				{getModelLabel(point.modelId, modelNameMap)}
+			</p>
+			<p className="mt-1 text-white/60">by {getProviderLabel(point.providerId)}</p>
+			<div className="mt-2 space-y-1 text-white/74">
+				<div>{point.throughputTokensPerSecond.toFixed(1)} tok/s</div>
+				<div>{formatLatency(point.avgLatencyMs)}</div>
+				<div>{formatCurrencyPerMillion(point.pricePerMillion)}</div>
+			</div>
+		</div>
+	);
+}
+
 export function RankingPageClient({
 	data,
 	modelNameMap,
@@ -163,6 +237,9 @@ export function RankingPageClient({
 }) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const [fastestMetric, setFastestMetric] = useState<
+		"throughput" | "latency"
+	>("throughput");
 
 	const topChartModels = data.leaderboard
 		.slice(0, 8)
@@ -182,6 +259,16 @@ export function RankingPageClient({
 		params.set("window", value);
 		router.push(`/ranking?${params.toString()}` as Route);
 	};
+
+	const fastestEntries = useMemo(() => {
+		const entries = [...data.fastest];
+		if (fastestMetric === "latency") {
+			return entries.sort((a, b) => a.avgLatencyMs - b.avgLatencyMs);
+		}
+		return entries.sort(
+			(a, b) => b.throughputTokensPerSecond - a.throughputTokensPerSecond,
+		);
+	}, [data.fastest, fastestMetric]);
 
 	return (
 		<section className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-5 pb-20 pt-10 md:px-6 md:pb-24">
@@ -308,6 +395,105 @@ export function RankingPageClient({
 
 			<Card className="border-white/10 bg-white/[0.03] text-white">
 				<CardHeader>
+					<div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+						<div>
+							<div className="mb-2 flex items-center gap-2 text-white">
+								<Gauge className="h-5 w-5 text-white/70" />
+								<CardTitle className="text-2xl">Fastest models</CardTitle>
+							</div>
+							<CardDescription className="text-white/62">
+								Compare real-world KiwiLLM model speed across providers.
+							</CardDescription>
+						</div>
+						<Select
+							value={fastestMetric}
+							onValueChange={(value) =>
+								setFastestMetric(value as "throughput" | "latency")
+							}
+						>
+							<SelectTrigger className="w-[190px] border-white/10 bg-[#080a0f] text-white">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent className="border-white/10 bg-[#090b10] text-white">
+								<SelectItem value="throughput">Highest throughput</SelectItem>
+								<SelectItem value="latency">Lowest latency</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+				</CardHeader>
+				<CardContent className="space-y-8">
+					<div className="h-[360px] w-full">
+						<ResponsiveContainer width="100%" height="100%">
+							<ScatterChart margin={{ top: 20, right: 24, bottom: 10, left: 8 }}>
+								<CartesianGrid stroke="rgba(255,255,255,0.08)" />
+								<XAxis
+									type="number"
+									dataKey="pricePerMillion"
+									name="Price / 1M"
+									stroke="rgba(255,255,255,0.38)"
+									tickFormatter={(value: number) => `$${Number(value).toFixed(2)}/M`}
+								/>
+								<YAxis
+									type="number"
+									dataKey="throughputTokensPerSecond"
+									name="Throughput"
+									stroke="rgba(255,255,255,0.38)"
+									tickFormatter={(value: number) => `${Math.round(value)} tok/s`}
+								/>
+								<ZAxis dataKey="requestCount" range={[80, 420]} />
+								<Tooltip
+									cursor={{ strokeDasharray: "4 4", stroke: "rgba(255,255,255,0.2)" }}
+									content={<FastestTooltip modelNameMap={modelNameMap} />}
+								/>
+								<Scatter data={data.fastest}>
+									{data.fastest.map((entry, index) => (
+										<Cell
+											key={`${entry.providerId}-${entry.modelId}`}
+											fill={MODEL_COLORS[index % MODEL_COLORS.length]}
+										/>
+									))}
+								</Scatter>
+							</ScatterChart>
+						</ResponsiveContainer>
+					</div>
+
+					<div className="grid gap-4 md:grid-cols-2">
+						{fastestEntries.map((entry, index) => (
+							<div
+								key={`${entry.providerId}-${entry.modelId}`}
+								className="flex items-start justify-between gap-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4"
+							>
+								<div className="flex items-start gap-4">
+									<div className="w-8 pt-0.5 text-right text-lg font-semibold text-white/70">
+										{index + 1}.
+									</div>
+									<div className="space-y-1">
+										<div className="text-xl font-semibold leading-tight text-white">
+											{getModelLabel(entry.modelId, modelNameMap)}
+										</div>
+										<div className="text-sm text-white/52">
+											fastest on {getProviderLabel(entry.providerId)}
+										</div>
+									</div>
+								</div>
+								<div className="text-right">
+									<div className="text-xl font-medium text-white">
+										{fastestMetric === "latency"
+											? formatLatency(entry.avgLatencyMs)
+											: `${entry.throughputTokensPerSecond.toFixed(1)} tok/s`}
+									</div>
+									<div className="mt-1 text-sm text-white/52">
+										{formatCurrencyPerMillion(entry.pricePerMillion)}
+									</div>
+								</div>
+							</div>
+						))}
+					</div>
+				</CardContent>
+			</Card>
+
+			<Card className="border-white/10 bg-white/[0.03] text-white">
+				<CardHeader>
 					<div className="flex items-center justify-between gap-4">
 						<div>
 							<div className="mb-2 flex items-center gap-2 text-white">
@@ -381,6 +567,62 @@ export function RankingPageClient({
 							</div>
 						</div>
 					))}
+				</CardContent>
+			</Card>
+
+			<Card className="border-white/10 bg-white/[0.03] text-white">
+				<CardHeader>
+					<div className="flex items-center justify-between gap-4">
+						<div>
+							<div className="mb-2 flex items-center gap-2 text-white">
+								<Boxes className="h-5 w-5 text-white/70" />
+								<CardTitle className="text-2xl">Top Apps</CardTitle>
+							</div>
+							<CardDescription className="text-white/62">
+								Apps and agents opting into KiwiLLM usage tracking across this{" "}
+								{WINDOW_LABELS[data.window].toLowerCase()} window.
+							</CardDescription>
+						</div>
+						<Badge className="border-white/10 bg-white/[0.05] text-white/70">
+							{WINDOW_LABELS[data.window]}
+						</Badge>
+					</div>
+				</CardHeader>
+				<CardContent className="space-y-3">
+					<div className="grid gap-4 md:grid-cols-2">
+						{data.apps.map((entry, index) => (
+							<div
+								key={`${entry.appName}-${entry.subtitle ?? index}`}
+								className="flex items-start justify-between gap-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4"
+							>
+								<div className="flex items-start gap-4">
+									<div className="w-8 pt-0.5 text-right text-lg font-semibold text-white/70">
+										{index + 1}.
+									</div>
+									<div className="space-y-1">
+										<div className="text-xl font-semibold leading-tight text-white">
+											{entry.appName}
+										</div>
+										<div className="text-sm text-white/52">
+											{entry.subtitle ?? "Tracked source"}
+										</div>
+									</div>
+								</div>
+								<div className="text-right">
+									<div className="text-xl font-medium text-white">
+										{formatTokens(entry.totalTokens)} tokens
+									</div>
+									<div className="mt-1 text-sm text-white/52">
+										{entry.requestCount.toLocaleString()} requests
+									</div>
+								</div>
+							</div>
+						))}
+					</div>
+					<div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-5 py-4 text-center text-sm text-fuchsia-100">
+						More app and agent rankings are on the way as more clients opt into
+						KiwiLLM source tracking.
+					</div>
 				</CardContent>
 			</Card>
 		</section>

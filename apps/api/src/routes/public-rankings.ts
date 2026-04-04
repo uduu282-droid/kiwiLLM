@@ -28,6 +28,23 @@ const chartPointSchema = z.object({
 	),
 });
 
+const fastestEntrySchema = z.object({
+	modelId: z.string(),
+	providerId: z.string(),
+	requestCount: z.number(),
+	totalTokens: z.number(),
+	avgLatencyMs: z.number(),
+	throughputTokensPerSecond: z.number(),
+	pricePerMillion: z.number().nullable(),
+});
+
+const appEntrySchema = z.object({
+	appName: z.string(),
+	subtitle: z.string().nullable(),
+	requestCount: z.number(),
+	totalTokens: z.number(),
+});
+
 const responseSchema = z.object({
 	window: rankingWindowSchema,
 	generatedAt: z.string(),
@@ -36,21 +53,40 @@ const responseSchema = z.object({
 	totalModels: z.number(),
 	leaderboard: z.array(rankingEntrySchema),
 	chart: z.array(chartPointSchema),
+	fastest: z.array(fastestEntrySchema),
+	apps: z.array(appEntrySchema),
 });
 
-type AggregateRow = {
+interface AggregateRow {
 	modelId: string | null;
 	providerId: string | null;
 	requestCount: number | string;
 	totalTokens: number | string;
 	totalCost: number | string;
-};
+}
 
-type WeeklyAggregateRow = {
+interface WeeklyAggregateRow {
 	weekStart: string | Date;
 	modelId: string | null;
 	totalTokens: number | string;
-};
+}
+
+interface FastestAggregateRow {
+	modelId: string | null;
+	providerId: string | null;
+	requestCount: number | string;
+	totalTokens: number | string;
+	totalCost: number | string;
+	avgLatencyMs: number | string;
+	durationSeconds: number | string;
+}
+
+interface AppAggregateRow {
+	appName: string | null;
+	subtitle: string | null;
+	requestCount: number | string;
+	totalTokens: number | string;
+}
 
 const publicRankings = new OpenAPIHono<ServerTypes>();
 
@@ -124,7 +160,13 @@ publicRankings.openapi(getPublicRankings, async (c) => {
 	const previousEnd = addUtcDays(currentStart, -1);
 	const chartStart = addUtcDays(startOfUtcWeek(now), -7 * 11);
 
-	const [currentRowsResult, previousRowsResult, chartRowsResult] =
+	const [
+		currentRowsResult,
+		previousRowsResult,
+		chartRowsResult,
+		fastestRowsResult,
+		appRowsResult,
+	] =
 		await Promise.all([
 			db.execute(sql`
 				SELECT
@@ -171,11 +213,60 @@ publicRankings.openapi(getPublicRankings, async (c) => {
 				GROUP BY DATE_TRUNC('week', created_at AT TIME ZONE 'UTC')::date, used_model
 				ORDER BY "weekStart" ASC
 			`),
+			db.execute(sql`
+				SELECT
+					used_model AS "modelId",
+					used_provider AS "providerId",
+					COUNT(*)::int AS "requestCount",
+					COALESCE(SUM(CAST(total_tokens AS NUMERIC)), 0)::float AS "totalTokens",
+					COALESCE(SUM(cost), 0)::float AS "totalCost",
+					COALESCE(AVG(duration), 0)::float AS "avgLatencyMs",
+					COALESCE(SUM(duration), 0)::float / 1000.0 AS "durationSeconds"
+				FROM log
+				WHERE created_at >= ${currentStart}
+					AND created_at <= ${now}
+					AND used_model IS NOT NULL
+					AND used_provider IS NOT NULL
+					AND has_error IS NOT TRUE
+					AND duration > 0
+					AND COALESCE(CAST(completion_tokens AS NUMERIC), CAST(total_tokens AS NUMERIC), 0) > 0
+				GROUP BY used_model, used_provider
+				HAVING COUNT(*) >= 3
+				ORDER BY COALESCE(SUM(CAST(total_tokens AS NUMERIC)), 0) DESC
+			`),
+			db.execute(sql`
+				SELECT
+					COALESCE(
+						NULLIF(custom_headers->>'title', ''),
+						NULLIF(custom_headers->>'app', ''),
+						NULLIF(custom_headers->>'app-name', ''),
+						NULLIF(custom_headers->>'client', ''),
+						NULLIF(custom_headers->>'client-name', ''),
+						NULLIF(source, ''),
+						NULLIF(user_agent, ''),
+						'Unknown'
+					) AS "appName",
+					COALESCE(
+						NULLIF(source, ''),
+						NULLIF(user_agent, '')
+					) AS "subtitle",
+					COUNT(*)::int AS "requestCount",
+					COALESCE(SUM(CAST(total_tokens AS NUMERIC)), 0)::float AS "totalTokens"
+				FROM log
+				WHERE created_at >= ${currentStart}
+					AND created_at <= ${now}
+					AND has_error IS NOT TRUE
+				GROUP BY 1, 2
+				HAVING COUNT(*) >= 2
+				ORDER BY COALESCE(SUM(CAST(total_tokens AS NUMERIC)), 0) DESC
+			`),
 		]);
 
 	const currentRows = currentRowsResult.rows as AggregateRow[];
 	const previousRows = previousRowsResult.rows as AggregateRow[];
 	const chartRows = chartRowsResult.rows as WeeklyAggregateRow[];
+	const fastestRows = fastestRowsResult.rows as FastestAggregateRow[];
+	const appRows = appRowsResult.rows as AppAggregateRow[];
 
 	const previousMap = new Map(
 		previousRows.map((row) => [
@@ -240,6 +331,42 @@ publicRankings.openapi(getPublicRankings, async (c) => {
 		point.segments.set(segmentKey, (point.segments.get(segmentKey) ?? 0) + tokenCount);
 	}
 
+	const fastest = fastestRows
+		.map((row) => {
+			const totalTokens = toNumber(row.totalTokens);
+			const durationSeconds = toNumber(row.durationSeconds);
+			const totalCost = toNumber(row.totalCost);
+
+			return {
+				modelId: row.modelId ?? "unknown",
+				providerId: row.providerId ?? "unknown",
+				requestCount: toNumber(row.requestCount),
+				totalTokens,
+				avgLatencyMs: Number(toNumber(row.avgLatencyMs).toFixed(0)),
+				throughputTokensPerSecond:
+					durationSeconds > 0
+						? Number((totalTokens / durationSeconds).toFixed(1))
+						: 0,
+				pricePerMillion:
+					totalTokens > 0
+						? Number(((totalCost / totalTokens) * 1_000_000).toFixed(2))
+						: null,
+			};
+		})
+		.filter((row) => row.throughputTokensPerSecond > 0)
+		.sort((a, b) => b.throughputTokensPerSecond - a.throughputTokensPerSecond)
+		.slice(0, 10);
+
+	const apps = appRows
+		.filter((row) => (row.appName ?? "").trim().length > 0)
+		.slice(0, 10)
+		.map((row) => ({
+			appName: row.appName ?? "Unknown",
+			subtitle: row.subtitle,
+			requestCount: toNumber(row.requestCount),
+			totalTokens: toNumber(row.totalTokens),
+		}));
+
 	return c.json({
 		window,
 		generatedAt: now.toISOString(),
@@ -261,6 +388,8 @@ publicRankings.openapi(getPublicRankings, async (c) => {
 				tokens,
 			})),
 		})),
+		fastest,
+		apps,
 	});
 });
 
