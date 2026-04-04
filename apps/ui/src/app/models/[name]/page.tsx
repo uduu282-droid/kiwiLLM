@@ -25,14 +25,9 @@ import { ProviderTabs } from "@/components/models/provider-tabs";
 import { Badge } from "@/lib/components/badge";
 import { Button } from "@/lib/components/button";
 import { getConfig } from "@/lib/config-server";
+import { fetchModels, fetchProviders } from "@/lib/fetch-models";
 import { fetchServerData } from "@/lib/server-api";
-
-import {
-	models as modelDefinitions,
-	providers as providerDefinitions,
-	type StabilityLevel,
-	type ModelDefinition,
-} from "@llmgateway/models";
+import { type StabilityLevel } from "@llmgateway/models";
 
 import type { Metadata } from "next";
 
@@ -113,20 +108,38 @@ function getEffectiveProviderDiscount(
 	return undefined;
 }
 
+function toDiscountNumber(discount: string | number | null | undefined) {
+	if (typeof discount === "number") {
+		return discount;
+	}
+	if (typeof discount === "string") {
+		const parsed = parseFloat(discount);
+		return Number.isFinite(parsed) ? parsed : undefined;
+	}
+	return undefined;
+}
+
+function toPriceNumber(price: string | null | undefined) {
+	if (!price) {
+		return undefined;
+	}
+	const parsed = parseFloat(price);
+	return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export default async function ModelPage({ params }: PageProps) {
 	const config = getConfig();
 	const { name } = await params;
 	const decodedName = decodeURIComponent(name);
+	const [models, providers] = await Promise.all([fetchModels(), fetchProviders()]);
 
-	const modelDef = modelDefinitions.find(
-		(m) => m.id === decodedName,
-	) as ModelDefinition;
+	const modelDef = models.find((m) => m.id === decodedName);
 
 	if (!modelDef) {
 		notFound();
 	}
 
-	const getStabilityBadgeProps = (stability?: StabilityLevel) => {
+	const getStabilityBadgeProps = (stability?: StabilityLevel | null) => {
 		switch (stability) {
 			case "beta":
 				return {
@@ -151,13 +164,13 @@ export default async function ModelPage({ params }: PageProps) {
 		}
 	};
 
-	const shouldShowStabilityWarning = (stability?: StabilityLevel) => {
+	const shouldShowStabilityWarning = (stability?: StabilityLevel | null) => {
 		return stability && ["unstable", "experimental"].includes(stability);
 	};
 
 	const allDiscounts = await getModelDiscounts(decodedName);
-	const modelProviders = modelDef.providers.map((provider) => {
-		const providerInfo = providerDefinitions.find(
+	const modelProviders = modelDef.mappings.map((provider) => {
+		const providerInfo = providers.find(
 			(p) => p.id === provider.providerId,
 		);
 		const globalDiscount = getEffectiveProviderDiscount(
@@ -201,8 +214,15 @@ export default async function ModelPage({ params }: PageProps) {
 
 	const lowestInputPrice = Math.min(
 		...modelProviders
-			.filter((p) => p.inputPrice)
-			.map((p) => p.inputPrice! * 1e6 * (p.discount ? 1 - p.discount : 1)),
+			.map((p) => {
+				const inputPrice = toPriceNumber(p.inputPrice);
+				if (inputPrice === undefined) {
+					return Infinity;
+				}
+				const discount = toDiscountNumber(p.discount) ?? 0;
+				return inputPrice * 1e6 * (1 - discount);
+			})
+			.filter((price) => Number.isFinite(price)),
 	);
 
 	const productSchema = {
@@ -272,7 +292,7 @@ export default async function ModelPage({ params }: PageProps) {
 							<CopyModelName modelName={decodedName} />
 							{(() => {
 								const stabilityProps = getStabilityBadgeProps(
-									modelDef.stability,
+									modelDef.stability ?? undefined,
 								);
 								return stabilityProps ? (
 									<Badge
@@ -292,12 +312,8 @@ export default async function ModelPage({ params }: PageProps) {
 							})()}
 							<ModelStatusBadgeAuto
 								providers={modelProviders.map((p) => ({
-									deprecatedAt: p.deprecatedAt
-										? p.deprecatedAt.toISOString()
-										: null,
-									deactivatedAt: p.deactivatedAt
-										? p.deactivatedAt.toISOString()
-										: null,
+									deprecatedAt: p.deprecatedAt,
+									deactivatedAt: p.deactivatedAt,
 								}))}
 							/>
 
@@ -324,13 +340,19 @@ export default async function ModelPage({ params }: PageProps) {
 								Starting at{" "}
 								{(() => {
 									const inputPrices = modelProviders
-										.filter((p) => p.inputPrice)
-										.map((p) => ({
-											price:
-												p.inputPrice! * 1e6 * (p.discount ? 1 - p.discount : 1),
-											originalPrice: p.inputPrice! * 1e6,
-											discount: p.discount,
-										}));
+										.map((p) => {
+											const price = toPriceNumber(p.inputPrice);
+											if (price === undefined) {
+												return null;
+											}
+											const discount = toDiscountNumber(p.discount);
+											return {
+												price: price * 1e6 * (discount ? 1 - discount : 1),
+												originalPrice: price * 1e6,
+												discount,
+											};
+										})
+										.filter((p): p is NonNullable<typeof p> => p !== null);
 									if (inputPrices.length === 0) {
 										return "Free";
 									}
@@ -348,15 +370,19 @@ export default async function ModelPage({ params }: PageProps) {
 								Starting at{" "}
 								{(() => {
 									const outputPrices = modelProviders
-										.filter((p) => p.outputPrice)
-										.map((p) => ({
-											price:
-												p.outputPrice! *
-												1e6 *
-												(p.discount ? 1 - p.discount : 1),
-											originalPrice: p.outputPrice! * 1e6,
-											discount: p.discount,
-										}));
+										.map((p) => {
+											const price = toPriceNumber(p.outputPrice);
+											if (price === undefined) {
+												return null;
+											}
+											const discount = toDiscountNumber(p.discount);
+											return {
+												price: price * 1e6 * (discount ? 1 - discount : 1),
+												originalPrice: price * 1e6,
+												discount,
+											};
+										})
+										.filter((p): p is NonNullable<typeof p> => p !== null);
 									if (outputPrices.length === 0) {
 										return "Free";
 									}
@@ -372,35 +398,6 @@ export default async function ModelPage({ params }: PageProps) {
 								})()}{" "}
 								output tokens
 							</div>
-							{modelProviders.some((p) => p.imageOutputPrice !== undefined) && (
-								<div>
-									Starting at{" "}
-									{(() => {
-										const imageOutputPrices = modelProviders
-											.filter((p) => p.imageOutputPrice !== undefined)
-											.map((p) => ({
-												price:
-													p.imageOutputPrice! *
-													1e6 *
-													(p.discount ? 1 - p.discount : 1),
-												discount: p.discount !== 0 ? p.discount : undefined,
-											}));
-										if (imageOutputPrices.length === 0) {
-											return "Free";
-										}
-										const minPrice = Math.min(
-											...imageOutputPrices.map((p) => p.price),
-										);
-										const minPriceItem = imageOutputPrices.find(
-											(p) => p.price === minPrice,
-										);
-										return minPriceItem?.discount
-											? `$${minPrice.toFixed(2)}/M (${(minPriceItem.discount * 100).toFixed(0)}% off)`
-											: `$${minPrice.toFixed(2)}/M`;
-									})()}{" "}
-									image output tokens
-								</div>
-							)}
 						</div>
 
 						{/* Capabilities (using same icons as /models) */}
@@ -408,7 +405,7 @@ export default async function ModelPage({ params }: PageProps) {
 							{(() => {
 								const items: Array<{
 									key: string;
-									icon: any;
+									icon: typeof Zap;
 									label: string;
 									color: string;
 								}> = [];
@@ -417,9 +414,9 @@ export default async function ModelPage({ params }: PageProps) {
 								const hasTools = modelProviders.some((p) => p.tools);
 								const hasReasoning = modelProviders.some((p) => p.reasoning);
 								const hasJsonOutput = modelProviders.some((p) => p.jsonOutput);
-								const hasImageGen = Array.isArray((modelDef as any)?.output)
-									? ((modelDef as any).output as string[]).includes("image")
-									: false;
+								const hasImageGen =
+									Array.isArray(modelDef.output) &&
+									modelDef.output.includes("image");
 
 								if (hasStreaming) {
 									items.push({
@@ -519,8 +516,8 @@ export default async function ModelPage({ params }: PageProps) {
 									key={`${provider.providerId}-${provider.modelName}-${decodedName}`}
 									provider={provider}
 									modelName={decodedName}
-									modelStability={modelDef.stability}
-									modelOutput={modelDef.output}
+									modelStability={modelDef.stability ?? undefined}
+									modelOutput={modelDef.output ?? undefined}
 								/>
 							))}
 						</div>
@@ -532,20 +529,13 @@ export default async function ModelPage({ params }: PageProps) {
 	);
 }
 
-export async function generateStaticParams() {
-	return modelDefinitions.map((model) => ({
-		name: encodeURIComponent(model.id),
-	}));
-}
-
 export async function generateMetadata({
 	params,
 }: PageProps): Promise<Metadata> {
 	const { name } = await params;
 	const decodedName = decodeURIComponent(name);
-	const model = modelDefinitions.find((m) => m.id === decodedName) as
-		| ModelDefinition
-		| undefined;
+	const models = await fetchModels();
+	const model = models.find((m) => m.id === decodedName);
 
 	if (!model) {
 		return {};
@@ -554,9 +544,9 @@ export async function generateMetadata({
 	const title = `${model.name ?? model.id} – AI Model on LLM Gateway`;
 	const description =
 		model.description ??
-		`Details, pricing, and capabilities for ${model.name ?? model.id} on LLM Gateway.`;
+		`Details, pricing, and capabilities for ${model.name ?? model.id} on KiwiLLM.`;
 
-	const primaryProvider = model.providers[0]?.providerId || "default";
+	const primaryProvider = model.mappings[0]?.providerId || "default";
 	const ogImageUrl = `/models/${encodeURIComponent(decodedName)}/${encodeURIComponent(primaryProvider)}/opengraph-image`;
 
 	return {

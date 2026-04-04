@@ -25,15 +25,10 @@ import { ProviderTabs } from "@/components/models/provider-tabs";
 import { Badge } from "@/lib/components/badge";
 import { Button } from "@/lib/components/button";
 import { getConfig } from "@/lib/config-server";
+import { fetchModels, fetchProviders } from "@/lib/fetch-models";
 import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
 import { fetchServerData } from "@/lib/server-api";
-
-import {
-	models as modelDefinitions,
-	providers as providerDefinitions,
-	type StabilityLevel,
-	type ModelDefinition,
-} from "@llmgateway/models";
+import { type StabilityLevel } from "@llmgateway/models";
 
 import type { Metadata } from "next";
 
@@ -48,16 +43,15 @@ export default async function ModelProviderPage({ params }: PageProps) {
 	const { name, provider } = await params;
 	const decodedName = decodeURIComponent(name);
 	const decodedProvider = decodeURIComponent(provider);
+	const [models, providers] = await Promise.all([fetchModels(), fetchProviders()]);
 
-	const modelDef = modelDefinitions.find(
-		(m) => m.id === decodedName,
-	) as ModelDefinition;
+	const modelDef = models.find((m) => m.id === decodedName);
 
 	if (!modelDef) {
 		notFound();
 	}
 
-	const staticProviderMapping = modelDef.providers.find(
+	const staticProviderMapping = modelDef.mappings.find(
 		(p) => p.providerId === decodedProvider,
 	);
 
@@ -65,7 +59,7 @@ export default async function ModelProviderPage({ params }: PageProps) {
 		notFound();
 	}
 
-	const providerInfo = providerDefinitions.find(
+	const providerInfo = providers.find(
 		(p) => p.id === decodedProvider,
 	);
 	const displayProvider = getDisplayProviderInfo({
@@ -143,7 +137,7 @@ export default async function ModelProviderPage({ params }: PageProps) {
 		return null;
 	})();
 
-	const getStabilityBadgeProps = (stability?: StabilityLevel) => {
+	const getStabilityBadgeProps = (stability?: StabilityLevel | null) => {
 		switch (stability) {
 			case "beta":
 				return {
@@ -168,11 +162,11 @@ export default async function ModelProviderPage({ params }: PageProps) {
 		}
 	};
 
-	const shouldShowStabilityWarning = (stability?: StabilityLevel) => {
+	const shouldShowStabilityWarning = (stability?: StabilityLevel | null) => {
 		return stability && ["unstable", "experimental"].includes(stability);
 	};
 
-	const allProviderIds = modelDef.providers.map((p) => p.providerId);
+	const allProviderIds = modelDef.mappings.map((p) => p.providerId);
 
 	const breadcrumbSchema = {
 		"@context": "https://schema.org",
@@ -281,7 +275,7 @@ export default async function ModelProviderPage({ params }: PageProps) {
 							<CopyModelName modelName={decodedName} />
 							{(() => {
 								const stabilityProps = getStabilityBadgeProps(
-									modelDef.stability,
+									modelDef.stability ?? undefined,
 								);
 								return stabilityProps ? (
 									<Badge
@@ -302,12 +296,8 @@ export default async function ModelProviderPage({ params }: PageProps) {
 							<ModelStatusBadgeAuto
 								providers={[
 									{
-										deprecatedAt: providerMapping.deprecatedAt
-											? providerMapping.deprecatedAt.toISOString()
-											: null,
-										deactivatedAt: providerMapping.deactivatedAt
-											? providerMapping.deactivatedAt.toISOString()
-											: null,
+										deprecatedAt: providerMapping.deprecatedAt,
+										deactivatedAt: providerMapping.deactivatedAt,
 									},
 								]}
 							/>
@@ -374,10 +364,10 @@ export default async function ModelProviderPage({ params }: PageProps) {
 										color: "text-cyan-500",
 									});
 								}
-								const hasImageGen = Array.isArray((modelDef as any)?.output)
-									? ((modelDef as any).output as string[]).includes("image")
-									: false;
-								if (hasImageGen) {
+								const hasImageOutput =
+									Array.isArray(modelDef.output) &&
+									modelDef.output.includes("image");
+								if (hasImageOutput) {
 									items.push({
 										key: "image",
 										icon: ImagePlus,
@@ -435,8 +425,8 @@ export default async function ModelProviderPage({ params }: PageProps) {
 									providerInfo,
 								}}
 								modelName={decodedName}
-								modelStability={modelDef.stability}
-								modelOutput={modelDef.output}
+								modelStability={modelDef.stability ?? undefined}
+								modelOutput={modelDef.output ?? undefined}
 							/>
 						</div>
 					</div>
@@ -447,24 +437,6 @@ export default async function ModelProviderPage({ params }: PageProps) {
 	);
 }
 
-export async function generateStaticParams() {
-	const params: { name: string; provider: string }[] = [];
-
-	for (const model of modelDefinitions) {
-		const uniqueProviders = Array.from(
-			new Set(model.providers.map((p) => p.providerId)),
-		);
-		for (const providerId of uniqueProviders) {
-			params.push({
-				name: encodeURIComponent(model.id),
-				provider: encodeURIComponent(providerId),
-			});
-		}
-	}
-
-	return params;
-}
-
 export async function generateMetadata({
 	params,
 }: PageProps): Promise<Metadata> {
@@ -472,15 +444,14 @@ export async function generateMetadata({
 	const decodedName = decodeURIComponent(name);
 	const decodedProvider = decodeURIComponent(provider);
 
-	const model = modelDefinitions.find((m) => m.id === decodedName) as
-		| ModelDefinition
-		| undefined;
+	const [models, providers] = await Promise.all([fetchModels(), fetchProviders()]);
+	const model = models.find((m) => m.id === decodedName);
 
 	if (!model) {
 		return {};
 	}
 
-	const providerInfo = providerDefinitions.find(
+	const providerInfo = providers.find(
 		(p) => p.id === decodedProvider,
 	);
 	const providerName = getDisplayProviderInfo({
