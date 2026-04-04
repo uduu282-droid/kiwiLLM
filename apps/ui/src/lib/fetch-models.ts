@@ -61,21 +61,6 @@ export interface ApiModel {
 	mappings: ApiModelProviderMapping[];
 }
 
-function isKiwiMapped(providerId: string) {
-	return providerId.startsWith("kiwillm-");
-}
-
-function filterToKiwiCatalog(models: ApiModel[]): ApiModel[] {
-	return models
-		.map((model) => ({
-			...model,
-			mappings: model.mappings.filter((mapping) =>
-				isKiwiMapped(mapping.providerId),
-			),
-		}))
-		.filter((model) => model.mappings.length > 0);
-}
-
 export const fetchModels = cache(async (): Promise<ApiModel[]> => {
 	const config = getConfig();
 	try {
@@ -87,7 +72,7 @@ export const fetchModels = cache(async (): Promise<ApiModel[]> => {
 			return [];
 		}
 		const data = await response.json();
-		return filterToKiwiCatalog(data.models ?? []);
+		return data.models ?? [];
 	} catch (error) {
 		console.error("Error fetching models:", error);
 		return [];
