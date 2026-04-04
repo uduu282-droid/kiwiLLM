@@ -42,6 +42,17 @@ const adminMetricsSchema = z.object({
 	totalRevenue: z.number(),
 	totalProcessed: z.number(),
 	totalOrganizations: z.number(),
+	totalProjects: z.number(),
+	activeApiKeys: z.number(),
+	totalRequests: z.number(),
+	successfulRequests: z.number(),
+	failedRequests: z.number(),
+	successRate: z.number(),
+	totalTokens: z.number(),
+	averageLatencyMs: z.number(),
+	averageTimeToFirstTokenMs: z.number(),
+	topModel: z.string().nullable(),
+	topProvider: z.string().nullable(),
 	totalToppedUp: z.number(),
 	totalSpent: z.number(),
 	unusedCredits: z.number(),
@@ -499,6 +510,121 @@ admin.openapi(getMetrics, async (c) => {
 
 	const totalOrganizations = Number(orgsRow?.count ?? 0);
 
+	// Total projects
+	const [projectsRow] = await db
+		.select({
+			count: sql<number>`COUNT(*)`.as("count"),
+		})
+		.from(tables.project)
+		.where(startDate ? gte(tables.project.createdAt, startDate) : undefined);
+
+	const totalProjects = Number(projectsRow?.count ?? 0);
+
+	// Active API keys
+	const [apiKeysRow] = await db
+		.select({
+			count: sql<number>`COUNT(*)`.as("count"),
+		})
+		.from(tables.apiKey)
+		.where(
+			startDate
+				? and(
+						eq(tables.apiKey.status, "active"),
+						gte(tables.apiKey.createdAt, startDate),
+					)
+				: eq(tables.apiKey.status, "active"),
+		);
+
+	const activeApiKeys = Number(apiKeysRow?.count ?? 0);
+
+	// Platform-wide request and token usage from hourly stats
+	const [usageRow] = await db
+		.select({
+			totalRequests:
+				sql<number>`COALESCE(SUM(${projectHourlyStats.requestCount}), 0)`.as(
+					"total_requests",
+				),
+			failedRequests:
+				sql<number>`COALESCE(SUM(${projectHourlyStats.errorCount}), 0)`.as(
+					"failed_requests",
+				),
+			totalTokens:
+				sql<number>`COALESCE(SUM(CAST(${projectHourlyStats.totalTokens} AS NUMERIC)), 0)`.as(
+					"total_tokens",
+				),
+		})
+		.from(projectHourlyStats)
+		.where(
+			startDate ? gte(projectHourlyStats.hourTimestamp, startDate) : undefined,
+		);
+
+	const totalRequests = Number(usageRow?.totalRequests ?? 0);
+	const failedRequests = Number(usageRow?.failedRequests ?? 0);
+	const successfulRequests = Math.max(0, totalRequests - failedRequests);
+	const successRate =
+		totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0;
+	const totalTokens = Number(usageRow?.totalTokens ?? 0);
+
+	// Global latency metrics from raw logs
+	const [latencyRow] = await db
+		.select({
+			averageLatencyMs:
+				sql<number>`COALESCE(AVG(${tables.log.duration}), 0)`.as(
+					"average_latency_ms",
+				),
+			averageTimeToFirstTokenMs:
+				sql<number>`COALESCE(AVG(${tables.log.timeToFirstToken}), 0)`.as(
+					"average_ttft_ms",
+				),
+		})
+		.from(tables.log)
+		.where(startDate ? gte(tables.log.createdAt, startDate) : undefined);
+
+	const averageLatencyMs = Number(latencyRow?.averageLatencyMs ?? 0);
+	const averageTimeToFirstTokenMs = Number(
+		latencyRow?.averageTimeToFirstTokenMs ?? 0,
+	);
+
+	// Top model and provider by global request volume
+	const [topModelRow] = await db
+		.select({
+			usedModel: projectHourlyModelStats.usedModel,
+			requestCount:
+				sql<number>`COALESCE(SUM(${projectHourlyModelStats.requestCount}), 0)`.as(
+					"request_count",
+				),
+		})
+		.from(projectHourlyModelStats)
+		.where(
+			startDate
+				? gte(projectHourlyModelStats.hourTimestamp, startDate)
+				: undefined,
+		)
+		.groupBy(projectHourlyModelStats.usedModel)
+		.orderBy(desc(sql`SUM(${projectHourlyModelStats.requestCount})`))
+		.limit(1);
+
+	const [topProviderRow] = await db
+		.select({
+			usedProvider: projectHourlyModelStats.usedProvider,
+			requestCount:
+				sql<number>`COALESCE(SUM(${projectHourlyModelStats.requestCount}), 0)`.as(
+					"request_count",
+				),
+		})
+		.from(projectHourlyModelStats)
+		.where(
+			startDate
+				? gte(projectHourlyModelStats.hourTimestamp, startDate)
+				: undefined,
+		)
+		.groupBy(projectHourlyModelStats.usedProvider)
+		.orderBy(desc(sql`SUM(${projectHourlyModelStats.requestCount})`))
+		.limit(1);
+
+	const topModel = topModelRow?.usedModel ?? null;
+	const topProvider = topProviderRow?.usedProvider ?? null;
+
 	// Total topped up (credits from completed transactions)
 	const [toppedUpRow] = await db
 		.select({
@@ -569,6 +695,17 @@ admin.openapi(getMetrics, async (c) => {
 		totalRevenue,
 		totalProcessed,
 		totalOrganizations,
+		totalProjects,
+		activeApiKeys,
+		totalRequests,
+		successfulRequests,
+		failedRequests,
+		successRate,
+		totalTokens,
+		averageLatencyMs,
+		averageTimeToFirstTokenMs,
+		topModel,
+		topProvider,
 		totalToppedUp,
 		totalSpent,
 		unusedCredits,
