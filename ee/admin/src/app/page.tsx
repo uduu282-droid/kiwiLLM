@@ -11,6 +11,7 @@ import {
 	KeyRound,
 	PiggyBank,
 	Rocket,
+	ShieldCheck,
 	Sparkles,
 	TimerReset,
 	UserCheck,
@@ -19,16 +20,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import type { ReactNode } from "react";
 
 import { DashboardCostByModel } from "@/components/dashboard-cost-by-model";
+import { CouponGenerator } from "@/components/coupon-generator";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { RevenueChart } from "@/components/revenue-chart";
 import { SignupsChart } from "@/components/signups-chart";
 import { Button } from "@/components/ui/button";
 import { createServerApiClient } from "@/lib/server-api";
 import { cn } from "@/lib/utils";
-
-import type { ReactNode } from "react";
 
 const currencyFormatter = new Intl.NumberFormat("en-US", {
 	style: "currency",
@@ -50,7 +51,7 @@ const percentFormatter = new Intl.NumberFormat("en-US", {
 	maximumFractionDigits: 1,
 });
 
-interface AdminDashboardData {
+type AdminDashboardData = {
 	totalSignups: number;
 	verifiedUsers: number;
 	payingCustomers: number;
@@ -72,7 +73,7 @@ interface AdminDashboardData {
 	totalSpent: number;
 	unusedCredits: number;
 	overage: number;
-}
+};
 
 function MetricCard({
 	label,
@@ -307,8 +308,7 @@ export default async function Page({
 								{numberFormatter.format(metrics.verifiedUsers)}
 							</p>
 							<p className="mt-1 text-xs text-muted-foreground">
-								From {numberFormatter.format(metrics.totalSignups)} signups in
-								range
+								From {numberFormatter.format(metrics.totalSignups)} signups in range
 							</p>
 						</div>
 					</div>
@@ -416,6 +416,13 @@ export default async function Page({
 				<DashboardCostByModel from={from} to={to} />
 			</section>
 
+			<AdminSection
+				title="Coupons & Grants"
+				description="Create real credit coupons for launch campaigns, support grants, and one-off giveaways."
+			>
+				<CouponGenerator />
+			</AdminSection>
+
 			<section className="grid gap-4 md:grid-cols-3">
 				<div className="rounded-2xl border border-border/60 bg-card/70 p-5 shadow-sm">
 					<div className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-sky-500/30 bg-sky-500/10 text-sky-400">
@@ -435,8 +442,7 @@ export default async function Page({
 					</div>
 					<h3 className="mt-4 text-lg font-semibold">Models & Providers</h3>
 					<p className="mt-1 text-sm text-muted-foreground">
-						Manage provider coverage, mappings, and model-level operational
-						data.
+						Manage provider coverage, mappings, and model-level operational data.
 					</p>
 					<div className="mt-4 flex gap-2">
 						<Button asChild variant="outline">
