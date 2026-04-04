@@ -96,14 +96,14 @@ const PROJECT_NAVIGATION: readonly {
 		icon: AnimatedLayoutDashboard,
 	},
 	{
-		href: "activity",
-		label: "Activity",
-		icon: AnimatedActivity,
-	},
-	{
 		href: "usage",
 		label: "Analytics",
 		icon: AnimatedChartColumnBig,
+	},
+	{
+		href: "activity",
+		label: "Activity",
+		icon: AnimatedActivity,
 	},
 	{
 		href: "api-keys",

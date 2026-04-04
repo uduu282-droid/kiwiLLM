@@ -198,9 +198,9 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 
 	const quickActions = [
 		{
-			href: "api-keys",
-			icon: Key,
-			label: "Manage API Keys",
+			href: "usage",
+			icon: ChartColumnBig,
+			label: "Analytics",
 		},
 		{
 			href: "activity",
@@ -208,9 +208,9 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 			label: "View Activity",
 		},
 		{
-			href: "usage",
-			icon: ChartColumnBig,
-			label: "Analytics",
+			href: "api-keys",
+			icon: Key,
+			label: "Manage API Keys",
 		},
 	] as const;
 
