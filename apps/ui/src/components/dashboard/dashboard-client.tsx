@@ -5,7 +5,6 @@ import {
 	CreditCard,
 	Zap,
 	Key,
-	KeyRound,
 	Activity,
 	CircleDollarSign,
 	BarChart3,
@@ -203,11 +202,6 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 			href: "api-keys",
 			icon: Key,
 			label: "Manage API Keys",
-		},
-		{
-			href: "provider-keys",
-			icon: KeyRound,
-			label: "Provider Keys",
 		},
 		{
 			href: "activity",
@@ -505,11 +499,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 											className="w-full justify-start"
 										>
 											<Link
-												href={
-													action.href === "provider-keys"
-														? buildOrgUrl("org/provider-keys")
-														: buildUrl(action.href)
-												}
+												href={buildUrl(action.href)}
 												prefetch={true}
 											>
 												<action.icon className="mr-2 h-4 w-4" />
@@ -573,11 +563,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 											className="w-full justify-start"
 										>
 											<Link
-												href={
-													action.href === "provider-keys"
-														? buildOrgUrl("org/provider-keys")
-														: buildUrl(action.href)
-												}
+												href={buildUrl(action.href)}
 												prefetch={true}
 											>
 												<action.icon className="mr-2 h-4 w-4" />

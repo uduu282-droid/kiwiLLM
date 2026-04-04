@@ -31,13 +31,9 @@ import {
 	AnimatedChartColumnBig,
 	AnimatedExternalLink,
 	AnimatedKey,
-	AnimatedKeyRound,
 	AnimatedLayoutDashboard,
 	AnimatedMessageSquare,
 	AnimatedSettings,
-	AnimatedPercent,
-	AnimatedShield,
-	AnimatedShieldAlert,
 } from "@/components/dashboard/animated-nav-icons";
 import { ReferralDialog } from "@/components/dashboard/referral-dialog";
 import { BrandMark } from "@/components/shared/brand-mark";
@@ -380,38 +376,6 @@ function OrganizationSection({
 			</SidebarGroupLabel>
 			<SidebarGroupContent className="mt-2">
 				<SidebarMenu>
-					<OrgNavItem
-						href={buildOrgUrl("org/provider-keys")}
-						label="Provider Keys"
-						icon={AnimatedKeyRound}
-						isActive={isActive("org/provider-keys")}
-						isMobile={isMobile}
-						toggleSidebar={toggleSidebar}
-					/>
-					<OrgNavItem
-						href={buildOrgUrl("org/guardrails")}
-						label="Guardrails"
-						icon={AnimatedShield}
-						isActive={isActive("org/guardrails")}
-						isMobile={isMobile}
-						toggleSidebar={toggleSidebar}
-					/>
-					<OrgNavItem
-						href={buildOrgUrl("org/security-events")}
-						label="Security Events"
-						icon={AnimatedShieldAlert}
-						isActive={isActive("org/security-events")}
-						isMobile={isMobile}
-						toggleSidebar={toggleSidebar}
-					/>
-					<OrgNavItem
-						href={buildOrgUrl("org/discounts")}
-						label="Your Discounts"
-						icon={AnimatedPercent}
-						isActive={isActive("org/discounts")}
-						isMobile={isMobile}
-						toggleSidebar={toggleSidebar}
-					/>
 					<SidebarMenuItem
 						onMouseEnter={() => setSettingsHovered(true)}
 						onMouseLeave={() => setSettingsHovered(false)}
