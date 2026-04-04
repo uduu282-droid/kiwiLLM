@@ -1,9 +1,4 @@
-import { subDays, format } from "date-fns";
-
-import { ModelUsageClient } from "@/components/usage/model-usage-client";
-import { fetchServerData } from "@/lib/server-api";
-
-import type { ActivitT } from "@/types/activity";
+import { redirect } from "next/navigation";
 
 export default async function ModelUsagePage({
 	params,
@@ -17,31 +12,25 @@ export default async function ModelUsagePage({
 		apiKeyId?: string;
 	}>;
 }) {
-	const { projectId } = await params;
+	const { orgId, projectId } = await params;
 	const searchParamsData = await searchParams;
-	const apiKeyId = searchParamsData?.apiKeyId;
+	const paramsObject = new URLSearchParams();
 
-	const today = new Date();
-	const fromParam =
-		searchParamsData?.from ?? format(subDays(today, 6), "yyyy-MM-dd");
-	const toParam = searchParamsData?.to ?? format(today, "yyyy-MM-dd");
+	if (searchParamsData?.days) {
+		paramsObject.set("days", searchParamsData.days);
+	}
+	if (searchParamsData?.from) {
+		paramsObject.set("from", searchParamsData.from);
+	}
+	if (searchParamsData?.to) {
+		paramsObject.set("to", searchParamsData.to);
+	}
+	if (searchParamsData?.apiKeyId) {
+		paramsObject.set("apiKeyId", searchParamsData.apiKeyId);
+	}
 
-	const initialActivityData = apiKeyId
-		? null
-		: await fetchServerData<ActivitT>("GET", "/activity", {
-				params: {
-					query: {
-						from: fromParam,
-						to: toParam,
-						projectId,
-					},
-				},
-			});
-
-	return (
-		<ModelUsageClient
-			initialActivityData={initialActivityData ?? undefined}
-			projectId={projectId}
-		/>
+	const query = paramsObject.toString();
+	redirect(
+		`/dashboard/${orgId}/${projectId}/usage${query ? `?${query}` : ""}`,
 	);
 }

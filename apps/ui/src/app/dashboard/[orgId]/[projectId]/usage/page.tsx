@@ -7,23 +7,30 @@ import type { ActivitT } from "@/types/activity";
 
 export default async function UsagePage({
 	params,
+	searchParams,
 }: {
-	params?: Promise<{
-		projectId?: string;
-		days?: string;
+	params: Promise<{
+		projectId: string;
+	}>;
+	searchParams?: Promise<{
 		from?: string;
 		to?: string;
+		apiKeyId?: string;
 	}>;
 }) {
 	const paramsData = await params;
-	const projectId = paramsData?.projectId;
+	const projectId = paramsData.projectId;
+	const searchParamsData = await searchParams;
 
 	const today = new Date();
-	const fromParam = paramsData?.from ?? format(subDays(today, 6), "yyyy-MM-dd");
-	const toParam = paramsData?.to ?? format(today, "yyyy-MM-dd");
+	const fromParam =
+		searchParamsData?.from ?? format(subDays(today, 6), "yyyy-MM-dd");
+	const toParam = searchParamsData?.to ?? format(today, "yyyy-MM-dd");
+	const apiKeyId = searchParamsData?.apiKeyId;
 
-	const initialActivityData = projectId
-		? await fetchServerData<ActivitT>("GET", "/activity", {
+	const initialActivityData = apiKeyId
+		? null
+		: await fetchServerData<ActivitT>("GET", "/activity", {
 				params: {
 					query: {
 						from: fromParam,
@@ -31,8 +38,7 @@ export default async function UsagePage({
 						projectId,
 					},
 				},
-			})
-		: null;
+			});
 
 	return (
 		<UsageClient

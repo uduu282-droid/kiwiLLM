@@ -26,7 +26,6 @@ import { useMemo, useState, useEffect } from "react";
 import { TopUpCreditsDialog } from "@/components/credits/top-up-credits-dialog";
 import {
 	AnimatedActivity,
-	AnimatedBarChart3,
 	AnimatedBotMessageSquare,
 	AnimatedChartColumnBig,
 	AnimatedExternalLink,
@@ -102,14 +101,9 @@ const PROJECT_NAVIGATION: readonly {
 		icon: AnimatedActivity,
 	},
 	{
-		href: "model-usage",
-		label: "Model Usage",
-		icon: AnimatedChartColumnBig,
-	},
-	{
 		href: "usage",
-		label: "Usage & Metrics",
-		icon: AnimatedBarChart3,
+		label: "Analytics",
+		icon: AnimatedChartColumnBig,
 	},
 	{
 		href: "api-keys",

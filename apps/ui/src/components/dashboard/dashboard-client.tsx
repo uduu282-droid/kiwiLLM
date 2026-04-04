@@ -7,7 +7,6 @@ import {
 	Key,
 	Activity,
 	CircleDollarSign,
-	BarChart3,
 	ChartColumnBig,
 	TrendingDown,
 	ArrowDownToLine,
@@ -210,13 +209,8 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 		},
 		{
 			href: "usage",
-			icon: BarChart3,
-			label: "Usage & Metrics",
-		},
-		{
-			href: "model-usage",
 			icon: ChartColumnBig,
-			label: "Model Usage",
+			label: "Analytics",
 		},
 	] as const;
 
