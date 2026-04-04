@@ -2,7 +2,6 @@
 
 import { format, subDays } from "date-fns";
 import {
-	CreditCard,
 	Zap,
 	Key,
 	Activity,
@@ -22,6 +21,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
 import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
+import { OrganizationCreditsCard } from "@/components/credits/organization-credits-card";
 import { TopUpCreditsButton } from "@/components/credits/top-up-credits-dialog";
 import { CostBreakdownCard } from "@/components/dashboard/cost-breakdown-card";
 import { ErrorsReliabilityCard } from "@/components/dashboard/errors-reliability-card";
@@ -244,57 +244,59 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 			<div className="flex-1 space-y-6 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_25%),radial-gradient(circle_at_top_left,rgba(59,130,246,0.08),transparent_22%),#050505] p-4 pt-6 md:p-8">
 				<div className="rounded-[28px] border border-white/10 bg-black/30 px-6 py-6 shadow-[0_0_0_1px_rgba(255,255,255,0.04)] md:px-8">
 					<div className="flex flex-col md:flex-row items-center justify-between space-y-2">
-					<div>
-						<h1 className="text-3xl font-bold tracking-tight text-white">
-							Dashboard
-						</h1>
-						{selectedProject && (
-							<p className="mt-1 text-sm text-zinc-400">
-								Project: {selectedProject.name}
-								{selectedOrganization && (
-									<span className="ml-2">
-										• Organization: {selectedOrganization.name}
-									</span>
-								)}
-								<span className="ml-2">• Live usage refreshes every 15s</span>
-							</p>
-						)}
-					</div>
-					<div className="flex items-center space-x-2">
-						{selectedOrganization && selectedProject && (
-							<>
-								<CreateApiKeyDialog
-									selectedProject={selectedProject}
-									disabled={
-										planLimits
-											? planLimits.currentCount >= planLimits.maxKeys
-											: false
-									}
-									disabledMessage={
-										planLimits
-											? `${planLimits.plan === "pro" ? "Pro" : "Free"} plan allows maximum ${planLimits.maxKeys} API keys per project`
-											: undefined
-									}
-								>
-									<Button
-										variant="outline"
+						<div>
+							<h1 className="text-3xl font-bold tracking-tight text-white">
+								Dashboard
+							</h1>
+							{selectedProject && (
+								<p className="mt-1 text-sm text-zinc-400">
+									Project: {selectedProject.name}
+									{selectedOrganization && (
+										<span className="ml-2">
+											• Organization: {selectedOrganization.name}
+										</span>
+									)}
+									<span className="ml-2">• Live usage refreshes every 15s</span>
+								</p>
+							)}
+						</div>
+						<div className="flex items-center space-x-2">
+							{selectedOrganization && selectedProject && (
+								<>
+									<CreateApiKeyDialog
+										selectedProject={selectedProject}
 										disabled={
-											!selectedProject ||
-											(planLimits
+											planLimits
 												? planLimits.currentCount >= planLimits.maxKeys
-												: false)
+												: false
 										}
-										className="flex items-center border-white/10 bg-white/5 text-white hover:bg-white/10"
+										disabledMessage={
+											planLimits
+												? `${planLimits.plan === "pro" ? "Pro" : "Free"} plan allows maximum ${planLimits.maxKeys} API keys per project`
+												: undefined
+										}
 									>
-										<Key className="mr-2 h-4 w-4" />
-										Create API Key
-									</Button>
-								</CreateApiKeyDialog>
+										<Button
+											variant="outline"
+											disabled={
+												!selectedProject ||
+												(planLimits
+													? planLimits.currentCount >= planLimits.maxKeys
+													: false)
+											}
+											className="flex items-center border-white/10 bg-white/5 text-white hover:bg-white/10"
+										>
+											<Key className="mr-2 h-4 w-4" />
+											Create API Key
+										</Button>
+									</CreateApiKeyDialog>
+									<TopUpCreditsButton />
+								</>
+							)}
+							{selectedOrganization && !selectedProject && (
 								<TopUpCreditsButton />
-							</>
-						)}
-						{selectedOrganization && !selectedProject && <TopUpCreditsButton />}
-					</div>
+							)}
+						</div>
 					</div>
 				</div>
 
@@ -308,7 +310,9 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 							<CardContent className="p-6">
 								<div className="mb-5 flex items-start justify-between gap-4">
 									<div>
-										<p className="text-sm text-zinc-400">Daily Request Limits</p>
+										<p className="text-sm text-zinc-400">
+											Daily Request Limits
+										</p>
 										<div className="mt-2 flex items-end gap-3">
 											<p className="text-3xl font-semibold tracking-tight text-white">
 												{requestLimits.rpm} RPM
@@ -352,17 +356,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 								</div>
 							</CardContent>
 						</Card>
-						<MetricCard
-							label="Organization Credits"
-							value={`$${
-								selectedOrganization
-									? Number(selectedOrganization.credits).toFixed(8)
-									: "0.00"
-							}`}
-							subtitle="Available balance"
-							icon={<CreditCard className="h-4 w-4" />}
-							accent="blue"
-						/>
+						<OrganizationCreditsCard organization={selectedOrganization} />
 						<MetricCard
 							label="Total Requests"
 							value={isLoading ? "Loading..." : totalRequests.toLocaleString()}
@@ -502,10 +496,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 											variant="outline"
 											className="w-full justify-start"
 										>
-											<Link
-												href={buildUrl(action.href)}
-												prefetch={true}
-											>
+											<Link href={buildUrl(action.href)} prefetch={true}>
 												<action.icon className="mr-2 h-4 w-4" />
 												{action.label}
 											</Link>
@@ -566,10 +557,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 											variant="outline"
 											className="w-full justify-start"
 										>
-											<Link
-												href={buildUrl(action.href)}
-												prefetch={true}
-											>
+											<Link href={buildUrl(action.href)} prefetch={true}>
 												<action.icon className="mr-2 h-4 w-4" />
 												{action.label}
 											</Link>

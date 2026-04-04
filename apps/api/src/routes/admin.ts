@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -44,6 +46,19 @@ const adminMetricsSchema = z.object({
 	totalSpent: z.number(),
 	unusedCredits: z.number(),
 	overage: z.number(),
+});
+
+const couponSchema = z.object({
+	id: z.string(),
+	code: z.string(),
+	description: z.string().nullable(),
+	creditAmount: z.string(),
+	maxRedemptions: z.number(),
+	redeemedCount: z.number(),
+	active: z.boolean(),
+	expiresAt: z.date().nullable(),
+	createdAt: z.date(),
+	updatedAt: z.date(),
 });
 
 const timeseriesRangeSchema = z.enum(["7d", "30d", "90d", "365d", "all"]);
@@ -3209,6 +3224,122 @@ admin.openapi(giftCreditsRoute, async (c) => {
 		message: "Credits gifted successfully",
 		credits: updatedCredits,
 	});
+});
+
+const createCouponRoute = createRoute({
+	method: "post",
+	path: "/coupons",
+	request: {
+		body: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						code: z.string().trim().min(3).max(64).optional(),
+						description: z.string().max(255).optional(),
+						creditAmount: z
+							.number()
+							.min(0.01, "Credit amount must be positive"),
+						maxRedemptions: z
+							.number()
+							.int()
+							.min(1)
+							.max(100000)
+							.default(1)
+							.optional(),
+						expiresAt: z.coerce.date().optional(),
+						active: z.boolean().optional(),
+					}),
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						message: z.string(),
+						coupon: couponSchema,
+					}),
+				},
+			},
+			description: "Coupon created successfully.",
+		},
+	},
+});
+
+admin.openapi(createCouponRoute, async (c) => {
+	const user = c.get("user");
+	const {
+		code,
+		description,
+		creditAmount,
+		maxRedemptions = 1,
+		expiresAt,
+		active = true,
+	} = c.req.valid("json");
+
+	const generatedCode =
+		code?.trim().toUpperCase() ??
+		`KIWI-${randomBytes(4).toString("hex").toUpperCase()}`;
+	const now = new Date();
+	const couponIdentifier = `coupon:${generatedCode}`;
+	const effectiveExpiresAt = expiresAt ?? new Date("2099-12-31T23:59:59.000Z");
+
+	try {
+		const [existingCoupon] = await db
+			.select({ id: tables.verification.id })
+			.from(tables.verification)
+			.where(eq(tables.verification.identifier, couponIdentifier))
+			.limit(1);
+
+		if (existingCoupon) {
+			throw new HTTPException(400, {
+				message: "Coupon code already exists",
+			});
+		}
+
+		const [coupon] = await db
+			.insert(tables.verification)
+			.values({
+				identifier: couponIdentifier,
+				value: JSON.stringify({
+					code: generatedCode,
+					description: description ?? null,
+					creditAmount: creditAmount.toString(),
+					maxRedemptions,
+					redeemedCount: 0,
+					active,
+					createdByUserId: user?.id ?? null,
+				}),
+				expiresAt: effectiveExpiresAt,
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning();
+
+		return c.json({
+			message: "Coupon created successfully",
+			coupon: {
+				id: coupon.id,
+				code: generatedCode,
+				description: description ?? null,
+				creditAmount: creditAmount.toString(),
+				maxRedemptions,
+				redeemedCount: 0,
+				active,
+				expiresAt: effectiveExpiresAt,
+				createdAt: coupon.createdAt ?? now,
+				updatedAt: coupon.updatedAt ?? now,
+			},
+		});
+	} catch (error) {
+		if (error instanceof HTTPException) {
+			throw error;
+		}
+
+		throw error;
+	}
 });
 
 // --- Delete User ---

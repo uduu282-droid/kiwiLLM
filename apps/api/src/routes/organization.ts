@@ -5,7 +5,17 @@ import { z } from "zod";
 import { userHasOrganizationAccess } from "@/utils/authorization.js";
 
 import { logAuditEvent } from "@llmgateway/audit";
-import { and, db, desc, eq, gte, isNull, or, tables } from "@llmgateway/db";
+import {
+	and,
+	db,
+	desc,
+	eq,
+	gte,
+	isNull,
+	or,
+	sql,
+	tables,
+} from "@llmgateway/db";
 
 import type { ServerTypes } from "@/vars.js";
 
@@ -99,6 +109,23 @@ const transactionSchema = z.object({
 	description: z.string().nullable(),
 	relatedTransactionId: z.string().nullable(),
 	refundReason: z.string().nullable(),
+});
+
+const creditCouponSchema = z.object({
+	id: z.string(),
+	code: z.string(),
+	description: z.string().nullable(),
+	creditAmount: z.string(),
+	maxRedemptions: z.number(),
+	redeemedCount: z.number(),
+	active: z.boolean(),
+	expiresAt: z.date().nullable(),
+	createdAt: z.date(),
+	updatedAt: z.date(),
+});
+
+const redeemCouponSchema = z.object({
+	code: z.string().trim().min(3).max(64),
 });
 
 const getOrganizations = createRoute({
@@ -815,6 +842,198 @@ organization.openapi(getOrgDiscounts, async (c) => {
 		orgDiscounts,
 		globalDiscounts,
 	});
+});
+
+const redeemCouponRoute = createRoute({
+	method: "post",
+	path: "/{id}/redeem-coupon",
+	request: {
+		params: z.object({
+			id: z.string(),
+		}),
+		body: {
+			content: {
+				"application/json": {
+					schema: redeemCouponSchema,
+				},
+			},
+		},
+	},
+	responses: {
+		200: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						message: z.string(),
+						credits: z.string(),
+						creditAmount: z.string(),
+						coupon: creditCouponSchema,
+					}),
+				},
+			},
+			description: "Coupon redeemed successfully.",
+		},
+		400: {
+			content: {
+				"application/json": {
+					schema: z.object({
+						message: z.string(),
+					}),
+				},
+			},
+			description: "Coupon is invalid, expired, or already redeemed.",
+		},
+	},
+});
+
+organization.openapi(redeemCouponRoute, async (c) => {
+	const user = c.get("user");
+	if (!user) {
+		throw new HTTPException(401, {
+			message: "Unauthorized",
+		});
+	}
+
+	const { id } = c.req.valid("param");
+	const { code } = c.req.valid("json");
+
+	const hasAccess = await userHasOrganizationAccess(user.id, id);
+	if (!hasAccess) {
+		throw new HTTPException(403, {
+			message: "You do not have access to this organization",
+		});
+	}
+
+	const normalizedCode = code.trim().toUpperCase();
+	const now = new Date();
+	const couponIdentifier = `coupon:${normalizedCode}`;
+
+	try {
+		const redeemed = await db.transaction(async (tx) => {
+			const [couponRecord] = await tx
+				.select()
+				.from(tables.verification)
+				.where(
+					and(
+						eq(tables.verification.identifier, couponIdentifier),
+						gte(tables.verification.expiresAt, now),
+					),
+				)
+				.limit(1);
+
+			if (!couponRecord) {
+				throw new HTTPException(400, {
+					message: "Invalid coupon code",
+				});
+			}
+
+			const coupon = JSON.parse(couponRecord.value) as {
+				code: string;
+				description?: string | null;
+				creditAmount: string;
+				maxRedemptions: number;
+				redeemedCount: number;
+				active: boolean;
+			};
+
+			if (!coupon.active) {
+				throw new HTTPException(400, {
+					message: "This coupon is no longer active",
+				});
+			}
+
+			if (coupon.redeemedCount >= coupon.maxRedemptions) {
+				throw new HTTPException(400, {
+					message: "This coupon has already been fully redeemed",
+				});
+			}
+
+			const redemptionDescription = `Coupon redeemed: ${normalizedCode}`;
+
+			const [existingRedemption] = await tx
+				.select({ id: tables.organizationAction.id })
+				.from(tables.organizationAction)
+				.where(
+					and(
+						eq(tables.organizationAction.organizationId, id),
+						eq(tables.organizationAction.type, "credit"),
+						eq(tables.organizationAction.description, redemptionDescription),
+					),
+				)
+				.limit(1);
+
+			if (existingRedemption) {
+				throw new HTTPException(400, {
+					message: "This coupon has already been redeemed by your organization",
+				});
+			}
+
+			await tx
+				.update(tables.verification)
+				.set({
+					value: JSON.stringify({
+						...coupon,
+						redeemedCount: coupon.redeemedCount + 1,
+					}),
+				})
+				.where(eq(tables.verification.id, couponRecord.id));
+
+			await tx.insert(tables.organizationAction).values({
+				organizationId: id,
+				type: "credit",
+				amount: coupon.creditAmount,
+				description: redemptionDescription,
+			});
+
+			await tx.insert(tables.transaction).values({
+				organizationId: id,
+				type: "credit_gift",
+				creditAmount: coupon.creditAmount,
+				currency: "USD",
+				status: "completed",
+				description: redemptionDescription,
+			});
+
+			const [updatedOrganization] = await tx
+				.update(tables.organization)
+				.set({
+					credits: sql`${tables.organization.credits} + ${coupon.creditAmount}`,
+				})
+				.where(eq(tables.organization.id, id))
+				.returning({
+					credits: tables.organization.credits,
+				});
+
+			return {
+				coupon: {
+					id: couponRecord.id,
+					code: normalizedCode,
+					description: coupon.description ?? null,
+					creditAmount: coupon.creditAmount,
+					maxRedemptions: coupon.maxRedemptions,
+					redeemedCount: coupon.redeemedCount + 1,
+					active: coupon.active,
+					expiresAt: couponRecord.expiresAt,
+					createdAt: couponRecord.createdAt ?? now,
+					updatedAt: couponRecord.updatedAt ?? now,
+				},
+				credits: String(updatedOrganization.credits),
+			};
+		});
+
+		return c.json({
+			message: "Coupon redeemed successfully",
+			credits: redeemed.credits,
+			creditAmount: redeemed.coupon.creditAmount,
+			coupon: redeemed.coupon,
+		});
+	} catch (error) {
+		if (error instanceof HTTPException) {
+			throw error;
+		}
+
+		throw error;
+	}
 });
 
 export default organization;

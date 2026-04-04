@@ -43,7 +43,6 @@ import {
 	getProviderMetricsForCombinations,
 	type InferSelectModel,
 	isCachingEnabled,
-	type ProviderKeyOptions,
 	shortid,
 	type tables,
 } from "@llmgateway/db";
@@ -131,52 +130,12 @@ const dashboardUrl = process.env.APP_URL ?? "https://app.kiwillm.in";
 export const chat = new OpenAPIHono<ServerTypes>();
 
 const hostedProviderFallbackBaseUrls: Partial<Record<Provider, string>> = {
-	"kiwillm-claude-talkai": "https://claude-talkai.ronitshrimankar1.workers.dev",
 	"kiwillm-grok-proxy": "https://grok-proxy.qwen4346.workers.dev",
 	"kiwillm-gpt-oss-worker": "https://gpt-oss-worker.llamai.workers.dev",
 };
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
 	return !getProviderEnvConfig(providerId)?.required.apiKey;
-}
-
-function resolveProviderEndpointWithFallback(options: {
-	providerId: Provider;
-	baseUrl?: string;
-	modelName: string;
-	googleApiKey?: string;
-	stream?: boolean;
-	reasoning?: boolean;
-	hasExistingToolCalls?: boolean;
-	providerOptions?: ProviderKeyOptions;
-	configIndex?: number;
-	imageGenerations?: boolean;
-}): string {
-	try {
-		return getProviderEndpoint(
-			options.providerId,
-			options.baseUrl,
-			options.modelName,
-			options.googleApiKey,
-			options.stream,
-			options.reasoning,
-			options.hasExistingToolCalls,
-			options.providerOptions,
-			options.configIndex,
-			options.imageGenerations,
-		);
-	} catch (error) {
-		const hostedFallbackBaseUrl =
-			hostedProviderFallbackBaseUrls[options.providerId];
-		if (
-			hostedFallbackBaseUrl &&
-			error instanceof Error &&
-			error.message.includes("requires a baseUrl")
-		) {
-			return `${hostedFallbackBaseUrl}/v1/chat/completions`;
-		}
-		throw error;
-	}
 }
 
 function serializeJsonResponse(data: unknown): string {
@@ -797,9 +756,8 @@ chat.openapi(completions, async (c) => {
 
 		// Get available providers based on project mode
 		let availableProviders: string[] = [];
-		let activeProviderKeys: Awaited<
-			ReturnType<typeof findActiveProviderKeys>
-		> = [];
+		let activeProviderKeys: Awaited<ReturnType<typeof findActiveProviderKeys>> =
+			[];
 
 		if (project.mode === "api-keys") {
 			activeProviderKeys = await findActiveProviderKeys(project.organizationId);
@@ -857,21 +815,20 @@ chat.openapi(completions, async (c) => {
 					routingConfigIndex = envResult.configIndex;
 				}
 
-				const endpoint = resolveProviderEndpointWithFallback({
+				const endpoint = getProviderEndpoint(
 					providerId,
-					baseUrl: providerKey?.baseUrl ?? undefined,
-					modelName: providerMapping.modelName,
-					googleApiKey:
-						providerId === "google-ai-studio" || providerId === "google-vertex"
-							? routingToken
-							: undefined,
+					providerKey?.baseUrl ?? undefined,
+					providerMapping.modelName,
+					providerId === "google-ai-studio" || providerId === "google-vertex"
+						? routingToken
+						: undefined,
 					stream,
-					reasoning: providerMapping.reasoning === true,
+					providerMapping.reasoning === true,
 					hasExistingToolCalls,
-					providerOptions: providerKey?.options ?? undefined,
-					configIndex: routingConfigIndex,
-					imageGenerations: providerMapping.imageGenerations === true,
-				});
+					providerKey?.options ?? undefined,
+					routingConfigIndex,
+					providerMapping.imageGenerations === true,
+				);
 
 				return Boolean(endpoint);
 			} catch (error) {
@@ -953,7 +910,10 @@ chat.openapi(completions, async (c) => {
 					const providerMapping = provider as ProviderModelMapping;
 
 					// Skip deprecated provider mappings
-					if (providerMapping.deprecatedAt && now > providerMapping.deprecatedAt) {
+					if (
+						providerMapping.deprecatedAt &&
+						now > providerMapping.deprecatedAt
+					) {
 						return false;
 					}
 
@@ -1028,7 +988,7 @@ chat.openapi(completions, async (c) => {
 					// Find the cheapest among the suitable providers for this model
 					for (const provider of suitableProviders) {
 						const totalPrice =
-							((provider.inputPrice || 0) + (provider.outputPrice || 0)) / 2;
+							((provider.inputPrice ?? 0) + (provider.outputPrice ?? 0)) / 2;
 
 						if (totalPrice < lowestPrice) {
 							lowestPrice = totalPrice;
@@ -1041,15 +1001,21 @@ chat.openapi(completions, async (c) => {
 
 			if (selectedModel && selectedProviders.length > 0) {
 				if (free_models_only && !selectionPass.freeOnly) {
-					logger.warn("Falling back from free-only auto routing to general auto routing", {
-						organizationId: project.organizationId,
-						apiKeyId: apiKey.id,
-					});
+					logger.warn(
+						"Falling back from free-only auto routing to general auto routing",
+						{
+							organizationId: project.organizationId,
+							apiKeyId: apiKey.id,
+						},
+					);
 				} else if (!free_models_only && !selectionPass.restrictToAllowed) {
-					logger.warn("Falling back from curated auto routing to broad auto routing", {
-						organizationId: project.organizationId,
-						apiKeyId: apiKey.id,
-					});
+					logger.warn(
+						"Falling back from curated auto routing to broad auto routing",
+						{
+							organizationId: project.organizationId,
+							apiKeyId: apiKey.id,
+						},
+					);
 				}
 				break;
 			}
@@ -1206,7 +1172,9 @@ chat.openapi(completions, async (c) => {
 								...new Set([
 									...providerKeys.map((key) => key.provider),
 									...providers
-										.filter((p) => p.id !== "llmgateway" && p.id !== usedProvider)
+										.filter(
+											(p) => p.id !== "llmgateway" && p.id !== usedProvider,
+										)
 										.filter((p) =>
 											providerCanUseHostedRouteWithoutKey(p.id as Provider),
 										)
@@ -1271,7 +1239,9 @@ chat.openapi(completions, async (c) => {
 						try {
 							if (project.mode === "api-keys") {
 								if (!providerKey?.token) {
-									if (providerCanUseHostedRouteWithoutKey(provider.providerId)) {
+									if (
+										providerCanUseHostedRouteWithoutKey(provider.providerId)
+									) {
 										routingToken = "";
 										routingConfigIndex = 0;
 									} else {
@@ -1293,22 +1263,21 @@ chat.openapi(completions, async (c) => {
 							}
 
 							return Boolean(
-								resolveProviderEndpointWithFallback({
-									providerId: provider.providerId,
-									baseUrl: providerKey?.baseUrl ?? undefined,
-									modelName: provider.modelName,
-									googleApiKey:
-										provider.providerId === "google-ai-studio" ||
+								getProviderEndpoint(
+									provider.providerId,
+									providerKey?.baseUrl ?? undefined,
+									provider.modelName,
+									provider.providerId === "google-ai-studio" ||
 										provider.providerId === "google-vertex"
-											? routingToken
-											: undefined,
+										? routingToken
+										: undefined,
 									stream,
-									reasoning: providerMapping.reasoning === true,
+									providerMapping.reasoning === true,
 									hasExistingToolCalls,
-									providerOptions: providerKey?.options ?? undefined,
-									configIndex: routingConfigIndex,
-									imageGenerations: providerMapping.imageGenerations === true,
-								}),
+									providerKey?.options ?? undefined,
+									routingConfigIndex,
+									providerMapping.imageGenerations === true,
+								),
 							);
 						} catch {
 							return false;
@@ -1424,99 +1393,13 @@ chat.openapi(completions, async (c) => {
 	}
 
 	if (!usedProvider) {
-		if (!requestedProvider) {
-			const preferredHostedProviders: ProviderModelMapping[] = [];
-
-			for (const provider of modelInfo.providers) {
-				if (!provider.providerId.startsWith("kiwillm-")) {
-					continue;
-				}
-				if (webSearchTool && (provider as ProviderModelMapping).webSearch !== true) {
-					continue;
-				}
-				if (
-					(response_format?.type === "json_object" ||
-						response_format?.type === "json_schema") &&
-					(provider as ProviderModelMapping).jsonOutput !== true
-				) {
-					continue;
-				}
-				if (
-					response_format?.type === "json_schema" &&
-					(provider as ProviderModelMapping).jsonOutputSchema !== true
-				) {
-					continue;
-				}
-				if (hasImages && (provider as ProviderModelMapping).vision !== true) {
-					continue;
-				}
-				if (
-					reasoning_effort !== undefined &&
-					(provider as ProviderModelMapping).reasoning !== true
-				) {
-					continue;
-				}
-
-				const hostedIamValidation = await validateModelAccess(
-					apiKey.id,
-					modelInfo.id,
-					provider.providerId,
-					modelInfo,
-				);
-				if (!hostedIamValidation.allowed) {
-					continue;
-				}
-
-				try {
-					resolveProviderEndpointWithFallback({
-						providerId: provider.providerId,
-						modelName: provider.modelName,
-						stream,
-						reasoning: (provider as ProviderModelMapping).reasoning === true,
-						hasExistingToolCalls: messages.some(
-							(msg: any) => msg.tool_calls ?? msg.role === "tool",
-						),
-						imageGenerations:
-							(provider as ProviderModelMapping).imageGenerations === true,
-					});
-					preferredHostedProviders.push(provider as ProviderModelMapping);
-				} catch {
-					continue;
-				}
-			}
-
-			if (preferredHostedProviders.length > 0) {
-				const hostedModelWithPricing = models.find((m) => m.id === modelInfo.id);
-				if (hostedModelWithPricing) {
-					const cheapestHostedResult = getCheapestFromAvailableProviders(
-						preferredHostedProviders,
-						hostedModelWithPricing,
-						{ isStreaming: stream },
-					);
-					if (cheapestHostedResult) {
-						usedProvider = cheapestHostedResult.provider.providerId;
-						usedModel = cheapestHostedResult.provider.modelName;
-						routingMetadata = {
-							...cheapestHostedResult.metadata,
-							selectionReason: "hosted-provider-preferred",
-						};
-					}
-				}
-
-				if (!usedProvider) {
-					usedProvider = preferredHostedProviders[0].providerId;
-					usedModel = preferredHostedProviders[0].modelName;
-				}
-			}
-		}
-
-		if (usedProvider) {
-			// Hosted provider preference above resolved the model.
-		} else if (iamFilteredModelProviders.length === 0) {
+		if (iamFilteredModelProviders.length === 0) {
 			throw new HTTPException(403, {
 				message: `Access denied: No providers are allowed for model ${modelInfo.id} after applying IAM rules. All active providers for this model are denied by your API key's IAM configuration.`,
 			});
-		} else if (iamFilteredModelProviders.length === 1) {
+		}
+
+		if (iamFilteredModelProviders.length === 1) {
 			usedProvider = iamFilteredModelProviders[0].providerId;
 			usedModel = iamFilteredModelProviders[0].modelName;
 		} else {
@@ -1550,7 +1433,7 @@ chat.openapi(completions, async (c) => {
 			// Filter model providers to only those available
 			// If web search is requested, also filter to providers that support it
 			// If JSON output is requested, also filter to providers that support it
-			let availableModelProviders = iamFilteredModelProviders.filter(
+			const availableModelProviders = iamFilteredModelProviders.filter(
 				(provider) => {
 					if (!availableProviders.includes(provider.providerId)) {
 						return false;
@@ -1632,132 +1515,27 @@ chat.openapi(completions, async (c) => {
 						}
 
 						return Boolean(
-							resolveProviderEndpointWithFallback({
-								providerId: provider.providerId,
-								baseUrl: providerKey?.baseUrl ?? undefined,
-								modelName: provider.modelName,
-								googleApiKey:
-									provider.providerId === "google-ai-studio" ||
+							getProviderEndpoint(
+								provider.providerId,
+								providerKey?.baseUrl ?? undefined,
+								provider.modelName,
+								provider.providerId === "google-ai-studio" ||
 									provider.providerId === "google-vertex"
-										? routingToken
-										: undefined,
+									? routingToken
+									: undefined,
 								stream,
-								reasoning: providerMapping.reasoning === true,
+								providerMapping.reasoning === true,
 								hasExistingToolCalls,
-								providerOptions: providerKey?.options ?? undefined,
-								configIndex: routingConfigIndex,
-								imageGenerations: providerMapping.imageGenerations === true,
-							}),
+								providerKey?.options ?? undefined,
+								routingConfigIndex,
+								providerMapping.imageGenerations === true,
+							),
 						);
 					} catch {
 						return false;
 					}
 				},
 			);
-
-			if (availableModelProviders.length === 0) {
-				const hostedFallbackProviders: ProviderModelMapping[] = [];
-				for (const provider of modelInfo.providers) {
-					if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
-						continue;
-					}
-					if (webSearchTool) {
-						if ((provider as ProviderModelMapping).webSearch !== true) {
-							continue;
-						}
-					}
-					if (
-						response_format?.type === "json_object" ||
-						response_format?.type === "json_schema"
-					) {
-						if ((provider as ProviderModelMapping).jsonOutput !== true) {
-							continue;
-						}
-					}
-					if (response_format?.type === "json_schema") {
-						if ((provider as ProviderModelMapping).jsonOutputSchema !== true) {
-							continue;
-						}
-					}
-					if (hasImages && (provider as ProviderModelMapping).vision !== true) {
-						continue;
-					}
-					if (reasoning_effort !== undefined) {
-						if ((provider as ProviderModelMapping).reasoning !== true) {
-							continue;
-						}
-					}
-					if (reasoning_effort === undefined) {
-						const hasNonReasoningAlternative = modelInfo.providers.some(
-							(p) =>
-								p.providerId === provider.providerId &&
-								(p as ProviderModelMapping).reasoning !== true,
-						);
-						if (
-							hasNonReasoningAlternative &&
-							(provider as ProviderModelMapping).reasoning === true
-						) {
-							continue;
-						}
-					}
-
-					const hostedIamValidation = await validateModelAccess(
-						apiKey.id,
-						modelInfo.id,
-						provider.providerId,
-						modelInfo,
-					);
-					if (!hostedIamValidation.allowed) {
-						continue;
-					}
-
-					const providerMapping = provider as ProviderModelMapping;
-					const providerKey = providerKeyMap.get(provider.providerId);
-					let routingToken = "";
-					let routingConfigIndex = 0;
-
-					try {
-						if (providerKey?.token) {
-							routingToken = providerKey.token;
-						} else if (project.mode !== "api-keys") {
-							const envResult = getProviderEnv(provider.providerId);
-							routingToken = envResult.token;
-							routingConfigIndex = envResult.configIndex;
-						}
-
-						resolveProviderEndpointWithFallback({
-							providerId: provider.providerId,
-							baseUrl: providerKey?.baseUrl ?? undefined,
-							modelName: provider.modelName,
-							googleApiKey:
-								provider.providerId === "google-ai-studio" ||
-								provider.providerId === "google-vertex"
-									? routingToken
-									: undefined,
-							stream,
-							reasoning: providerMapping.reasoning === true,
-							hasExistingToolCalls: messages.some(
-								(msg: any) => msg.tool_calls ?? msg.role === "tool",
-							),
-							providerOptions: providerKey?.options ?? undefined,
-							configIndex: routingConfigIndex,
-							imageGenerations: providerMapping.imageGenerations === true,
-						});
-						hostedFallbackProviders.push(providerMapping);
-					} catch {
-						continue;
-					}
-				}
-
-				if (hostedFallbackProviders.length > 0) {
-					logger.warn("Using hosted explicit-model fallback providers", {
-						model: usedModel,
-						providers: hostedFallbackProviders.map((provider) => provider.providerId),
-						projectMode: project.mode,
-					});
-					availableModelProviders = hostedFallbackProviders;
-				}
-			}
 
 			if (availableModelProviders.length === 0) {
 				throw new HTTPException(400, {
@@ -2088,9 +1866,29 @@ chat.openapi(completions, async (c) => {
 	// Apply free-tier protections when requests use Kiwi-managed provider tokens.
 	if (!providerKey || !providerKey.token) {
 		if (isFreeTierOrganization) {
-			await validateFreeUserUsage(c, project.organizationId, {
-				skipEmailVerification: onboarding,
-			});
+			try {
+				await validateFreeUserUsage(c, project.organizationId, {
+					skipEmailVerification: onboarding,
+				});
+			} catch (error) {
+				const regularCredits = parseFloat(organization.credits ?? "0");
+				const devPlanCreditsRemaining =
+					organization.devPlan !== "none"
+						? parseFloat(organization.devPlanCreditsLimit ?? "0") -
+							parseFloat(organization.devPlanCreditsUsed ?? "0")
+						: 0;
+				const totalAvailableCredits = regularCredits + devPlanCreditsRemaining;
+
+				if (
+					error instanceof HTTPException &&
+					error.status === 429 &&
+					totalAvailableCredits > 0
+				) {
+					c.header("X-KiwiLLM-Credits-Fallback", "true");
+				} else {
+					throw error;
+				}
+			}
 		} else if (
 			isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition)
 		) {
@@ -2149,23 +1947,36 @@ chat.openapi(completions, async (c) => {
 			});
 		}
 
-		url = resolveProviderEndpointWithFallback({
-			providerId: usedProvider,
-			baseUrl: providerKey?.baseUrl ?? undefined,
-			modelName: usedModel,
-			googleApiKey:
-				usedProvider === "google-ai-studio" || usedProvider === "google-vertex"
-					? usedToken
-					: undefined,
+		url = getProviderEndpoint(
+			usedProvider,
+			providerKey?.baseUrl ?? undefined,
+			usedModel,
+			usedProvider === "google-ai-studio" || usedProvider === "google-vertex"
+				? usedToken
+				: undefined,
 			stream,
-			reasoning: supportsReasoning,
+			supportsReasoning,
 			hasExistingToolCalls,
-			providerOptions: providerKey?.options ?? undefined,
+			providerKey?.options ?? undefined,
 			configIndex,
-			imageGenerations: isImageGeneration,
-		});
+			isImageGeneration,
+		);
 	} catch (error) {
-		if (usedProvider === "llmgateway" && usedModel !== "custom") {
+		const hostedFallbackBaseUrl = usedProvider
+			? hostedProviderFallbackBaseUrls[usedProvider]
+			: undefined;
+		if (
+			hostedFallbackBaseUrl &&
+			error instanceof Error &&
+			error.message.includes("requires a baseUrl")
+		) {
+			logger.warn("Falling back to hosted provider default base URL", {
+				provider: usedProvider,
+				model: usedModel,
+				hostedFallbackBaseUrl,
+			});
+			url = `${hostedFallbackBaseUrl}/v1/chat/completions`;
+		} else if (usedProvider === "llmgateway" && usedModel !== "custom") {
 			throw new HTTPException(400, {
 				message: `Invalid model: ${usedModel} for provider: ${usedProvider}`,
 			});
