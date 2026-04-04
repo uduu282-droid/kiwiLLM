@@ -139,22 +139,6 @@ const ORGANIZATION_SETTINGS = [
 		href: "org/referrals",
 		label: "Referrals",
 	},
-	{
-		href: "org/policies",
-		label: "Policies",
-	},
-	{
-		href: "org/preferences",
-		label: "Preferences",
-	},
-	{
-		href: "org/team",
-		label: "Team",
-	},
-	{
-		href: "org/audit-logs",
-		label: "Audit Logs",
-	},
 ] as const;
 
 // TOOLS_RESOURCES will be created dynamically inside the component
@@ -385,11 +369,7 @@ function OrganizationSection({
 							isActive={
 								isActive("org/billing") ||
 								isActive("org/transactions") ||
-								isActive("org/referrals") ||
-								isActive("org/policies") ||
-								isActive("org/preferences") ||
-								isActive("org/team") ||
-								isActive("org/audit-logs")
+								isActive("org/referrals")
 							}
 							tooltip="Settings"
 						>
