@@ -79,6 +79,15 @@ export function getProviderEndpoint(
 						"https://completions.me/api/v1",
 					) ?? "https://completions.me/api/v1";
 				break;
+			case "kiwillm-ish-chat-proxy":
+				url =
+					getProviderEnvValue(
+						"kiwillm-ish-chat-proxy",
+						"baseUrl",
+						configIndex,
+						"https://ish-chat-proxy-test.revai.workers.dev",
+					) ?? "https://ish-chat-proxy-test.revai.workers.dev";
+				break;
 			case "kiwillm-freecfmodels":
 				url =
 					getProviderEnvValue(
@@ -491,6 +500,7 @@ export function getProviderEndpoint(
 		case "kiwillm-free-ai-hub":
 		case "kiwillm-n33-ai":
 		case "kiwillm-claude-talkai":
+		case "kiwillm-ish-chat-proxy":
 		case "kiwillm-chatbot-ai":
 		case "kiwillm-cerebras-ai":
 		case "kiwillm-grok-proxy":

@@ -16,6 +16,10 @@ import {
 } from "./models/freecfmodels.js";
 import { googleModels } from "./models/google.js";
 import {
+	ishChatProxyModels,
+	ishChatProxyProviderAugments,
+} from "./models/ish-chat-proxy.js";
+import {
 	literouterProxyModels,
 	literouterProxyProviderAugments,
 } from "./models/literouter-proxy.js";
@@ -299,17 +303,20 @@ export const models: ModelDefinition[] = [
 		...baseModels,
 		...chataiProxyModels,
 		...completionsMeModels,
+		...ishChatProxyModels,
 		...literouterProxyModels,
 		...freecfmodelsModels,
 	].map((model) => {
 		const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
 		const completionsMeProviders =
 			completionsMeProviderAugments[model.id] ?? [];
+		const ishChatProxyProviders = ishChatProxyProviderAugments[model.id] ?? [];
 		const literouterProviders = literouterProxyProviderAugments[model.id] ?? [];
 		const freecfmodelsProviders = freecfmodelsProviderAugments[model.id] ?? [];
 		if (
 			chataiProviders.length === 0 &&
 			completionsMeProviders.length === 0 &&
+			ishChatProxyProviders.length === 0 &&
 			literouterProviders.length === 0 &&
 			freecfmodelsProviders.length === 0
 		) {
@@ -321,6 +328,7 @@ export const models: ModelDefinition[] = [
 				...model.providers,
 				...chataiProviders,
 				...completionsMeProviders,
+				...ishChatProxyProviders,
 				...literouterProviders,
 				...freecfmodelsProviders,
 			],

@@ -79,6 +79,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-ish-chat-proxy",
+		name: "KiwiLLM Ish Chat Proxy",
+		description:
+			"KiwiLLM-hosted ish-chat proxy exposing OpenAI-compatible Grok and GPT OSS models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_ISH_CHAT_PROXY_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: "https://ish-chat-proxy-test.revai.workers.dev",
+		announcement: null,
+	},
+	{
 		id: "kiwillm-freecfmodels",
 		name: "KiwiLLM Free CF Models",
 		description:

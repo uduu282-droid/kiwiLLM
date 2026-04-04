@@ -36,6 +36,7 @@ export function getProviderHeaders(
 		case "kiwillm-free-ai-hub":
 		case "kiwillm-n33-ai":
 		case "kiwillm-claude-talkai":
+		case "kiwillm-ish-chat-proxy":
 			return {};
 		case "obsidian":
 			return {
