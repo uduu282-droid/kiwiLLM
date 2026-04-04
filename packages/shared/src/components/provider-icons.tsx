@@ -51,6 +51,23 @@ export const DeepseekIcon: React.FC<React.SVGProps<SVGSVGElement>> = (
 	</svg>
 );
 
+export const MetaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+	<svg
+		{...props}
+		viewBox="0 0 24 24"
+		fill="none"
+		xmlns="http://www.w3.org/2000/svg"
+	>
+		<path
+			d="M4.5 15.75c0-4.481 2.315-8.25 4.25-8.25 1.426 0 2.86 2.052 4.487 5.283C14.655 15.565 15.615 17 16.5 17c1.11 0 3-1.84 3-5.25 0-2.42-.95-4.5-2.25-4.5-1.623 0-3.262 2.259-5.02 5.83C10.52 9.46 9.016 6.75 7.03 6.75 4.557 6.75 2.25 10.354 2.25 15c0 2.515 1.11 4.5 2.58 4.5 1.174 0 2.331-1.286 3.584-3.583"
+			stroke="currentColor"
+			strokeWidth="1.9"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		/>
+	</svg>
+);
+
 // ByteDance Icon
 export const BytedanceIcon: React.FC<React.SVGProps<SVGSVGElement>> = (
 	props,
@@ -1221,6 +1238,7 @@ export const MinimaxIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
 
 // Export all icons as a map for easy access
 export const ProviderIcons = {
+	llmgateway: Logo,
 	anthropic: AnthropicIcon,
 	bytedance: BytedanceIcon,
 	deepseek: DeepseekIcon,
@@ -1243,6 +1261,7 @@ export const ProviderIcons = {
 	azure: AzureIcon,
 	canopywave: CanopyWaveIcon,
 	cerebras: CerebrasIcon,
+	meta: MetaIcon,
 	minimax: MinimaxIcon,
 } as const;
 
@@ -1254,6 +1273,7 @@ export const providerLogoUrls: Partial<
 > = {
 	openai: ProviderIcons.openai,
 	anthropic: ProviderIcons.anthropic,
+	llmgateway: ProviderIcons.llmgateway,
 	bytedance: ProviderIcons.bytedance,
 	"google-ai-studio": ProviderIcons["google-ai-studio"],
 	"google-vertex": ProviderIcons["google-vertex"],
@@ -1274,6 +1294,7 @@ export const providerLogoUrls: Partial<
 	azure: ProviderIcons.azure,
 	canopywave: ProviderIcons.canopywave,
 	cerebras: ProviderIcons.cerebras,
+	custom: ProviderIcons.llmgateway,
 	minimax: ProviderIcons.minimax,
 };
 

@@ -19,6 +19,7 @@ import {
 	PopoverTrigger,
 } from "@/lib/components/popover";
 import { useAppConfig } from "@/lib/config";
+import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
 
 import { getProviderIcon } from "@llmgateway/shared/components";
 
@@ -134,6 +135,12 @@ export function ModelSearch({
 				}
 
 				const provider = providers.find((p) => p.id === mapping.providerId);
+				const displayProvider = getDisplayProviderInfo({
+					providerId: String(mapping.providerId),
+					providerName: provider?.name,
+					modelId: String(model.id),
+					family: model.family,
+				});
 
 				const key = `${String(mapping.providerId)}-${String(model.id)}`;
 				if (!map.has(key)) {
@@ -141,7 +148,7 @@ export function ModelSearch({
 						id: String(model.id),
 						name: model.name ?? String(model.id),
 						providerId: String(mapping.providerId),
-						providerName: provider?.name ?? String(mapping.providerId),
+						providerName: displayProvider.name,
 						createdAt,
 						free:
 							(model.free ??
@@ -210,7 +217,14 @@ export function ModelSearch({
 						{groups.map(([label, items]) => (
 							<CommandGroup key={label} heading={label}>
 								{items.map((entry) => {
-									const ProviderIcon = getProviderIcon(entry.providerId);
+									const displayProvider = getDisplayProviderInfo({
+										providerId: entry.providerId,
+										providerName: entry.providerName,
+										modelId: entry.id,
+									});
+									const ProviderIcon = getProviderIcon(
+										displayProvider.iconProviderId,
+									);
 
 									return (
 										<CommandItem
@@ -227,16 +241,16 @@ export function ModelSearch({
 														<ProviderIcon className="h-5 w-5" />
 													) : (
 														<span className="text-xs font-medium uppercase text-muted-foreground">
-															{entry.providerName.charAt(0)}
+															{displayProvider.name.charAt(0)}
 														</span>
 													)}
 												</div>
 												<div className="flex flex-col items-start">
 													<span className="text-sm font-medium">
-														{entry.providerName}: {entry.name}
+														{entry.name}
 													</span>
 													<span className="text-xs text-muted-foreground">
-														{entry.id}
+														{displayProvider.name}
 													</span>
 												</div>
 											</div>
@@ -251,4 +265,3 @@ export function ModelSearch({
 		</Popover>
 	);
 }
-

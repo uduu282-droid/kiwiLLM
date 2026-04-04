@@ -36,6 +36,7 @@ import {
 } from "@/lib/components/tooltip";
 import { useAppConfig } from "@/lib/config";
 import { XIcon } from "@/lib/icons/XIcon";
+import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
 import { formatContextSize, formatDeprecationDate } from "@/lib/utils";
 
 import { getProviderIcon } from "@llmgateway/shared/components";
@@ -67,11 +68,16 @@ export function ModelProviderCard({
 	const [copied, setCopied] = useState(false);
 	const [urlCopied, setUrlCopied] = useState(false);
 	const providerModelName = `${provider.providerId}/${modelName}`;
-	const ProviderIcon = getProviderIcon(provider.providerId);
+	const displayProvider = getDisplayProviderInfo({
+		providerId: provider.providerId,
+		providerName: provider.providerInfo?.name,
+		modelId: modelName,
+	});
+	const ProviderIcon = getProviderIcon(displayProvider.iconProviderId);
 	const providerStability = provider.stability ?? modelStability;
 
 	const shareUrl = `${config.appUrl}/models/${encodeURIComponent(modelName)}/${encodeURIComponent(provider.providerId)}`;
-	const shareTitle = `${provider.providerInfo?.name ?? provider.providerId} - ${modelName} on KiwiLLM`;
+	const shareTitle = `${displayProvider.name} - ${modelName} on KiwiLLM`;
 
 	const getStabilityBadgeProps = (stability?: StabilityLevel) => {
 		switch (stability) {
@@ -128,14 +134,12 @@ export function ModelProviderCard({
 							{ProviderIcon ? (
 								<ProviderIcon className="h-10 w-10" />
 							) : (
-								(provider.providerInfo?.name?.charAt(0) ?? "?")
+								(displayProvider.name.charAt(0) ?? "?")
 							)}
 						</div>
 						<div>
 							<div className="flex items-center gap-2 mb-1">
-								<h3 className="font-semibold">
-									{provider.providerInfo?.name ?? provider.providerId}
-								</h3>
+								<h3 className="font-semibold">{displayProvider.name}</h3>
 								{shouldShowStabilityWarning(providerStability) && (
 									<AlertTriangle className="h-4 w-4 text-orange-500" />
 								)}

@@ -14,6 +14,11 @@ const preferredProviderOrder = [
 	"kiwillm-minimax",
 	"kiwillm-n33-ai",
 	"kiwillm-claude-talkai",
+	"kiwillm-chatbot-ai",
+	"kiwillm-cerebras-ai",
+	"kiwillm-grok-proxy",
+	"kiwillm-gpt-oss-worker",
+	"kiwillm-claude-v3xg",
 	"kiwillm-free-ai-hub",
 ] as const;
 
@@ -182,36 +187,41 @@ internalModels.openapi(getModelsRoute, async (c) => {
 	};
 
 	// Transform and apply effective discount
-	const transformedModels = models.map((model) => ({
-		...model,
-		mappings: model.modelProviderMappings
-			.map((mapping) => {
-				const globalDiscount = getGlobalDiscount(
-					mapping.providerId,
-					model.id,
-					mapping.modelName,
-				);
-				// Global discount takes precedence over hardcoded mapping discount
-				const effectiveDiscount = globalDiscount ?? mapping.discount;
-				return { ...mapping, discount: effectiveDiscount };
-			})
-			.sort((a, b) => {
-				const aPriority = preferredProviderOrder.indexOf(a.providerId as never);
-				const bPriority = preferredProviderOrder.indexOf(b.providerId as never);
+	const transformedModels = models
+		.map((model) => ({
+			...model,
+			mappings: model.modelProviderMappings
+				.map((mapping) => {
+					const globalDiscount = getGlobalDiscount(
+						mapping.providerId,
+						model.id,
+						mapping.modelName,
+					);
+					const effectiveDiscount = globalDiscount ?? mapping.discount;
+					return { ...mapping, discount: effectiveDiscount };
+				})
+				.sort((a, b) => {
+					const aPriority = preferredProviderOrder.indexOf(
+						a.providerId as never,
+					);
+					const bPriority = preferredProviderOrder.indexOf(
+						b.providerId as never,
+					);
 
-				if (aPriority !== -1 || bPriority !== -1) {
-					if (aPriority === -1) {
-						return 1;
+					if (aPriority !== -1 || bPriority !== -1) {
+						if (aPriority === -1) {
+							return 1;
+						}
+						if (bPriority === -1) {
+							return -1;
+						}
+						return aPriority - bPriority;
 					}
-					if (bPriority === -1) {
-						return -1;
-					}
-					return aPriority - bPriority;
-				}
 
-				return a.createdAt.getTime() - b.createdAt.getTime();
-			}),
-	}));
+					return a.createdAt.getTime() - b.createdAt.getTime();
+				}),
+		}))
+		.filter((model) => model.mappings.length > 0);
 
 	return c.json({ models: transformedModels });
 });

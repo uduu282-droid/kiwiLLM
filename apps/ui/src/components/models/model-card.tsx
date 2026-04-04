@@ -24,6 +24,7 @@ import {
 	TooltipTrigger,
 } from "@/lib/components/tooltip";
 import { useAppConfig } from "@/lib/config";
+import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
 import { formatContextSize, formatDeprecationDate } from "@/lib/utils";
 
 import { getProviderIcon } from "@llmgateway/shared/components";
@@ -210,7 +211,15 @@ export function ModelCard({
 							: model.providerDetails.slice(0, 1)
 						).map(({ provider, providerInfo }) => {
 							const providerModelId = `${provider.providerId}/${model.id}`;
-							const ProviderIcon = getProviderIcon(provider.providerId);
+							const displayProvider = getDisplayProviderInfo({
+								providerId: provider.providerId,
+								providerName: providerInfo?.name,
+								modelId: model.id,
+								family: model.family,
+							});
+							const ProviderIcon = getProviderIcon(
+								displayProvider.iconProviderId,
+							);
 
 							return (
 								<div
@@ -223,14 +232,12 @@ export function ModelCard({
 												<ProviderIcon className="h-5 w-5" />
 											) : (
 												<span className="text-xs font-bold">
-													{(providerInfo?.name ?? provider.providerId)
-														.charAt(0)
-														.toUpperCase()}
+													{displayProvider.name.charAt(0).toUpperCase()}
 												</span>
 											)}
 										</div>
 										<span className="text-base font-semibold text-foreground">
-											{providerInfo?.name ?? provider.providerId}
+											{displayProvider.name}
 										</span>
 										{hasProviderStabilityWarning(provider) && (
 											<AlertTriangle className="h-4 w-4 text-amber-400" />

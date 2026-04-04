@@ -25,6 +25,7 @@ import { ProviderTabs } from "@/components/models/provider-tabs";
 import { Badge } from "@/lib/components/badge";
 import { Button } from "@/lib/components/button";
 import { getConfig } from "@/lib/config-server";
+import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
 import { fetchServerData } from "@/lib/server-api";
 
 import {
@@ -67,6 +68,12 @@ export default async function ModelProviderPage({ params }: PageProps) {
 	const providerInfo = providerDefinitions.find(
 		(p) => p.id === decodedProvider,
 	);
+	const displayProvider = getDisplayProviderInfo({
+		providerId: decodedProvider,
+		providerName: providerInfo?.name,
+		modelId: decodedName,
+		family: modelDef.family,
+	});
 
 	// Fetch global discounts and apply to provider
 	const discountData = await fetchServerData<{ discounts: DiscountData[] }>(
@@ -192,7 +199,7 @@ export default async function ModelProviderPage({ params }: PageProps) {
 			{
 				"@type": "ListItem",
 				position: 4,
-				name: providerInfo?.name ?? decodedProvider,
+				name: displayProvider.name,
 				item: `https://llmgateway.io/models/${encodeURIComponent(decodedName)}/${encodeURIComponent(decodedProvider)}`,
 			},
 		],
@@ -201,13 +208,13 @@ export default async function ModelProviderPage({ params }: PageProps) {
 	const productSchema = {
 		"@context": "https://schema.org",
 		"@type": "Product",
-		name: `${modelDef.name ?? modelDef.id} on ${providerInfo?.name ?? decodedProvider}`,
+		name: `${modelDef.name ?? modelDef.id} on ${displayProvider.name}`,
 		description:
 			modelDef.description ??
-			`Access ${modelDef.name ?? modelDef.id} via ${providerInfo?.name ?? decodedProvider} through LLM Gateway's unified API.`,
+			`Access ${modelDef.name ?? modelDef.id} via ${displayProvider.name} through LLM Gateway's unified API.`,
 		brand: {
 			"@type": "Brand",
-			name: providerInfo?.name ?? decodedProvider,
+			name: displayProvider.name,
 		},
 		offers: {
 			"@type": "Offer",
@@ -413,8 +420,7 @@ export default async function ModelProviderPage({ params }: PageProps) {
 						<div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-2">
 							<div>
 								<h2 className="text-xl md:text-2xl font-semibold mb-2">
-									{providerInfo?.name ?? decodedProvider} Pricing for{" "}
-									{modelDef.name}
+									{displayProvider.name} Pricing for {modelDef.name}
 								</h2>
 								<p className="text-muted-foreground">
 									View detailed pricing and capabilities for this provider.
@@ -477,7 +483,12 @@ export async function generateMetadata({
 	const providerInfo = providerDefinitions.find(
 		(p) => p.id === decodedProvider,
 	);
-	const providerName = providerInfo?.name ?? decodedProvider;
+	const providerName = getDisplayProviderInfo({
+		providerId: decodedProvider,
+		providerName: providerInfo?.name,
+		modelId: decodedName,
+		family: model.family,
+	}).name;
 
 	const title = `${model.name ?? model.id} on ${providerName} – LLM Gateway`;
 	const description = `Pricing and capabilities for ${model.name ?? model.id} via ${providerName} on LLM Gateway.`;

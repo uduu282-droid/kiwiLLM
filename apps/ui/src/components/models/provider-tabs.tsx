@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { Button } from "@/lib/components/button";
+import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
 
 import { providers as providerDefinitions } from "@llmgateway/models";
 import { getProviderIcon } from "@llmgateway/shared/components";
@@ -26,7 +27,12 @@ export function ProviderTabs({
 				const providerInfo = providerDefinitions.find(
 					(p) => p.id === providerId,
 				);
-				const ProviderIcon = getProviderIcon(providerId);
+				const displayProvider = getDisplayProviderInfo({
+					providerId,
+					providerName: providerInfo?.name,
+					modelId,
+				});
+				const ProviderIcon = getProviderIcon(displayProvider.iconProviderId);
 				const isActive = providerId === activeProviderId;
 
 				return (
@@ -42,7 +48,7 @@ export function ProviderTabs({
 							className="gap-2"
 						>
 							{ProviderIcon && <ProviderIcon className="h-4 w-4" />}
-							{providerInfo?.name ?? providerId}
+							{displayProvider.name}
 						</Button>
 					</Link>
 				);
