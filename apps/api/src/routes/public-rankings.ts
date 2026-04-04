@@ -262,11 +262,12 @@ publicRankings.openapi(getPublicRankings, async (c) => {
 			`),
 		]);
 
-	const currentRows = currentRowsResult.rows as AggregateRow[];
-	const previousRows = previousRowsResult.rows as AggregateRow[];
-	const chartRows = chartRowsResult.rows as WeeklyAggregateRow[];
-	const fastestRows = fastestRowsResult.rows as FastestAggregateRow[];
-	const appRows = appRowsResult.rows as AppAggregateRow[];
+	const currentRows = currentRowsResult.rows as unknown as AggregateRow[];
+	const previousRows = previousRowsResult.rows as unknown as AggregateRow[];
+	const chartRows = chartRowsResult.rows as unknown as WeeklyAggregateRow[];
+	const fastestRows =
+		fastestRowsResult.rows as unknown as FastestAggregateRow[];
+	const appRows = appRowsResult.rows as unknown as AppAggregateRow[];
 
 	const previousMap = new Map(
 		previousRows.map((row) => [
