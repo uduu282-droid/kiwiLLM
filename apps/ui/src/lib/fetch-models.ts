@@ -61,6 +61,14 @@ export interface ApiModel {
 	mappings: ApiModelProviderMapping[];
 }
 
+function isKiwiBackedProvider(providerId: string) {
+	return providerId.startsWith("kiwillm-");
+}
+
+function isPublicCatalogModel(modelId: string) {
+	return modelId !== "auto" && modelId !== "custom";
+}
+
 export const fetchModels = cache(async (): Promise<ApiModel[]> => {
 	const config = getConfig();
 	try {
@@ -72,7 +80,18 @@ export const fetchModels = cache(async (): Promise<ApiModel[]> => {
 			return [];
 		}
 		const data = await response.json();
-		return data.models ?? [];
+		const models = Array.isArray(data.models) ? (data.models as ApiModel[]) : [];
+		return models
+			.map((model) => ({
+				...model,
+				mappings: model.mappings.filter((mapping) =>
+					isKiwiBackedProvider(mapping.providerId),
+				),
+			}))
+			.filter(
+				(model) =>
+					isPublicCatalogModel(model.id) && model.mappings.length > 0,
+			);
 	} catch (error) {
 		console.error("Error fetching models:", error);
 		return [];
@@ -90,7 +109,16 @@ export const fetchProviders = cache(async (): Promise<ApiProvider[]> => {
 			return [];
 		}
 		const data = await response.json();
-		return data.providers ?? [];
+		const providers = Array.isArray(data.providers)
+			? (data.providers as ApiProvider[])
+			: [];
+		const models = await fetchModels();
+		const usedProviderIds = new Set(
+			models.flatMap((model) =>
+				model.mappings.map((mapping) => mapping.providerId),
+			),
+		);
+		return providers.filter((provider) => usedProviderIds.has(provider.id));
 	} catch (error) {
 		console.error("Error fetching providers:", error);
 		return [];

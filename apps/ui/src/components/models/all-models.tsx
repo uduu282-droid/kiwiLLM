@@ -66,6 +66,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/lib/components/tooltip";
+import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
 import { cn, formatDeprecationDate } from "@/lib/utils";
 
 import { getProviderIcon } from "@llmgateway/shared/components";
@@ -123,10 +124,17 @@ interface FlattenedModelRow {
 	model: ApiModel;
 	provider: ApiModelProviderMapping;
 	providerInfo: ApiProvider;
+	displayProviderName: string;
 	hasAdditionalPricing: boolean;
 	rowKey: string;
 	capabilities: CapabilityIcon[];
 	ProviderIcon: React.ComponentType<{ className?: string }> | null;
+}
+
+interface ProviderFilterOption {
+	value: string;
+	name: string;
+	iconProviderId: string;
 }
 
 // Helper to compute capabilities (moved outside component for performance)
@@ -256,14 +264,10 @@ const ModelTableRow = React.memo(
 										backgroundColor: row.providerInfo?.color ?? "#6b7280",
 									}}
 								>
-									{(row.providerInfo?.name ?? row.provider.providerId)
-										.charAt(0)
-										.toUpperCase()}
+									{row.displayProviderName.charAt(0).toUpperCase()}
 								</div>
 							)}
-							<span className="text-sm">
-								{row.providerInfo?.name ?? row.provider.providerId}
-							</span>
+							<span className="text-sm">{row.displayProviderName}</span>
 							{row.provider.deactivatedAt && (
 								<Tooltip>
 									<TooltipTrigger asChild>
@@ -526,9 +530,29 @@ export function AllModels({
 			),
 		).length;
 
+		const uniqueDisplayProviders = new Set(
+			models.flatMap((model) =>
+				model.mappings
+					.filter(
+						(mapping) =>
+							!mapping.deprecatedAt || new Date(mapping.deprecatedAt) > now,
+					)
+					.map((mapping) =>
+						getDisplayProviderInfo({
+							providerId: mapping.providerId,
+							providerName:
+								providers.find((provider) => provider.id === mapping.providerId)
+									?.name ?? null,
+							modelId: model.id,
+							family: model.family,
+						}).name,
+					),
+			),
+		);
+
 		return {
 			totalModelCount: nonDeprecatedModelCount,
-			totalProviderCount: providers.length,
+			totalProviderCount: uniqueDisplayProviders.size,
 		};
 	}, [models, providers]);
 
@@ -582,7 +606,12 @@ export function AllModels({
 
 				const providerStrings = (model.providerDetails ?? []).flatMap((p) => [
 					p.provider.providerId,
-					p.providerInfo?.name ?? "",
+					getDisplayProviderInfo({
+						providerId: p.provider.providerId,
+						providerName: p.providerInfo?.name,
+						modelId: model.id,
+						family: model.family,
+					}).name,
 				]);
 				const haystackParts = [
 					model.name ?? "",
@@ -761,7 +790,13 @@ export function AllModels({
 			// Provider filter
 			if (filters.selectedProvider && filters.selectedProvider !== "all") {
 				const hasSelectedProvider = model.providerDetails.some(
-					(p) => p.provider.providerId === filters.selectedProvider,
+					(p) =>
+						getDisplayProviderInfo({
+							providerId: p.provider.providerId,
+							providerName: p.providerInfo?.name,
+							modelId: model.id,
+							family: model.family,
+						}).name === filters.selectedProvider,
 				);
 				if (!hasSelectedProvider) {
 					return false;
@@ -851,16 +886,18 @@ export function AllModels({
 			switch (sortField) {
 				case "provider":
 					// For grid view, sort by first provider name
-					aValue = (
-						a.providerDetails[0]?.providerInfo?.name ??
-						a.providerDetails[0]?.provider.providerId ??
-						""
-					).toLowerCase();
-					bValue = (
-						b.providerDetails[0]?.providerInfo?.name ??
-						b.providerDetails[0]?.provider.providerId ??
-						""
-					).toLowerCase();
+					aValue = getDisplayProviderInfo({
+						providerId: a.providerDetails[0]?.provider.providerId ?? "",
+						providerName: a.providerDetails[0]?.providerInfo?.name,
+						modelId: a.id,
+						family: a.family,
+					}).name.toLowerCase();
+					bValue = getDisplayProviderInfo({
+						providerId: b.providerDetails[0]?.provider.providerId ?? "",
+						providerName: b.providerDetails[0]?.providerInfo?.name,
+						modelId: b.id,
+						family: b.family,
+					}).name.toLowerCase();
 					break;
 				case "name":
 					aValue = (a.name ?? a.id).toLowerCase();
@@ -944,10 +981,43 @@ export function AllModels({
 	const filteredProviderCount = useMemo(() => {
 		const uniqueProviders = new Set(
 			modelsWithProviders.flatMap((model) =>
-				model.providerDetails.map((p) => p.provider.providerId),
+				model.providerDetails.map((p) =>
+					getDisplayProviderInfo({
+						providerId: p.provider.providerId,
+						providerName: p.providerInfo?.name,
+						modelId: model.id,
+						family: model.family,
+					}).name,
+				),
 			),
 		);
 		return uniqueProviders.size;
+	}, [modelsWithProviders]);
+
+	const providerFilterOptions = useMemo<ProviderFilterOption[]>(() => {
+		const options = new Map<string, ProviderFilterOption>();
+
+		for (const model of modelsWithProviders) {
+			for (const { provider, providerInfo } of model.providerDetails) {
+				const displayProvider = getDisplayProviderInfo({
+					providerId: provider.providerId,
+					providerName: providerInfo?.name,
+					modelId: model.id,
+					family: model.family,
+				});
+				if (!options.has(displayProvider.name)) {
+					options.set(displayProvider.name, {
+						value: displayProvider.name,
+						name: displayProvider.name,
+						iconProviderId: displayProvider.iconProviderId,
+					});
+				}
+			}
+		}
+
+		return Array.from(options.values()).sort((a, b) =>
+			a.name.localeCompare(b.name),
+		);
 	}, [modelsWithProviders]);
 
 	// Flattened rows for table view (one row per provider-model combination)
@@ -957,6 +1027,12 @@ export function AllModels({
 
 		for (const model of modelsWithProviders) {
 			for (const { provider, providerInfo } of model.providerDetails) {
+				const displayProvider = getDisplayProviderInfo({
+					providerId: provider.providerId,
+					providerName: providerInfo?.name,
+					modelId: model.id,
+					family: model.family,
+				});
 				const hasAdditionalPricing =
 					provider.webSearch ??
 					(provider.requestPrice !== null &&
@@ -967,10 +1043,11 @@ export function AllModels({
 					model,
 					provider,
 					providerInfo,
+					displayProviderName: displayProvider.name,
 					hasAdditionalPricing,
 					rowKey: `${provider.providerId}-${model.id}`,
 					capabilities: computeCapabilities(provider, model),
-					ProviderIcon: getProviderIcon(provider.providerId),
+					ProviderIcon: getProviderIcon(displayProvider.iconProviderId),
 				});
 			}
 		}
@@ -993,12 +1070,8 @@ export function AllModels({
 
 			switch (sortField) {
 				case "provider":
-					aValue = (
-						a.providerInfo?.name ?? a.provider.providerId
-					).toLowerCase();
-					bValue = (
-						b.providerInfo?.name ?? b.provider.providerId
-					).toLowerCase();
+					aValue = a.displayProviderName.toLowerCase();
+					bValue = b.displayProviderName.toLowerCase();
 					break;
 				case "name":
 					aValue = (a.model.name ?? a.model.id).toLowerCase();
@@ -1472,13 +1545,12 @@ export function AllModels({
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All providers</SelectItem>
-								{providers.map((provider) => {
-									const ProviderIcon = getProviderIcon(provider.id);
+								{providerFilterOptions.map((provider) => {
+									const ProviderIcon = getProviderIcon(
+										provider.iconProviderId,
+									);
 									return (
-										<SelectItem
-											key={`${provider.id}-${provider.name}`}
-											value={provider.id}
-										>
+										<SelectItem key={provider.value} value={provider.value}>
 											<div className="flex items-center gap-2">
 												{ProviderIcon && <ProviderIcon className="h-4 w-4" />}
 												<span>{provider.name}</span>

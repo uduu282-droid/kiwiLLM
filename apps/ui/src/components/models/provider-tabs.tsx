@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { Button } from "@/lib/components/button";
+import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
 
 import { providers as providerDefinitions } from "@llmgateway/models";
 import { getProviderIcon } from "@llmgateway/shared/components";
@@ -18,31 +19,60 @@ export function ProviderTabs({
 	providerIds,
 	activeProviderId,
 }: ProviderTabsProps) {
-	const uniqueProviderIds = Array.from(new Set(providerIds));
+	const groupedProviders = Array.from(new Set(providerIds)).reduce<
+		Array<{
+			providerId: string;
+			name: string;
+			iconProviderId: string;
+			active: boolean;
+		}>
+	>((groups, providerId) => {
+		const providerInfo = providerDefinitions.find((p) => p.id === providerId);
+		const displayProvider = getDisplayProviderInfo({
+			providerId,
+			providerName: providerInfo?.name,
+			modelId,
+		});
+		const existingGroup = groups.find(
+			(group) => group.name === displayProvider.name,
+		);
+
+		if (existingGroup) {
+			if (providerId === activeProviderId) {
+				existingGroup.providerId = providerId;
+				existingGroup.active = true;
+			}
+			return groups;
+		}
+
+		groups.push({
+			providerId,
+			name: displayProvider.name,
+			iconProviderId: displayProvider.iconProviderId,
+			active: providerId === activeProviderId,
+		});
+		return groups;
+	}, []);
 
 	return (
 		<div className="flex flex-wrap gap-2 mb-6">
-			{uniqueProviderIds.map((providerId) => {
-				const providerInfo = providerDefinitions.find(
-					(p) => p.id === providerId,
-				);
-				const ProviderIcon = getProviderIcon(providerId);
-				const isActive = providerId === activeProviderId;
+			{groupedProviders.map((provider) => {
+				const ProviderIcon = getProviderIcon(provider.iconProviderId);
 
 				return (
 					<Link
-						key={providerId}
+						key={provider.providerId}
 						href={
-							`/models/${encodeURIComponent(modelId)}/${encodeURIComponent(providerId)}` as any
+							`/models/${encodeURIComponent(modelId)}/${encodeURIComponent(provider.providerId)}` as any
 						}
 					>
 						<Button
-							variant={isActive ? "secondary" : "outline"}
+							variant={provider.active ? "secondary" : "outline"}
 							size="sm"
 							className="gap-2"
 						>
 							{ProviderIcon && <ProviderIcon className="h-4 w-4" />}
-							{providerInfo?.name ?? providerId}
+							{provider.name}
 						</Button>
 					</Link>
 				);

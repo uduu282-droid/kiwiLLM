@@ -36,18 +36,28 @@ import {
 } from "@/lib/components/tooltip";
 import { useAppConfig } from "@/lib/config";
 import { XIcon } from "@/lib/icons/XIcon";
+import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
 import { formatContextSize, formatDeprecationDate } from "@/lib/utils";
 
 import { getProviderIcon } from "@llmgateway/shared/components";
 
-import type {
-	ProviderModelMapping,
-	ProviderDefinition,
-	StabilityLevel,
-} from "@llmgateway/models";
+import type { ApiModelProviderMapping, ApiProvider } from "@/lib/fetch-models";
+import type { StabilityLevel } from "@llmgateway/models";
 
-interface ProviderWithInfo extends ProviderModelMapping {
-	providerInfo?: ProviderDefinition;
+interface PricingTier {
+	upToTokens: number;
+	inputPrice: number;
+	cachedInputPrice?: number | null;
+	outputPrice: number;
+}
+
+interface ProviderWithInfo extends Omit<ApiModelProviderMapping, "discount"> {
+	discount?: string | number | null;
+	providerInfo?: Pick<ApiProvider, "name">;
+	imageInputTokensByResolution?: Record<string, number>;
+	imageOutputTokensByResolution?: Record<string, number>;
+	imageOutputPrice?: number | null;
+	pricingTiers?: PricingTier[];
 }
 
 interface ModelProviderCardProps {
@@ -66,12 +76,17 @@ export function ModelProviderCard({
 	const config = useAppConfig();
 	const [copied, setCopied] = useState(false);
 	const [urlCopied, setUrlCopied] = useState(false);
-	const providerModelName = `${provider.providerId}/${modelName}`;
-	const ProviderIcon = getProviderIcon(provider.providerId);
+	const publicModelName = modelName;
+	const displayProvider = getDisplayProviderInfo({
+		providerId: provider.providerId,
+		providerName: provider.providerInfo?.name,
+		modelId: modelName,
+	});
+	const ProviderIcon = getProviderIcon(displayProvider.iconProviderId);
 	const providerStability = provider.stability ?? modelStability;
 
 	const shareUrl = `${config.appUrl}/models/${encodeURIComponent(modelName)}/${encodeURIComponent(provider.providerId)}`;
-	const shareTitle = `${provider.providerInfo?.name ?? provider.providerId} - ${modelName} on KiwiLLM`;
+	const shareTitle = `${displayProvider.name} - ${modelName} on KiwiLLM`;
 
 	const getStabilityBadgeProps = (stability?: StabilityLevel) => {
 		switch (stability) {
@@ -104,7 +119,7 @@ export function ModelProviderCard({
 
 	const copyToClipboard = async () => {
 		try {
-			await navigator.clipboard.writeText(providerModelName);
+			await navigator.clipboard.writeText(publicModelName);
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
 		} catch (err) {
@@ -119,6 +134,35 @@ export function ModelProviderCard({
 		return `$${(price * 1e6).toFixed(2)}`;
 	};
 
+	const numericDiscount =
+		typeof provider.discount === "string"
+			? parseFloat(provider.discount)
+			: provider.discount ?? 0;
+	const inputPrice =
+		typeof provider.inputPrice === "string"
+			? parseFloat(provider.inputPrice)
+			: undefined;
+	const cachedInputPrice =
+		typeof provider.cachedInputPrice === "string"
+			? parseFloat(provider.cachedInputPrice)
+			: undefined;
+	const outputPrice =
+		typeof provider.outputPrice === "string"
+			? parseFloat(provider.outputPrice)
+			: undefined;
+	const imageInputPrice =
+		typeof provider.imageInputPrice === "string"
+			? parseFloat(provider.imageInputPrice)
+			: undefined;
+	const requestPrice =
+		typeof provider.requestPrice === "string"
+			? parseFloat(provider.requestPrice)
+			: undefined;
+	const webSearchPrice =
+		typeof provider.webSearchPrice === "string"
+			? parseFloat(provider.webSearchPrice)
+			: undefined;
+
 	return (
 		<Card>
 			<CardContent>
@@ -128,14 +172,12 @@ export function ModelProviderCard({
 							{ProviderIcon ? (
 								<ProviderIcon className="h-10 w-10" />
 							) : (
-								(provider.providerInfo?.name?.charAt(0) ?? "?")
+								(displayProvider.name.charAt(0) ?? "?")
 							)}
 						</div>
 						<div>
 							<div className="flex items-center gap-2 mb-1">
-								<h3 className="font-semibold">
-									{provider.providerInfo?.name ?? provider.providerId}
-								</h3>
+								<h3 className="font-semibold">{displayProvider.name}</h3>
 								{shouldShowStabilityWarning(providerStability) && (
 									<AlertTriangle className="h-4 w-4 text-orange-500" />
 								)}
@@ -154,7 +196,7 @@ export function ModelProviderCard({
 							</div>
 							<div className="flex items-center gap-2">
 								<code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-									{providerModelName}
+									{publicModelName}
 								</code>
 								<div className="flex items-center gap-1">
 									<Button
@@ -172,7 +214,7 @@ export function ModelProviderCard({
 										)}
 									</Button>
 									<div className="hidden sm:block">
-										<ModelCodeExampleDialog modelId={providerModelName} />
+										<ModelCodeExampleDialog modelId={publicModelName} />
 									</div>
 								</div>
 							</div>
@@ -267,9 +309,9 @@ export function ModelProviderCard({
 				<div className="mb-4">
 					<div className="flex items-center gap-2 mb-2">
 						<div className="text-muted-foreground text-sm">Pricing</div>
-						{provider.discount && provider.discount > 0 && (
+						{numericDiscount > 0 && (
 							<Badge className="text-[10px] px-1.5 py-0 h-4 font-semibold bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">
-								{Math.round(provider.discount * 100)}% off
+								{Math.round(numericDiscount * 100)}% off
 							</Badge>
 						)}
 					</div>
@@ -277,22 +319,20 @@ export function ModelProviderCard({
 						<div>
 							<div className="text-muted-foreground text-xs mb-1">Input</div>
 							<div className="font-mono">
-								{provider.inputPrice ? (
+								{inputPrice !== undefined ? (
 									<div className="space-y-1">
 										<div className="flex items-center gap-2">
-											{provider.discount ? (
+											{numericDiscount > 0 ? (
 												<>
 													<span className="line-through text-muted-foreground text-xs">
-														{formatPrice(provider.inputPrice)}
+														{formatPrice(inputPrice)}
 													</span>
 													<span className="text-green-600 font-semibold">
-														{formatPrice(
-															provider.inputPrice * (1 - provider.discount),
-														)}
+														{formatPrice(inputPrice * (1 - numericDiscount))}
 													</span>
 												</>
 											) : (
-												formatPrice(provider.inputPrice)
+												formatPrice(inputPrice)
 											)}
 										</div>
 										<span className="text-muted-foreground text-xs">/M</span>
@@ -305,23 +345,22 @@ export function ModelProviderCard({
 						<div>
 							<div className="text-muted-foreground text-xs mb-1">Cached</div>
 							<div className="font-mono">
-								{provider.cachedInputPrice ? (
+								{cachedInputPrice !== undefined ? (
 									<div className="space-y-1">
 										<div className="flex items-center gap-2">
-											{provider.discount ? (
+											{numericDiscount > 0 ? (
 												<>
 													<span className="line-through text-muted-foreground text-xs">
-														{formatPrice(provider.cachedInputPrice)}
+														{formatPrice(cachedInputPrice)}
 													</span>
 													<span className="text-green-600 font-semibold">
 														{formatPrice(
-															provider.cachedInputPrice *
-																(1 - provider.discount),
+															cachedInputPrice * (1 - numericDiscount),
 														)}
 													</span>
 												</>
 											) : (
-												formatPrice(provider.cachedInputPrice)
+												formatPrice(cachedInputPrice)
 											)}
 										</div>
 										<span className="text-muted-foreground text-xs">/M</span>
@@ -334,22 +373,20 @@ export function ModelProviderCard({
 						<div>
 							<div className="text-muted-foreground text-xs mb-1">Output</div>
 							<div className="font-mono">
-								{provider.outputPrice ? (
+								{outputPrice !== undefined ? (
 									<div className="space-y-1">
 										<div className="flex items-center gap-2">
-											{provider.discount ? (
+											{numericDiscount > 0 ? (
 												<>
 													<span className="line-through text-muted-foreground text-xs">
-														{formatPrice(provider.outputPrice)}
+														{formatPrice(outputPrice)}
 													</span>
 													<span className="text-green-600 font-semibold">
-														{formatPrice(
-															provider.outputPrice * (1 - provider.discount),
-														)}
+														{formatPrice(outputPrice * (1 - numericDiscount))}
 													</span>
 												</>
 											) : (
-												formatPrice(provider.outputPrice)
+												formatPrice(outputPrice)
 											)}
 										</div>
 										<span className="text-muted-foreground text-xs">/M</span>
@@ -366,7 +403,7 @@ export function ModelProviderCard({
 							<div className="text-muted-foreground text-xs mb-2">
 								Image Pricing (est. per image)
 							</div>
-							{provider.imageInputPrice &&
+							{imageInputPrice !== undefined &&
 								provider.imageInputTokensByResolution &&
 								(() => {
 									const named = Object.entries(
@@ -383,14 +420,14 @@ export function ModelProviderCard({
 									if (entries.length === 0) {
 										return null;
 									}
-									const effectiveDiscount = provider.discount ?? 0;
+									const effectiveDiscount = numericDiscount;
 									return (
 										<div className="mb-2">
 											<div className="text-xs text-muted-foreground mb-1">
 												Input
 											</div>
 											{entries.map(([res, tokensPerImage]) => {
-												const raw = tokensPerImage * provider.imageInputPrice!;
+												const raw = tokensPerImage * imageInputPrice;
 												const discounted = raw * (1 - effectiveDiscount);
 												return (
 													<div
@@ -427,7 +464,7 @@ export function ModelProviderCard({
 									if (entries.length === 0) {
 										return null;
 									}
-									const effectiveDiscount = provider.discount ?? 0;
+									const effectiveDiscount = numericDiscount;
 									return (
 										<div>
 											<div className="text-xs text-muted-foreground mb-1">
@@ -464,7 +501,7 @@ export function ModelProviderCard({
 								})()}
 						</div>
 					)}
-					{provider.requestPrice !== undefined && provider.requestPrice > 0 && (
+					{requestPrice !== undefined && requestPrice > 0 && (
 						<div className="grid grid-cols-3 gap-3 mt-3">
 							<div className="col-span-3">
 								<div className="text-muted-foreground text-xs mb-1">
@@ -473,21 +510,18 @@ export function ModelProviderCard({
 								<div className="font-mono">
 									<div className="space-y-1">
 										<div className="flex items-center gap-2">
-											{provider.discount ? (
+											{numericDiscount > 0 ? (
 												<>
 													<span className="line-through text-muted-foreground text-xs">
-														${provider.requestPrice.toFixed(3)}
+														${requestPrice.toFixed(3)}
 													</span>
 													<span className="text-green-600 font-semibold">
 														$
-														{(
-															provider.requestPrice *
-															(1 - provider.discount)
-														).toFixed(3)}
+														{(requestPrice * (1 - numericDiscount)).toFixed(3)}
 													</span>
 												</>
 											) : (
-												<>${provider.requestPrice.toFixed(3)}</>
+												<>${requestPrice.toFixed(3)}</>
 											)}
 										</div>
 										<span className="text-muted-foreground text-xs">/req</span>
@@ -512,7 +546,7 @@ export function ModelProviderCard({
 												? `>${(provider.pricingTiers![index - 1]?.upToTokens || 0) / 1000}K tokens`
 												: `≤${tier.upToTokens / 1000}K tokens`}
 										</span>
-										{provider.discount ? (
+										{numericDiscount > 0 ? (
 											<span className="font-mono">
 												<span className="line-through text-muted-foreground">
 													{formatPrice(tier.inputPrice)} in /{" "}
@@ -527,7 +561,7 @@ export function ModelProviderCard({
 												</span>
 												<span className="text-green-600 font-semibold ml-2">
 													{formatPrice(
-														tier.inputPrice * (1 - provider.discount),
+														tier.inputPrice * (1 - numericDiscount),
 													)}{" "}
 													in /{" "}
 													{tier.cachedInputPrice !== null &&
@@ -535,13 +569,13 @@ export function ModelProviderCard({
 															<>
 																{formatPrice(
 																	tier.cachedInputPrice *
-																		(1 - provider.discount),
+																		(1 - numericDiscount),
 																)}{" "}
 																cached /{" "}
 															</>
 														)}
 													{formatPrice(
-														tier.outputPrice * (1 - provider.discount),
+														tier.outputPrice * (1 - numericDiscount),
 													)}{" "}
 													out
 												</span>
@@ -656,8 +690,8 @@ export function ModelProviderCard({
 									<TooltipContent>
 										<p>
 											Supports native web search
-											{provider.webSearchPrice
-												? ` ($${provider.webSearchPrice.toFixed(3)}/search)`
+											{webSearchPrice !== undefined
+												? ` ($${webSearchPrice.toFixed(3)}/search)`
 												: ""}
 										</p>
 									</TooltipContent>
@@ -674,7 +708,7 @@ export function ModelProviderCard({
 					asChild
 				>
 					<a
-						href={`${config.playgroundUrl}?model=${encodeURIComponent(providerModelName)}`}
+								href={`${config.playgroundUrl}?model=${encodeURIComponent(publicModelName)}`}
 						target="_blank"
 						rel="noopener noreferrer"
 					>
