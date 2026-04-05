@@ -1537,7 +1537,82 @@ chat.openapi(completions, async (c) => {
 				},
 			);
 
-			if (availableModelProviders.length === 0) {
+			let routeableModelProviders = availableModelProviders;
+
+			if (routeableModelProviders.length === 0) {
+				routeableModelProviders = iamFilteredModelProviders.filter((provider) => {
+					if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
+						return false;
+					}
+					// If web search tool is requested, only include providers that support it
+					if (webSearchTool) {
+						if ((provider as ProviderModelMapping).webSearch !== true) {
+							return false;
+						}
+					}
+					// If JSON output is requested, only include providers that support it
+					if (
+						response_format?.type === "json_object" ||
+						response_format?.type === "json_schema"
+					) {
+						if ((provider as ProviderModelMapping).jsonOutput !== true) {
+							return false;
+						}
+					}
+					// If JSON schema output is requested, also include providers that support it
+					if (response_format?.type === "json_schema") {
+						if ((provider as ProviderModelMapping).jsonOutputSchema !== true) {
+							return false;
+						}
+					}
+					// If images are present in messages, only include providers that support vision
+					if (hasImages && (provider as ProviderModelMapping).vision !== true) {
+						return false;
+					}
+					// If reasoning_effort is specified, only include providers with reasoning support
+					if (reasoning_effort !== undefined) {
+						if ((provider as ProviderModelMapping).reasoning !== true) {
+							return false;
+						}
+					}
+					// If reasoning_effort is NOT specified, prefer non-reasoning providers
+					// by excluding reasoning providers when a non-reasoning alternative exists for same provider
+					if (reasoning_effort === undefined) {
+						const hasNonReasoningAlternative = modelInfo.providers.some(
+							(p) =>
+								p.providerId === provider.providerId &&
+								(p as ProviderModelMapping).reasoning !== true,
+						);
+						if (
+							hasNonReasoningAlternative &&
+							(provider as ProviderModelMapping).reasoning === true
+						) {
+							return false;
+						}
+					}
+
+					try {
+						return Boolean(
+							getProviderEndpoint(
+								provider.providerId,
+								undefined,
+								provider.modelName,
+								undefined,
+								stream,
+								(provider as ProviderModelMapping).reasoning === true,
+								hasExistingToolCalls,
+								undefined,
+								0,
+								(provider as ProviderModelMapping).imageGenerations === true,
+							),
+						);
+					} catch {
+						return false;
+					}
+				});
+			}
+
+			if (routeableModelProviders.length === 0) {
 				throw new HTTPException(400, {
 					message:
 						project.mode === "api-keys"
@@ -1554,7 +1629,7 @@ chat.openapi(completions, async (c) => {
 
 			if (modelWithPricing) {
 				// Fetch uptime/latency metrics from last 5 minutes for provider selection
-				const metricsCombinations = availableModelProviders.map((p) => ({
+				const metricsCombinations = routeableModelProviders.map((p) => ({
 					modelId: modelWithPricing.id,
 					providerId: p.providerId,
 				}));
@@ -1562,7 +1637,7 @@ chat.openapi(completions, async (c) => {
 					await getProviderMetricsForCombinations(metricsCombinations);
 
 				const cheapestResult = getCheapestFromAvailableProviders(
-					availableModelProviders,
+					routeableModelProviders,
 					modelWithPricing,
 					{ metricsMap, isStreaming: stream },
 				);
@@ -1575,12 +1650,12 @@ chat.openapi(completions, async (c) => {
 						...(noFallback ? { noFallback: true } : {}),
 					};
 				} else {
-					usedProvider = availableModelProviders[0].providerId;
-					usedModel = availableModelProviders[0].modelName;
+					usedProvider = routeableModelProviders[0].providerId;
+					usedModel = routeableModelProviders[0].modelName;
 				}
 			} else {
-				usedProvider = availableModelProviders[0].providerId;
-				usedModel = availableModelProviders[0].modelName;
+				usedProvider = routeableModelProviders[0].providerId;
+				usedModel = routeableModelProviders[0].modelName;
 			}
 		}
 	}
