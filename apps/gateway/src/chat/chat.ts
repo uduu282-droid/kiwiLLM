@@ -134,6 +134,12 @@ const hostedProviderFallbackBaseUrls: Partial<Record<Provider, string>> = {
 	"kiwillm-gpt-oss-worker": "https://gpt-oss-worker.llamai.workers.dev",
 };
 
+const bareModelProviderAliases: Record<string, string> = {
+	"gpt-4o-mini": "kiwillm-claude-talkai/gpt-4o-mini",
+	"gemini-2.5-pro": "kiwillm-chatai-proxy/gemini-2.5-pro",
+	"gpt-oss-120b": "kiwillm-freecfmodels/gpt-oss-120b",
+};
+
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
 	return !getProviderEnvConfig(providerId)?.required.apiKey;
 }
@@ -480,7 +486,8 @@ chat.openapi(completions, async (c) => {
 	const initialRequestedModel = modelInput;
 
 	// Parse model input to resolve model, provider, and custom provider name
-	const parseResult = parseModelInput(modelInput);
+	const routedModelInput = bareModelProviderAliases[modelInput] ?? modelInput;
+	const parseResult = parseModelInput(routedModelInput);
 	const requestedModel = parseResult.requestedModel;
 	const customProviderName = parseResult.customProviderName;
 
