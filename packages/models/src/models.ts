@@ -32,6 +32,10 @@ import { moonshotModels } from "./models/moonshot.js";
 import { nousresearchModels } from "./models/nousresearch.js";
 import { openaiModels } from "./models/openai.js";
 import { perplexityModels } from "./models/perplexity.js";
+import {
+	svelteAiEnhancedModels,
+	svelteAiEnhancedProviderAugments,
+} from "./models/svelte-ai-enhanced.js";
 import { xaiModels } from "./models/xai.js";
 import { zaiModels } from "./models/zai.js";
 
@@ -306,6 +310,7 @@ export const models: ModelDefinition[] = [
 		...ishChatProxyModels,
 		...literouterProxyModels,
 		...freecfmodelsModels,
+		...svelteAiEnhancedModels,
 	].map((model) => {
 		const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
 		const completionsMeProviders =
@@ -313,12 +318,15 @@ export const models: ModelDefinition[] = [
 		const ishChatProxyProviders = ishChatProxyProviderAugments[model.id] ?? [];
 		const literouterProviders = literouterProxyProviderAugments[model.id] ?? [];
 		const freecfmodelsProviders = freecfmodelsProviderAugments[model.id] ?? [];
+		const svelteAiEnhancedProviders =
+			svelteAiEnhancedProviderAugments[model.id] ?? [];
 		if (
 			chataiProviders.length === 0 &&
 			completionsMeProviders.length === 0 &&
 			ishChatProxyProviders.length === 0 &&
 			literouterProviders.length === 0 &&
-			freecfmodelsProviders.length === 0
+			freecfmodelsProviders.length === 0 &&
+			svelteAiEnhancedProviders.length === 0
 		) {
 			return model;
 		}
@@ -331,6 +339,7 @@ export const models: ModelDefinition[] = [
 				...ishChatProxyProviders,
 				...literouterProviders,
 				...freecfmodelsProviders,
+				...svelteAiEnhancedProviders,
 			],
 		};
 	}),

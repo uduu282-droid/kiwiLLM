@@ -75,7 +75,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://completions.me/api/v1",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -92,7 +92,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://ish-chat-proxy-test.revai.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -109,7 +109,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#1d4ed8",
-		website: "https://freecfmodels.bgmipro285.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -126,7 +126,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://chatai-proxy.revai.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -143,7 +143,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#0f766e",
-		website: "https://literouter-proxy.revai.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -160,7 +160,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://qwen-worker-proxy.ronitshrimankar1.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -177,7 +177,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#111827",
-		website: "https://kimi-k2.qwen4346.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -194,7 +194,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://deepseek-chat-proxy.deepseekrev1.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -211,7 +211,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://minimax-ai-proxy.revai.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -228,7 +228,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://free-ai-hub.revai.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -245,7 +245,24 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://n33-ai.qwen4346.workers.dev",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-svelte-ai-enhanced",
+		name: "KiwiLLM Svelte AI Enhanced",
+		description:
+			"KiwiLLM-hosted enhanced mixed-model worker exposed through an OpenAI-compatible endpoint.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_SVELTE_AI_ENHANCED_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -262,7 +279,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://claude-talkai.ronitshrimankar1.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -279,7 +296,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://chatbot-ai.qwen4346.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -296,7 +313,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://cerebras-ai.qwen4346.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -313,7 +330,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://grok-proxy.qwen4346.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -330,7 +347,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://gpt-oss-worker.llamai.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -347,7 +364,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://claude-v3xg.onrender.com",
+		website: siteUrl,
 		announcement: null,
 	},
 	{

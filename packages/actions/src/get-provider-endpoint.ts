@@ -151,6 +151,15 @@ export function getProviderEndpoint(
 						"https://n33-ai.qwen4346.workers.dev",
 					) ?? "https://n33-ai.qwen4346.workers.dev";
 				break;
+			case "kiwillm-svelte-ai-enhanced":
+				url =
+					getProviderEnvValue(
+						"kiwillm-svelte-ai-enhanced",
+						"baseUrl",
+						configIndex,
+						"https://svelte-ai-enhanced.revai.workers.dev",
+					) ?? "https://svelte-ai-enhanced.revai.workers.dev";
+				break;
 			case "kiwillm-claude-talkai":
 				url =
 					getProviderEnvValue(
@@ -500,7 +509,6 @@ export function getProviderEndpoint(
 		case "kiwillm-free-ai-hub":
 		case "kiwillm-n33-ai":
 		case "kiwillm-claude-talkai":
-		case "kiwillm-ish-chat-proxy":
 		case "kiwillm-chatbot-ai":
 		case "kiwillm-cerebras-ai":
 		case "kiwillm-grok-proxy":
