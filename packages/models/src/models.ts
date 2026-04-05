@@ -1,8 +1,28 @@
 import { alibabaModels } from "./models/alibaba.js";
 import { anthropicModels } from "./models/anthropic.js";
 import { bytedanceModels } from "./models/bytedance.js";
+import {
+	chataiProxyModels,
+	chataiProxyProviderAugments,
+} from "./models/chatai-proxy.js";
+import {
+	completionsMeModels,
+	completionsMeProviderAugments,
+} from "./models/completions-me.js";
 import { deepseekModels } from "./models/deepseek.js";
+import {
+	freecfmodelsModels,
+	freecfmodelsProviderAugments,
+} from "./models/freecfmodels.js";
 import { googleModels } from "./models/google.js";
+import {
+	ishChatProxyModels,
+	ishChatProxyProviderAugments,
+} from "./models/ish-chat-proxy.js";
+import {
+	literouterProxyModels,
+	literouterProxyProviderAugments,
+} from "./models/literouter-proxy.js";
 import { llmgatewayModels } from "./models/llmgateway.js";
 import { metaModels } from "./models/meta.js";
 import { microsoftModels } from "./models/microsoft.js";
@@ -12,6 +32,10 @@ import { moonshotModels } from "./models/moonshot.js";
 import { nousresearchModels } from "./models/nousresearch.js";
 import { openaiModels } from "./models/openai.js";
 import { perplexityModels } from "./models/perplexity.js";
+import {
+	svelteAiEnhancedModels,
+	svelteAiEnhancedProviderAugments,
+} from "./models/svelte-ai-enhanced.js";
 import { xaiModels } from "./models/xai.js";
 import { zaiModels } from "./models/zai.js";
 
@@ -259,7 +283,7 @@ export interface ModelDefinition {
 	releasedAt?: Date;
 }
 
-export const models = [
+const baseModels: ModelDefinition[] = [
 	...llmgatewayModels,
 	...openaiModels,
 	...anthropicModels,
@@ -276,4 +300,47 @@ export const models = [
 	...bytedanceModels,
 	...nousresearchModels,
 	...zaiModels,
-] as const satisfies ModelDefinition[];
+] as const;
+
+export const models: ModelDefinition[] = [
+	...[
+		...baseModels,
+		...chataiProxyModels,
+		...completionsMeModels,
+		...ishChatProxyModels,
+		...literouterProxyModels,
+		...freecfmodelsModels,
+		...svelteAiEnhancedModels,
+	].map((model) => {
+		const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
+		const completionsMeProviders =
+			completionsMeProviderAugments[model.id] ?? [];
+		const ishChatProxyProviders = ishChatProxyProviderAugments[model.id] ?? [];
+		const literouterProviders = literouterProxyProviderAugments[model.id] ?? [];
+		const freecfmodelsProviders = freecfmodelsProviderAugments[model.id] ?? [];
+		const svelteAiEnhancedProviders =
+			svelteAiEnhancedProviderAugments[model.id] ?? [];
+		if (
+			chataiProviders.length === 0 &&
+			completionsMeProviders.length === 0 &&
+			ishChatProxyProviders.length === 0 &&
+			literouterProviders.length === 0 &&
+			freecfmodelsProviders.length === 0 &&
+			svelteAiEnhancedProviders.length === 0
+		) {
+			return model;
+		}
+		return {
+			...model,
+			providers: [
+				...model.providers,
+				...chataiProviders,
+				...completionsMeProviders,
+				...ishChatProxyProviders,
+				...literouterProviders,
+				...freecfmodelsProviders,
+				...svelteAiEnhancedProviders,
+			],
+		};
+	}),
+];

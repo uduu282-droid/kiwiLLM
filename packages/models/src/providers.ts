@@ -60,6 +60,93 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-completions-me",
+		name: "KiwiLLM Completions.me",
+		description:
+			"KiwiLLM-hosted completions.me proxy exposing OpenAI-compatible chat models.",
+		env: {
+			required: {
+				apiKey: "LLM_KIWILLM_COMPLETIONS_ME_API_KEY",
+			},
+			optional: {
+				baseUrl: "LLM_KIWILLM_COMPLETIONS_ME_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-ish-chat-proxy",
+		name: "KiwiLLM Ish Chat Proxy",
+		description:
+			"KiwiLLM-hosted ish-chat proxy exposing OpenAI-compatible Grok and GPT OSS models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_ISH_CHAT_PROXY_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-freecfmodels",
+		name: "KiwiLLM Free CF Models",
+		description:
+			"KiwiLLM-hosted Cloudflare-compatible worker exposing confirmed-safe chat and image models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_FREECFMODELS_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#1d4ed8",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-chatai-proxy",
+		name: "KiwiLLM ChatAI Proxy",
+		description:
+			"KiwiLLM-hosted multi-provider ChatAI proxy exposing OpenAI-compatible chat models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_CHATAI_PROXY_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-literouter-proxy",
+		name: "KiwiLLM LiteRouter Proxy",
+		description:
+			"KiwiLLM-hosted LiteRouter proxy exposing OpenAI-compatible chat models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_LITEROUTER_PROXY_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#0f766e",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
 		id: "kiwillm-qwen",
 		name: "KiwiLLM Qwen",
 		description:
@@ -73,7 +160,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://qwen-worker-proxy.ronitshrimankar1.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -90,7 +177,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#111827",
-		website: "https://kimi-k2.qwen4346.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -107,7 +194,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://deepseek-chat-proxy.deepseekrev1.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -124,7 +211,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://minimax-ai-proxy.revai.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -141,7 +228,7 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://free-ai-hub.revai.workers.dev",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -158,7 +245,24 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://n33-ai.qwen4346.workers.dev",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-svelte-ai-enhanced",
+		name: "KiwiLLM Svelte AI Enhanced",
+		description:
+			"KiwiLLM-hosted enhanced mixed-model worker exposed through an OpenAI-compatible endpoint.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_SVELTE_AI_ENHANCED_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
 		announcement: null,
 	},
 	{
@@ -175,7 +279,92 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
-		website: "https://claude-talkai.ronitshrimankar1.workers.dev",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-chatbot-ai",
+		name: "KiwiLLM Chatbot AI",
+		description:
+			"KiwiLLM-hosted legacy OpenAI model worker exposed through an OpenAI-compatible endpoint.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_CHATBOT_AI_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-cerebras-ai",
+		name: "KiwiLLM Cerebras AI",
+		description:
+			"KiwiLLM-hosted Cerebras worker exposing selected OpenAI-compatible models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_CEREBRAS_AI_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-grok-proxy",
+		name: "KiwiLLM Grok Proxy",
+		description:
+			"KiwiLLM-hosted Grok proxy worker exposing selected OpenAI-compatible models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_GROK_PROXY_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-gpt-oss-worker",
+		name: "KiwiLLM GPT OSS Worker",
+		description:
+			"KiwiLLM-hosted GPT OSS worker exposing selected OpenAI-compatible models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_GPT_OSS_WORKER_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-claude-v3xg",
+		name: "KiwiLLM Claude V3XG",
+		description:
+			"KiwiLLM-hosted Claude V3XG worker exposing selected chat-completions-compatible models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_CLAUDE_V3XG_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
 		announcement: null,
 	},
 	{

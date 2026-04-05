@@ -61,6 +61,51 @@ export function getProviderEndpoint(
 						"https://qwen-worker-proxy.ronitshrimankar1.workers.dev",
 					) ?? "https://qwen-worker-proxy.ronitshrimankar1.workers.dev";
 				break;
+			case "kiwillm-chatai-proxy":
+				url =
+					getProviderEnvValue(
+						"kiwillm-chatai-proxy",
+						"baseUrl",
+						configIndex,
+						"https://chatai-proxy.revai.workers.dev",
+					) ?? "https://chatai-proxy.revai.workers.dev";
+				break;
+			case "kiwillm-completions-me":
+				url =
+					getProviderEnvValue(
+						"kiwillm-completions-me",
+						"baseUrl",
+						configIndex,
+						"https://completions.me/api/v1",
+					) ?? "https://completions.me/api/v1";
+				break;
+			case "kiwillm-ish-chat-proxy":
+				url =
+					getProviderEnvValue(
+						"kiwillm-ish-chat-proxy",
+						"baseUrl",
+						configIndex,
+						"https://ish-chat-proxy-test.revai.workers.dev",
+					) ?? "https://ish-chat-proxy-test.revai.workers.dev";
+				break;
+			case "kiwillm-freecfmodels":
+				url =
+					getProviderEnvValue(
+						"kiwillm-freecfmodels",
+						"baseUrl",
+						configIndex,
+						"https://freecfmodels.bgmipro285.workers.dev",
+					) ?? "https://freecfmodels.bgmipro285.workers.dev";
+				break;
+			case "kiwillm-literouter-proxy":
+				url =
+					getProviderEnvValue(
+						"kiwillm-literouter-proxy",
+						"baseUrl",
+						configIndex,
+						"https://literouter-proxy.revai.workers.dev",
+					) ?? "https://literouter-proxy.revai.workers.dev";
+				break;
 			case "kiwillm-kimi":
 				url =
 					getProviderEnvValue(
@@ -106,6 +151,15 @@ export function getProviderEndpoint(
 						"https://n33-ai.qwen4346.workers.dev",
 					) ?? "https://n33-ai.qwen4346.workers.dev";
 				break;
+			case "kiwillm-svelte-ai-enhanced":
+				url =
+					getProviderEnvValue(
+						"kiwillm-svelte-ai-enhanced",
+						"baseUrl",
+						configIndex,
+						"https://svelte-ai-enhanced.revai.workers.dev",
+					) ?? "https://svelte-ai-enhanced.revai.workers.dev";
+				break;
 			case "kiwillm-claude-talkai":
 				url =
 					getProviderEnvValue(
@@ -114,6 +168,51 @@ export function getProviderEndpoint(
 						configIndex,
 						"https://claude-talkai.ronitshrimankar1.workers.dev",
 					) ?? "https://claude-talkai.ronitshrimankar1.workers.dev";
+				break;
+			case "kiwillm-chatbot-ai":
+				url =
+					getProviderEnvValue(
+						"kiwillm-chatbot-ai",
+						"baseUrl",
+						configIndex,
+						"https://chatbot-ai.qwen4346.workers.dev",
+					) ?? "https://chatbot-ai.qwen4346.workers.dev";
+				break;
+			case "kiwillm-cerebras-ai":
+				url =
+					getProviderEnvValue(
+						"kiwillm-cerebras-ai",
+						"baseUrl",
+						configIndex,
+						"https://cerebras-ai.qwen4346.workers.dev",
+					) ?? "https://cerebras-ai.qwen4346.workers.dev";
+				break;
+			case "kiwillm-grok-proxy":
+				url =
+					getProviderEnvValue(
+						"kiwillm-grok-proxy",
+						"baseUrl",
+						configIndex,
+						"https://grok-proxy.qwen4346.workers.dev",
+					) ?? "https://grok-proxy.qwen4346.workers.dev";
+				break;
+			case "kiwillm-gpt-oss-worker":
+				url =
+					getProviderEnvValue(
+						"kiwillm-gpt-oss-worker",
+						"baseUrl",
+						configIndex,
+						"https://gpt-oss-worker.llamai.workers.dev",
+					) ?? "https://gpt-oss-worker.llamai.workers.dev";
+				break;
+			case "kiwillm-claude-v3xg":
+				url =
+					getProviderEnvValue(
+						"kiwillm-claude-v3xg",
+						"baseUrl",
+						configIndex,
+						"https://claude-v3xg.onrender.com",
+					) ?? "https://claude-v3xg.onrender.com";
 				break;
 			case "anthropic":
 				url = "https://api.anthropic.com";
@@ -403,13 +502,21 @@ export function getProviderEndpoint(
 			return `${url}/v1/chat/completions`;
 		}
 		case "kiwillm-qwen":
+		case "kiwillm-chatai-proxy":
 		case "kiwillm-kimi":
 		case "kiwillm-deepseek":
 		case "kiwillm-minimax":
 		case "kiwillm-free-ai-hub":
 		case "kiwillm-n33-ai":
 		case "kiwillm-claude-talkai":
+		case "kiwillm-chatbot-ai":
+		case "kiwillm-cerebras-ai":
+		case "kiwillm-grok-proxy":
+		case "kiwillm-gpt-oss-worker":
+		case "kiwillm-claude-v3xg":
 			return `${url}/v1/chat/completions`;
+		case "kiwillm-completions-me":
+			return `${url}/chat/completions`;
 		case "alibaba":
 			if (imageGenerations) {
 				return `${url}/api/v1/services/aigc/multimodal-generation/generation`;
@@ -421,6 +528,11 @@ export function getProviderEndpoint(
 			}
 			return `${url}/chat/completions`;
 		case "xai":
+			if (imageGenerations) {
+				return `${url}/v1/images/generations`;
+			}
+			return `${url}/v1/chat/completions`;
+		case "kiwillm-freecfmodels":
 			if (imageGenerations) {
 				return `${url}/v1/images/generations`;
 			}
