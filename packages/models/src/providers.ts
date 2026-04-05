@@ -283,6 +283,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-botnation-worker",
+		name: "KiwiLLM BotNation Worker",
+		description:
+			"KiwiLLM-hosted BotNation worker exposed through an OpenAI-compatible endpoint.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_BOTNATION_WORKER_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
 		id: "kiwillm-claude-talkai",
 		name: "KiwiLLM Claude TalkAI",
 		description:
