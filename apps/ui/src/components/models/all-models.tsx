@@ -131,6 +131,12 @@ interface FlattenedModelRow {
 	ProviderIcon: React.ComponentType<{ className?: string }> | null;
 }
 
+interface ProviderFilterOption {
+	value: string;
+	name: string;
+	iconProviderId: string;
+}
+
 // Helper to compute capabilities (moved outside component for performance)
 function computeCapabilities(
 	provider: ApiModelProviderMapping,
@@ -524,9 +530,29 @@ export function AllModels({
 			),
 		).length;
 
+		const uniqueDisplayProviders = new Set(
+			models.flatMap((model) =>
+				model.mappings
+					.filter(
+						(mapping) =>
+							!mapping.deprecatedAt || new Date(mapping.deprecatedAt) > now,
+					)
+					.map((mapping) =>
+						getDisplayProviderInfo({
+							providerId: mapping.providerId,
+							providerName:
+								providers.find((provider) => provider.id === mapping.providerId)
+									?.name ?? null,
+							modelId: model.id,
+							family: model.family,
+						}).name,
+					),
+			),
+		);
+
 		return {
 			totalModelCount: nonDeprecatedModelCount,
-			totalProviderCount: providers.length,
+			totalProviderCount: uniqueDisplayProviders.size,
 		};
 	}, [models, providers]);
 
@@ -764,7 +790,13 @@ export function AllModels({
 			// Provider filter
 			if (filters.selectedProvider && filters.selectedProvider !== "all") {
 				const hasSelectedProvider = model.providerDetails.some(
-					(p) => p.provider.providerId === filters.selectedProvider,
+					(p) =>
+						getDisplayProviderInfo({
+							providerId: p.provider.providerId,
+							providerName: p.providerInfo?.name,
+							modelId: model.id,
+							family: model.family,
+						}).name === filters.selectedProvider,
 				);
 				if (!hasSelectedProvider) {
 					return false;
@@ -949,10 +981,43 @@ export function AllModels({
 	const filteredProviderCount = useMemo(() => {
 		const uniqueProviders = new Set(
 			modelsWithProviders.flatMap((model) =>
-				model.providerDetails.map((p) => p.provider.providerId),
+				model.providerDetails.map((p) =>
+					getDisplayProviderInfo({
+						providerId: p.provider.providerId,
+						providerName: p.providerInfo?.name,
+						modelId: model.id,
+						family: model.family,
+					}).name,
+				),
 			),
 		);
 		return uniqueProviders.size;
+	}, [modelsWithProviders]);
+
+	const providerFilterOptions = useMemo<ProviderFilterOption[]>(() => {
+		const options = new Map<string, ProviderFilterOption>();
+
+		for (const model of modelsWithProviders) {
+			for (const { provider, providerInfo } of model.providerDetails) {
+				const displayProvider = getDisplayProviderInfo({
+					providerId: provider.providerId,
+					providerName: providerInfo?.name,
+					modelId: model.id,
+					family: model.family,
+				});
+				if (!options.has(displayProvider.name)) {
+					options.set(displayProvider.name, {
+						value: displayProvider.name,
+						name: displayProvider.name,
+						iconProviderId: displayProvider.iconProviderId,
+					});
+				}
+			}
+		}
+
+		return Array.from(options.values()).sort((a, b) =>
+			a.name.localeCompare(b.name),
+		);
 	}, [modelsWithProviders]);
 
 	// Flattened rows for table view (one row per provider-model combination)
@@ -1480,22 +1545,15 @@ export function AllModels({
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="all">All providers</SelectItem>
-								{providers.map((provider) => {
-									const displayProvider = getDisplayProviderInfo({
-										providerId: provider.id,
-										providerName: provider.name,
-									});
+								{providerFilterOptions.map((provider) => {
 									const ProviderIcon = getProviderIcon(
-										displayProvider.iconProviderId,
+										provider.iconProviderId,
 									);
 									return (
-										<SelectItem
-											key={`${provider.id}-${provider.name}`}
-											value={provider.id}
-										>
+										<SelectItem key={provider.value} value={provider.value}>
 											<div className="flex items-center gap-2">
 												{ProviderIcon && <ProviderIcon className="h-4 w-4" />}
-												<span>{displayProvider.name}</span>
+												<span>{provider.name}</span>
 											</div>
 										</SelectItem>
 									);

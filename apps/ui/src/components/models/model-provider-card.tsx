@@ -76,7 +76,7 @@ export function ModelProviderCard({
 	const config = useAppConfig();
 	const [copied, setCopied] = useState(false);
 	const [urlCopied, setUrlCopied] = useState(false);
-	const providerModelName = `${provider.providerId}/${modelName}`;
+	const publicModelName = modelName;
 	const displayProvider = getDisplayProviderInfo({
 		providerId: provider.providerId,
 		providerName: provider.providerInfo?.name,
@@ -119,7 +119,7 @@ export function ModelProviderCard({
 
 	const copyToClipboard = async () => {
 		try {
-			await navigator.clipboard.writeText(providerModelName);
+			await navigator.clipboard.writeText(publicModelName);
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
 		} catch (err) {
@@ -196,7 +196,7 @@ export function ModelProviderCard({
 							</div>
 							<div className="flex items-center gap-2">
 								<code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-									{providerModelName}
+									{publicModelName}
 								</code>
 								<div className="flex items-center gap-1">
 									<Button
@@ -214,7 +214,7 @@ export function ModelProviderCard({
 										)}
 									</Button>
 									<div className="hidden sm:block">
-										<ModelCodeExampleDialog modelId={providerModelName} />
+										<ModelCodeExampleDialog modelId={publicModelName} />
 									</div>
 								</div>
 							</div>
@@ -708,7 +708,7 @@ export function ModelProviderCard({
 					asChild
 				>
 					<a
-						href={`${config.playgroundUrl}?model=${encodeURIComponent(providerModelName)}`}
+								href={`${config.playgroundUrl}?model=${encodeURIComponent(publicModelName)}`}
 						target="_blank"
 						rel="noopener noreferrer"
 					>
