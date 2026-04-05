@@ -31,6 +31,10 @@ import { mistralModels } from "./models/mistral.js";
 import { moonshotModels } from "./models/moonshot.js";
 import { nousresearchModels } from "./models/nousresearch.js";
 import { openaiModels } from "./models/openai.js";
+import {
+	openrouterAiHubModels,
+	openrouterAiHubProviderAugments,
+} from "./models/openrouter-ai-hub.js";
 import { perplexityModels } from "./models/perplexity.js";
 import {
 	svelteAiEnhancedModels,
@@ -310,6 +314,7 @@ export const models: ModelDefinition[] = [
 		...ishChatProxyModels,
 		...literouterProxyModels,
 		...freecfmodelsModels,
+		...openrouterAiHubModels,
 		...svelteAiEnhancedModels,
 	].map((model) => {
 		const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
@@ -318,6 +323,8 @@ export const models: ModelDefinition[] = [
 		const ishChatProxyProviders = ishChatProxyProviderAugments[model.id] ?? [];
 		const literouterProviders = literouterProxyProviderAugments[model.id] ?? [];
 		const freecfmodelsProviders = freecfmodelsProviderAugments[model.id] ?? [];
+		const openrouterAiHubProviders =
+			openrouterAiHubProviderAugments[model.id] ?? [];
 		const svelteAiEnhancedProviders =
 			svelteAiEnhancedProviderAugments[model.id] ?? [];
 		if (
@@ -326,6 +333,7 @@ export const models: ModelDefinition[] = [
 			ishChatProxyProviders.length === 0 &&
 			literouterProviders.length === 0 &&
 			freecfmodelsProviders.length === 0 &&
+			openrouterAiHubProviders.length === 0 &&
 			svelteAiEnhancedProviders.length === 0
 		) {
 			return model;
@@ -339,6 +347,7 @@ export const models: ModelDefinition[] = [
 				...ishChatProxyProviders,
 				...literouterProviders,
 				...freecfmodelsProviders,
+				...openrouterAiHubProviders,
 				...svelteAiEnhancedProviders,
 			],
 		};
