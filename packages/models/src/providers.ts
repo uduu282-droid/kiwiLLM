@@ -266,6 +266,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-openrouter-ai-hub",
+		name: "KiwiLLM OpenRouter AI Hub",
+		description:
+			"KiwiLLM-hosted OpenRouter-backed mixed-model worker exposed through an OpenAI-compatible endpoint.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_OPENROUTER_AI_HUB_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
 		id: "kiwillm-claude-talkai",
 		name: "KiwiLLM Claude TalkAI",
 		description:

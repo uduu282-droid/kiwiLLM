@@ -160,6 +160,15 @@ export function getProviderEndpoint(
 						"https://svelte-ai-enhanced.revai.workers.dev",
 					) ?? "https://svelte-ai-enhanced.revai.workers.dev";
 				break;
+			case "kiwillm-openrouter-ai-hub":
+				url =
+					getProviderEnvValue(
+						"kiwillm-openrouter-ai-hub",
+						"baseUrl",
+						configIndex,
+						"https://openrouter-ai-hub.revai.workers.dev",
+					) ?? "https://openrouter-ai-hub.revai.workers.dev";
+				break;
 			case "kiwillm-claude-talkai":
 				url =
 					getProviderEnvValue(
