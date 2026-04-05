@@ -169,6 +169,15 @@ export function getProviderEndpoint(
 						"https://openrouter-ai-hub.revai.workers.dev",
 					) ?? "https://openrouter-ai-hub.revai.workers.dev";
 				break;
+			case "kiwillm-botnation-worker":
+				url =
+					getProviderEnvValue(
+						"kiwillm-botnation-worker",
+						"baseUrl",
+						configIndex,
+						"https://botnation-worker.revai.workers.dev",
+					) ?? "https://botnation-worker.revai.workers.dev";
+				break;
 			case "kiwillm-claude-talkai":
 				url =
 					getProviderEnvValue(
