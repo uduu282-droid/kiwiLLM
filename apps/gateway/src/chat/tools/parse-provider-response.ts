@@ -34,6 +34,46 @@ function extractTextContent(value: unknown): string | null {
 	return text || null;
 }
 
+function extractInlineThinking(
+	content: string | null,
+	reasoningContent: string | null,
+	finishReason: string | null,
+): { content: string | null; reasoningContent: string | null } {
+	if (!content || reasoningContent) {
+		return { content, reasoningContent };
+	}
+
+	if (!content.startsWith("<think>")) {
+		return { content, reasoningContent };
+	}
+
+	const closingTag = "</think>";
+	const closingIndex = content.indexOf(closingTag);
+
+	if (closingIndex >= 0) {
+		const extractedReasoning = content
+			.slice("<think>".length, closingIndex)
+			.trim();
+		const extractedContent = content
+			.slice(closingIndex + closingTag.length)
+			.trim();
+
+		return {
+			content: extractedContent || null,
+			reasoningContent: extractedReasoning || null,
+		};
+	}
+
+	if (finishReason === "length") {
+		return {
+			content: null,
+			reasoningContent: content.replace(/^<think>\s*/, "").trim() || null,
+		};
+	}
+
+	return { content, reasoningContent };
+}
+
 /**
  * Parses response content and metadata from different providers
  */
@@ -676,6 +716,14 @@ export function parseProviderResponse(
 					extractTextContent(json.choices?.[0]?.message?.reasoning) ??
 					extractTextContent(json.choices?.[0]?.message?.reasoning_content);
 				finishReason = json.choices?.[0]?.finish_reason ?? null;
+
+				const normalizedThinking = extractInlineThinking(
+					content,
+					reasoningContent,
+					finishReason,
+				);
+				content = normalizedThinking.content;
+				reasoningContent = normalizedThinking.reasoningContent;
 
 				// ZAI-specific fix for incorrect finish_reason in tool response scenarios
 				// Only for models that were failing tests: glm-4.5-airx and glm-4.5-flash

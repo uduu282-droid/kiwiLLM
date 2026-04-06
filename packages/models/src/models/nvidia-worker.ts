@@ -82,7 +82,7 @@ export const nvidiaWorkerModels = [
 	createProxyModel("dracarys-llama-3.1-70b-instruct", "meta", "abacusai/dracarys-llama-3.1-70b-instruct", { name: "Dracarys Llama 3.1 70B", description: "Dracarys Llama 3.1 70B exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 131072 }),
 	createProxyModel("jamba-1.5-mini-instruct", "ai21", "ai21labs/jamba-1.5-mini-instruct", { name: "Jamba 1.5 Mini", description: "Jamba 1.5 Mini exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192 }),
 	createProxyModel("baichuan2-13b-chat", "baichuan", "baichuan-inc/baichuan2-13b-chat", { name: "Baichuan2 13B Chat", description: "Baichuan2 13B Chat exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192 }),
-	createProxyModel("deepseek-r1-distill-llama-8b", "deepseek", "deepseek-ai/deepseek-r1-distill-llama-8b", { name: "DeepSeek R1 Distill 8B", description: "DeepSeek R1 Distill 8B exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192, reasoning: true }),
+	createProxyModel("deepseek-r1-distill-llama-8b", "deepseek", "deepseek-ai/deepseek-r1-distill-llama-8b", { name: "DeepSeek R1 Distill 8B", description: "DeepSeek R1 Distill 8B exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192, reasoning: true, reasoningOutput: "omit" }),
 	createProxyModel("deepseek-v3.1-terminus", "deepseek", "deepseek-ai/deepseek-v3.1-terminus", { name: "DeepSeek V3.1 Terminus", description: "DeepSeek V3.1 Terminus exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 131072 }),
 	createProxyModel("gemma-2-2b-it", "google", "google/gemma-2-2b-it", { name: "Gemma 2 2B", description: "Gemma 2 2B exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192 }),
 	createProxyModel("gemma-4-31b-it", "google", "google/gemma-4-31b-it", { name: "Gemma 4 31B", description: "Gemma 4 31B exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192 }),
@@ -158,6 +158,5 @@ export const nvidiaWorkerModels = [
 	createProxyModel("solar-10.7b-instruct", "upstage", "upstage/solar-10.7b-instruct", { name: "Solar 10.7B", description: "Solar 10.7B exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192 }),
 	createProxyModel("eurollm-9b-instruct", "utter", "utter-project/eurollm-9b-instruct", { name: "EuroLLM 9B", description: "EuroLLM 9B exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192 }),
 	createProxyModel("llama-3-taiwan-70b-instruct", "meta", "yentinglin/llama-3-taiwan-70b-instruct", { name: "Llama 3 Taiwan 70B", description: "Llama 3 Taiwan 70B exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192 }),
-	createProxyModel("glm4.7", "glm", "z-ai/glm4.7", { name: "GLM4.7", description: "GLM4.7 exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192 }),
+	createProxyModel("glm4.7", "glm", "z-ai/glm4.7", { name: "GLM4.7", description: "GLM4.7 exposed by the NVIDIA KiwiLLM worker." }, { contextSize: 8192, reasoning: true, reasoningOutput: "omit" }),
 ] as const satisfies ModelDefinition[];
-
