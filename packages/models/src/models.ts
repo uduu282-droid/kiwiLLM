@@ -33,11 +33,12 @@ import { microsoftModels } from "./models/microsoft.js";
 import { minimaxModels } from "./models/minimax.js";
 import { mistralModels } from "./models/mistral.js";
 import { moonshotModels } from "./models/moonshot.js";
+import { nousresearchModels } from "./models/nousresearch.js";
 import {
 	nvidiaWorkerModels,
 	nvidiaWorkerProviderAugments,
 } from "./models/nvidia-worker.js";
-import { nousresearchModels } from "./models/nousresearch.js";
+import { getOfficialProxyPricing } from "./models/official-proxy-pricing.js";
 import { openaiModels } from "./models/openai.js";
 import {
 	openrouterAiHubModels,
@@ -315,6 +316,61 @@ const baseModels: ModelDefinition[] = [
 	...zaiModels,
 ] as const;
 
+function hasExplicitPricing(provider: Partial<ProviderModelMapping>): boolean {
+	return (
+		(provider.inputPrice ?? 0) > 0 ||
+		(provider.outputPrice ?? 0) > 0 ||
+		(provider.requestPrice ?? 0) > 0 ||
+		(provider.pricingTiers?.length ?? 0) > 0 ||
+		(provider.imageInputPrice ?? 0) > 0 ||
+		(provider.imageOutputPrice ?? 0) > 0
+	);
+}
+
+function applyOfficialProxyPricing(model: ModelDefinition): ModelDefinition {
+	return {
+		...model,
+		providers: model.providers.map((provider) => {
+			if (!provider.providerId.startsWith("kiwillm-")) {
+				return provider;
+			}
+			if (hasExplicitPricing(provider)) {
+				return provider;
+			}
+
+			const officialPricing = getOfficialProxyPricing(model.id);
+			if (!hasExplicitPricing(officialPricing)) {
+				return provider;
+			}
+
+			return {
+				...provider,
+				inputPrice: officialPricing.inputPrice ?? provider.inputPrice,
+				outputPrice: officialPricing.outputPrice ?? provider.outputPrice,
+				cachedInputPrice:
+					officialPricing.cachedInputPrice ?? provider.cachedInputPrice,
+				minCacheableTokens:
+					officialPricing.minCacheableTokens ?? provider.minCacheableTokens,
+				imageInputPrice:
+					officialPricing.imageInputPrice ?? provider.imageInputPrice,
+				imageOutputPrice:
+					officialPricing.imageOutputPrice ?? provider.imageOutputPrice,
+				imageOutputTokensByResolution:
+					officialPricing.imageOutputTokensByResolution ??
+					provider.imageOutputTokensByResolution,
+				imageInputTokensByResolution:
+					officialPricing.imageInputTokensByResolution ??
+					provider.imageInputTokensByResolution,
+				requestPrice: officialPricing.requestPrice ?? provider.requestPrice,
+				discount: officialPricing.discount ?? provider.discount,
+				pricingTiers: officialPricing.pricingTiers ?? provider.pricingTiers,
+				webSearchPrice:
+					officialPricing.webSearchPrice ?? provider.webSearchPrice,
+			};
+		}),
+	};
+}
+
 export const models: ModelDefinition[] = [
 	...[
 		...baseModels,
@@ -336,8 +392,7 @@ export const models: ModelDefinition[] = [
 		const literouterProviders = literouterProxyProviderAugments[model.id] ?? [];
 		const freecfmodelsProviders = freecfmodelsProviderAugments[model.id] ?? [];
 		const groqWorkerProviders = groqWorkerProviderAugments[model.id] ?? [];
-		const nvidiaWorkerProviders =
-			nvidiaWorkerProviderAugments[model.id] ?? [];
+		const nvidiaWorkerProviders = nvidiaWorkerProviderAugments[model.id] ?? [];
 		const openrouterAiHubProviders =
 			openrouterAiHubProviderAugments[model.id] ?? [];
 		const svelteAiEnhancedProviders =
@@ -353,9 +408,9 @@ export const models: ModelDefinition[] = [
 			openrouterAiHubProviders.length === 0 &&
 			svelteAiEnhancedProviders.length === 0
 		) {
-			return model;
+			return applyOfficialProxyPricing(model);
 		}
-		return {
+		return applyOfficialProxyPricing({
 			...model,
 			providers: [
 				...model.providers,
@@ -369,6 +424,6 @@ export const models: ModelDefinition[] = [
 				...openrouterAiHubProviders,
 				...svelteAiEnhancedProviders,
 			],
-		};
+		});
 	}),
 ];

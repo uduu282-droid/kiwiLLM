@@ -1,18 +1,33 @@
+import { getOfficialProxyPricing } from "./official-proxy-pricing.js";
+
 import type { ModelDefinition, ProviderModelMapping } from "@/models.js";
 
 const groqWorkerProviderId = "kiwillm-groq-worker" as const;
 
 function createProxyMapping(
+	pricingId: string,
 	modelName: string,
 	overrides: Partial<ProviderModelMapping> = {},
 ): ProviderModelMapping {
+	const officialPricing = getOfficialProxyPricing(pricingId);
+
 	return {
 		test: "skip",
 		providerId: groqWorkerProviderId,
 		modelName,
-		inputPrice: 0,
-		outputPrice: 0,
-		requestPrice: 0,
+		inputPrice: officialPricing.inputPrice ?? 0,
+		outputPrice: officialPricing.outputPrice ?? 0,
+		cachedInputPrice: officialPricing.cachedInputPrice,
+		minCacheableTokens: officialPricing.minCacheableTokens,
+		imageInputPrice: officialPricing.imageInputPrice,
+		imageOutputPrice: officialPricing.imageOutputPrice,
+		imageOutputTokensByResolution:
+			officialPricing.imageOutputTokensByResolution,
+		imageInputTokensByResolution: officialPricing.imageInputTokensByResolution,
+		requestPrice: officialPricing.requestPrice ?? 0,
+		discount: officialPricing.discount,
+		pricingTiers: officialPricing.pricingTiers,
+		webSearchPrice: officialPricing.webSearchPrice,
 		contextSize: 131072,
 		maxOutput: 16384,
 		streaming: true,
@@ -44,7 +59,7 @@ function createProxyModel(
 		imageInputRequired: overrides.imageInputRequired,
 		stability: overrides.stability,
 		supportsSystemRole: overrides.supportsSystemRole,
-		providers: [createProxyMapping(modelName, mappingOverrides)],
+		providers: [createProxyMapping(id, modelName, mappingOverrides)],
 	};
 }
 
@@ -52,33 +67,39 @@ export const groqWorkerProviderAugments: Record<
 	string,
 	ProviderModelMapping[]
 > = {
-	"llama-2-7b": [createProxyMapping("llama-2-7b", { tools: false })],
+	"llama-2-7b": [
+		createProxyMapping("llama-2-7b", "llama-2-7b", { tools: false }),
+	],
 	"kimi-k2": [
-		createProxyMapping("moonshotai/kimi-k2-instruct", {
+		createProxyMapping("kimi-k2", "moonshotai/kimi-k2-instruct", {
 			contextSize: 131072,
 		}),
 	],
 	"gpt-oss-120b": [
-		createProxyMapping("openai/gpt-oss-120b", {
+		createProxyMapping("gpt-oss-120b", "openai/gpt-oss-120b", {
 			reasoning: true,
 		}),
 	],
 	"gpt-oss-20b": [
-		createProxyMapping("openai/gpt-oss-20b", {
+		createProxyMapping("gpt-oss-20b", "openai/gpt-oss-20b", {
 			reasoning: true,
 		}),
 	],
 	"qwen3-32b": [
-		createProxyMapping("qwen/qwen3-32b", {
+		createProxyMapping("qwen3-32b", "qwen/qwen3-32b", {
 			reasoning: true,
 			contextSize: 32768,
 		}),
 	],
 	"llama-4-scout-17b-instruct": [
-		createProxyMapping("meta-llama/llama-4-scout-17b-16e-instruct", {
-			vision: true,
-			contextSize: 32768,
-		}),
+		createProxyMapping(
+			"llama-4-scout-17b-instruct",
+			"meta-llama/llama-4-scout-17b-16e-instruct",
+			{
+				vision: true,
+				contextSize: 32768,
+			},
+		),
 	],
 };
 
