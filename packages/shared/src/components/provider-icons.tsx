@@ -78,7 +78,7 @@ export const MetaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 );
 
 export const NvidiaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-	<RasterLogoIcon {...props} src={NVIDIA_COLOR_PNG} alt="NVIDIA" />
+	<RasterLogoIcon {...props} src="/brand/nvidia-logo.png" alt="NVIDIA" />
 );
 
 export const KiwillmIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
