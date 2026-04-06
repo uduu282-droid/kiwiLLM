@@ -120,9 +120,19 @@ export function ModelCard({
 				<div className="p-4 space-y-4">
 					<div className="space-y-3">
 						<div className="flex items-start justify-between gap-4">
-							<h3 className="text-2xl font-bold text-foreground tracking-tight">
-								{model.name ?? model.id}
-							</h3>
+							<div className="flex items-center gap-2">
+								<h3 className="text-2xl font-bold text-foreground tracking-tight">
+									{model.name ?? model.id}
+								</h3>
+								{model.free && (
+									<Badge
+										variant="secondary"
+										className="h-6 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider"
+									>
+										Free
+									</Badge>
+								)}
+							</div>
 							<div
 								onClick={(e) => e.stopPropagation()}
 								onMouseDown={(e) => e.stopPropagation()}

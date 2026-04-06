@@ -316,6 +316,59 @@ const baseModels: ModelDefinition[] = [
 	...zaiModels,
 ] as const;
 
+const freeTierModelIds = new Set<string>([
+	"gpt-4o-mini",
+	"gpt-4.1-mini",
+	"gpt-4.1-nano",
+	"gpt-3.5-turbo",
+	"gpt-oss-20b",
+	"gemini-2.5-flash",
+	"gemini-2.0-flash",
+	"gemini-2.0-flash-lite",
+	"gemini-1.5-flash",
+	"gemini-1.5-flash-8b",
+	"gemma-2-2b-it",
+	"gemma-2-9b-it",
+	"gemma-3-4b-it",
+	"gemma-3-12b-it",
+	"llama-3.1-8b-instant",
+	"llama-3.1-8b-instruct",
+	"llama-3.2-1b-instruct",
+	"llama-3.2-3b-instruct",
+	"llama-3.2-11b-instruct",
+	"llama3-8b-instruct",
+	"qwen-2.5-7b-instruct",
+	"qwen2.5-coder-7b-instruct",
+	"qwen2-7b-instruct",
+	"qwen3-32b",
+	"qwen3-coder-flash",
+	"qwen-flash",
+	"qwen-turbo",
+	"deepseek-chat",
+	"deepseek-v3",
+	"deepseek-v3.1",
+	"deepseek-r1-distill-llama-8b",
+	"deepseek-r1-0528",
+	"phi-4-mini-instruct",
+	"phi-4-mini-flash-reasoning",
+	"phi-3.5-mini-instruct",
+	"phi-3-mini-4k-instruct",
+	"phi-3-mini-128k-instruct",
+	"phi-3-small-8k-instruct",
+	"phi-3-small-128k-instruct",
+	"mistral-small",
+	"mistral-nemo",
+	"mistral-7b-instruct-v0.3",
+	"ministral-3b-2512",
+	"ministral-8b-2512",
+	"jamba-1.5-mini-instruct",
+	"granite-guardian-3.0-8b",
+	"solar-10.7b-instruct",
+	"eurollm-9b-instruct",
+	"falcon3-7b-instruct",
+	"baichuan2-13b-chat",
+]);
+
 function hasExplicitPricing(provider: Partial<ProviderModelMapping>): boolean {
 	return (
 		(provider.inputPrice ?? 0) > 0 ||
@@ -411,10 +464,18 @@ export const models: ModelDefinition[] = [
 			openrouterAiHubProviders.length === 0 &&
 			svelteAiEnhancedProviders.length === 0
 		) {
-			return applyOfficialProxyPricing(model);
+			return applyOfficialProxyPricing({
+				...model,
+				free:
+					freeTierModelIds.has(model.id) ||
+					("free" in model && model.free === true),
+			});
 		}
 		return applyOfficialProxyPricing({
 			...model,
+			free:
+				freeTierModelIds.has(model.id) ||
+				("free" in model && model.free === true),
 			providers: [
 				...model.providers,
 				...chataiProviders,

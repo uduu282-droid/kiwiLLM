@@ -328,8 +328,16 @@ const ModelTableRow = React.memo(
 								onClick={(e) => e.stopPropagation()}
 								className="font-medium hover:text-primary hover:underline"
 							>
-								<div className="text-[15px] leading-6">
-									{row.displayModelName}
+								<div className="flex items-center gap-2 text-[15px] leading-6">
+									<span>{row.displayModelName}</span>
+									{row.model.free && (
+										<Badge
+											variant="secondary"
+											className="h-5 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider"
+										>
+											Free
+										</Badge>
+									)}
 								</div>
 								{row.displayModelName !== row.model.id && (
 									<div className="font-mono text-[13px] text-muted-foreground">
