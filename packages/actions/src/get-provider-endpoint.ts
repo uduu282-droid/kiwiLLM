@@ -187,6 +187,15 @@ export function getProviderEndpoint(
 						"https://groq-worker.revai.workers.dev",
 					) ?? "https://groq-worker.revai.workers.dev";
 				break;
+			case "kiwillm-nvidia-worker":
+				url =
+					getProviderEnvValue(
+						"kiwillm-nvidia-worker",
+						"baseUrl",
+						configIndex,
+						"https://nvidia-worker.revai.workers.dev",
+					) ?? "https://nvidia-worker.revai.workers.dev";
+				break;
 			case "kiwillm-swift-sora-video":
 				url =
 					getProviderEnvValue(

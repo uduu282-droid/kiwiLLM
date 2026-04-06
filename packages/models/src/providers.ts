@@ -317,6 +317,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-nvidia-worker",
+		name: "KiwiLLM NVIDIA Worker",
+		description:
+			"KiwiLLM-hosted NVIDIA mixed-model worker exposed through an OpenAI-compatible endpoint.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_NVIDIA_WORKER_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#76b900",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
 		id: "kiwillm-swift-sora-video",
 		name: "KiwiLLM Swift Sora Video",
 		description:

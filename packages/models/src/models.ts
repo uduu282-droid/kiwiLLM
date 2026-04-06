@@ -33,6 +33,10 @@ import { microsoftModels } from "./models/microsoft.js";
 import { minimaxModels } from "./models/minimax.js";
 import { mistralModels } from "./models/mistral.js";
 import { moonshotModels } from "./models/moonshot.js";
+import {
+	nvidiaWorkerModels,
+	nvidiaWorkerProviderAugments,
+} from "./models/nvidia-worker.js";
 import { nousresearchModels } from "./models/nousresearch.js";
 import { openaiModels } from "./models/openai.js";
 import {
@@ -320,6 +324,7 @@ export const models: ModelDefinition[] = [
 		...literouterProxyModels,
 		...freecfmodelsModels,
 		...groqWorkerModels,
+		...nvidiaWorkerModels,
 		...openrouterAiHubModels,
 		...svelteAiEnhancedModels,
 		...swiftSoraVideoModels,
@@ -331,6 +336,8 @@ export const models: ModelDefinition[] = [
 		const literouterProviders = literouterProxyProviderAugments[model.id] ?? [];
 		const freecfmodelsProviders = freecfmodelsProviderAugments[model.id] ?? [];
 		const groqWorkerProviders = groqWorkerProviderAugments[model.id] ?? [];
+		const nvidiaWorkerProviders =
+			nvidiaWorkerProviderAugments[model.id] ?? [];
 		const openrouterAiHubProviders =
 			openrouterAiHubProviderAugments[model.id] ?? [];
 		const svelteAiEnhancedProviders =
@@ -342,6 +349,7 @@ export const models: ModelDefinition[] = [
 			literouterProviders.length === 0 &&
 			freecfmodelsProviders.length === 0 &&
 			groqWorkerProviders.length === 0 &&
+			nvidiaWorkerProviders.length === 0 &&
 			openrouterAiHubProviders.length === 0 &&
 			svelteAiEnhancedProviders.length === 0
 		) {
@@ -357,6 +365,7 @@ export const models: ModelDefinition[] = [
 				...literouterProviders,
 				...freecfmodelsProviders,
 				...groqWorkerProviders,
+				...nvidiaWorkerProviders,
 				...openrouterAiHubProviders,
 				...svelteAiEnhancedProviders,
 			],
