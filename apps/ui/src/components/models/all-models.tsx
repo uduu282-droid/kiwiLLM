@@ -1,5 +1,6 @@
 "use client";
 
+import { freeTierModelIds } from "@llmgateway/models";
 import {
 	AlertCircle,
 	AlertTriangle,
@@ -330,7 +331,7 @@ const ModelTableRow = React.memo(
 							>
 								<div className="flex items-center gap-2 text-[15px] leading-6">
 									<span>{row.displayModelName}</span>
-									{row.model.free && (
+									{(row.model.free || freeTierModelIds.has(row.model.id)) && (
 										<Badge
 											variant="secondary"
 											className="h-5 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider"

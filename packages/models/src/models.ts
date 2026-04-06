@@ -316,7 +316,7 @@ const baseModels: ModelDefinition[] = [
 	...zaiModels,
 ] as const;
 
-const freeTierModelIds = new Set<string>([
+export const freeTierModelIds = new Set<string>([
 	"gpt-4o-mini",
 	"gpt-4.1-mini",
 	"gpt-4.1-nano",

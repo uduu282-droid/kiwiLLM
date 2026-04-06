@@ -1,5 +1,6 @@
 "use client";
 
+import { freeTierModelIds } from "@llmgateway/models";
 import {
 	AlertTriangle,
 	AlertCircle,
@@ -75,6 +76,7 @@ export function ModelCard({
 	const config = useAppConfig();
 	const [copiedModel, setCopiedModel] = useState<string | null>(null);
 	const [showAllProviders, setShowAllProviders] = useState(false);
+	const isFreeModel = model.free || freeTierModelIds.has(model.id);
 
 	const copyToClipboard = (text: string) => {
 		void navigator.clipboard.writeText(text);
@@ -124,7 +126,7 @@ export function ModelCard({
 								<h3 className="text-2xl font-bold text-foreground tracking-tight">
 									{model.name ?? model.id}
 								</h3>
-								{model.free && (
+								{isFreeModel && (
 									<Badge
 										variant="secondary"
 										className="h-6 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider"
