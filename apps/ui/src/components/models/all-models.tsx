@@ -363,9 +363,9 @@ const ModelTableRow = React.memo(
 									{!isFreeModel && isPayAsYouGoModel && (
 										<Badge
 											variant="secondary"
-											className="h-5 border border-amber-500/30 bg-amber-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider text-amber-300 hover:bg-amber-500/20"
+											className="payg-tier-badge h-5 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider"
 										>
-											PAYG
+											<span>PAYG</span>
 										</Badge>
 									)}
 									{isStarterModel && (
