@@ -36,7 +36,10 @@ import {
 } from "@/lib/components/tooltip";
 import { useAppConfig } from "@/lib/config";
 import { XIcon } from "@/lib/icons/XIcon";
-import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
+import {
+	getDisplayModelName,
+	getDisplayProviderInfo,
+} from "@/lib/model-catalog-display";
 import { formatContextSize, formatDeprecationDate } from "@/lib/utils";
 
 import { getProviderIcon } from "@llmgateway/shared/components";
@@ -77,6 +80,10 @@ export function ModelProviderCard({
 	const [copied, setCopied] = useState(false);
 	const [urlCopied, setUrlCopied] = useState(false);
 	const publicModelName = modelName;
+	const displayModelName = getDisplayModelName({
+		modelId: modelName,
+		modelName: null,
+	});
 	const displayProvider = getDisplayProviderInfo({
 		providerId: provider.providerId,
 		providerName: provider.providerInfo?.name,
@@ -86,7 +93,7 @@ export function ModelProviderCard({
 	const providerStability = provider.stability ?? modelStability;
 
 	const shareUrl = `${config.appUrl}/models/${encodeURIComponent(modelName)}/${encodeURIComponent(provider.providerId)}`;
-	const shareTitle = `${displayProvider.name} - ${modelName} on KiwiLLM`;
+	const shareTitle = `${displayProvider.name} - ${displayModelName} on KiwiLLM`;
 
 	const getStabilityBadgeProps = (stability?: StabilityLevel) => {
 		switch (stability) {
@@ -196,7 +203,7 @@ export function ModelProviderCard({
 							</div>
 							<div className="flex items-center gap-2">
 								<code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-									{publicModelName}
+									{displayModelName}
 								</code>
 								<div className="flex items-center gap-1">
 									<Button

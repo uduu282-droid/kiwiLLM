@@ -5,6 +5,16 @@ interface DisplayProviderInfo {
 	name: string;
 }
 
+function titleizeSlug(value: string) {
+	return value
+		.split(/[-_]+/)
+		.filter(Boolean)
+		.map((part) =>
+			part.length > 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part,
+		)
+		.join(" ");
+}
+
 function normalizeValue(value?: string | null) {
 	return value?.toLowerCase() ?? "";
 }
@@ -43,10 +53,30 @@ function resolveCompanyFromModel(modelId?: string | null, family?: string | null
 			name: "Google",
 		};
 	}
+	if (
+		haystack.includes("gemma") ||
+		haystack.includes("shieldgemma") ||
+		modelFamily === "google"
+	) {
+		return {
+			iconProviderId: "google-ai-studio",
+			name: "Google",
+		};
+	}
 	if (haystack.includes("qwen")) {
 		return {
 			iconProviderId: "alibaba",
 			name: "Alibaba",
+		};
+	}
+	if (
+		haystack.includes("phi") ||
+		modelFamily === "microsoft" ||
+		haystack.includes("wizardlm")
+	) {
+		return {
+			iconProviderId: "azure",
+			name: "Microsoft",
 		};
 	}
 	if (haystack.includes("deepseek")) {
@@ -68,6 +98,16 @@ function resolveCompanyFromModel(modelId?: string | null, family?: string | null
 		};
 	}
 	if (
+		modelFamily === "groq" ||
+		haystack.includes("compound") ||
+		haystack.includes("whisper")
+	) {
+		return {
+			iconProviderId: haystack.includes("whisper") ? "openai" : "groq",
+			name: haystack.includes("whisper") ? "OpenAI" : "Groq",
+		};
+	}
+	if (
 		haystack.includes("llama") ||
 		haystack.includes("nemotron") ||
 		haystack.includes("llama-4")
@@ -81,6 +121,90 @@ function resolveCompanyFromModel(modelId?: string | null, family?: string | null
 		return {
 			iconProviderId: "mistral",
 			name: "Mistral",
+		};
+	}
+	if (modelFamily === "ibm" || haystack.includes("granite")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "IBM",
+		};
+	}
+	if (modelFamily === "ai21" || haystack.includes("jamba")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "AI21 Labs",
+		};
+	}
+	if (modelFamily === "baichuan" || haystack.includes("baichuan")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Baichuan",
+		};
+	}
+	if (modelFamily === "mediatek" || haystack.includes("breeze")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "MediaTek",
+		};
+	}
+	if (modelFamily === "igenius" || haystack.includes("italia")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "iGenius",
+		};
+	}
+	if (modelFamily === "canopylabs" || haystack.includes("orpheus")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Canopy",
+		};
+	}
+	if (modelFamily === "marin" || haystack.includes("marin-")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Marin",
+		};
+	}
+	if (modelFamily === "upstage" || haystack.includes("solar-")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Upstage",
+		};
+	}
+	if (modelFamily === "rakuten" || haystack.includes("rakuten")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Rakuten",
+		};
+	}
+	if (modelFamily === "sarvam" || haystack.includes("sarvam")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Sarvam AI",
+		};
+	}
+	if (modelFamily === "tiiuae" || haystack.includes("falcon")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "TII",
+		};
+	}
+	if (modelFamily === "opengptx" || haystack.includes("teuken")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "OpenGPT-X",
+		};
+	}
+	if (modelFamily === "speakleash" || haystack.includes("bielik")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "SpeakLeash",
+		};
+	}
+	if (modelFamily === "nvidia") {
+		return {
+			iconProviderId: "llmgateway",
+			name: "NVIDIA",
 		};
 	}
 	if (haystack.includes("sonar") || haystack.includes("perplexity")) {
@@ -156,4 +280,29 @@ export function getDisplayProviderName(
 		modelId,
 		family,
 	}).name;
+}
+
+export function getDisplayModelName({
+	modelId,
+	modelName,
+	family,
+}: {
+	modelId: string;
+	modelName?: string | null;
+	family?: string | null;
+}) {
+	const normalizedFamily = normalizeValue(family);
+
+	if (modelName) {
+		if (normalizedFamily === "groq" && modelName.startsWith("Groq ")) {
+			return modelName.replace(/^Groq\s+/, "");
+		}
+		return modelName;
+	}
+
+	if (modelId.startsWith("groq-")) {
+		return titleizeSlug(modelId.replace(/^groq-/, ""));
+	}
+
+	return modelId;
 }
