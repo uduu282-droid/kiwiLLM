@@ -269,6 +269,20 @@ const manualReferencePricingById = new Map<string, ReferencePricing>([
 		},
 	],
 	[
+		"mistral-nemo",
+		{
+			inputPrice: 0.15 / 1e6,
+			outputPrice: 0.15 / 1e6,
+		},
+	],
+	[
+		"reka-core",
+		{
+			inputPrice: 2 / 1e6,
+			outputPrice: 6 / 1e6,
+		},
+	],
+	[
 		"minimax-m1",
 		{
 			inputPrice: 0.4 / 1e6,
@@ -542,6 +556,8 @@ export function getOfficialProxyPricing(
 ): ReferencePricing {
 	const canonicalId = resolvePricingAlias(modelId);
 	const manualPricing =
+		manualReferencePricingById.get(modelId) ??
+		manualReferencePricingById.get(normalizeId(modelId)) ??
 		manualReferencePricingById.get(canonicalId) ??
 		manualReferencePricingById.get(normalizeId(canonicalId));
 	return (
