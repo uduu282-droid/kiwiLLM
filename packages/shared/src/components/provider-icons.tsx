@@ -1301,7 +1301,6 @@ export const providerLogoUrls: Partial<
 	canopywave: ProviderIcons.canopywave,
 	cerebras: ProviderIcons.cerebras,
 	custom: ProviderIcons.llmgateway,
-	nvidia: ProviderIcons.nvidia,
 	minimax: ProviderIcons.minimax,
 };
 
