@@ -259,6 +259,49 @@
 	}
 }
 
+@keyframes pro-badge-shimmer {
+	from {
+		transform: translateX(-155%) skewX(-20deg);
+	}
+	to {
+		transform: translateX(175%) skewX(-20deg);
+	}
+}
+
+@keyframes pro-badge-float {
+	0%,
+	100% {
+		box-shadow:
+			0 0 0 1px rgba(148, 163, 184, 0.18),
+			0 2px 4px rgba(0, 0, 0, 0.24),
+			0 12px 18px -14px rgba(0, 0, 0, 0.45),
+			inset 0 1px 0 rgba(255, 255, 255, 0.1),
+			inset 0 -10px 16px -14px rgba(255, 255, 255, 0.08);
+		filter: brightness(1) saturate(1);
+	}
+	50% {
+		box-shadow:
+			0 0 0 1px rgba(192, 132, 252, 0.24),
+			0 3px 6px rgba(0, 0, 0, 0.28),
+			0 16px 22px -14px rgba(76, 29, 149, 0.35),
+			inset 0 1px 0 rgba(255, 255, 255, 0.16),
+			inset 0 -12px 18px -14px rgba(255, 255, 255, 0.12);
+		filter: brightness(1.05) saturate(1.04);
+	}
+}
+
+@keyframes pro-badge-sparkle {
+	0%,
+	100% {
+		opacity: 0.45;
+		transform: scale(0.95);
+	}
+	50% {
+		opacity: 1;
+		transform: scale(1.08);
+	}
+}
+
 @layer components {
 	.payg-tier-badge {
 		--payg-highlight: rgba(255, 171, 64, 0.95);
@@ -320,6 +363,66 @@
 		color: rgb(255 251 235 / 0.9);
 		filter: drop-shadow(0 0 3px var(--payg-highlight));
 		animation: payg-badge-flicker 1.9s linear infinite;
+	}
+
+	.pro-tier-badge {
+		--pro-highlight: rgba(196, 181, 253, 0.9);
+		position: relative;
+		overflow: hidden;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		background:
+			radial-gradient(circle at top, rgba(255, 255, 255, 0.18), transparent 42%),
+			linear-gradient(180deg, rgba(52, 52, 58, 0.95), rgba(8, 8, 10, 0.96));
+		color: rgb(226 232 240);
+		text-shadow:
+			0 1px 0 rgba(255, 255, 255, 0.14),
+			0 0 12px rgba(196, 181, 253, 0.12);
+		animation: pro-badge-float 3.1s ease-in-out infinite;
+	}
+
+	.pro-tier-badge::before {
+		content: "";
+		position: absolute;
+		inset: 1px;
+		border-radius: inherit;
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.11), transparent 34%),
+			linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+		pointer-events: none;
+	}
+
+	.pro-tier-badge::after {
+		content: "";
+		position: absolute;
+		inset: -48% auto -48% -58%;
+		width: 36%;
+		background: linear-gradient(
+			90deg,
+			rgba(255, 255, 255, 0),
+			rgba(255, 255, 255, 0.34),
+			rgba(216, 180, 254, 0.18),
+			rgba(255, 255, 255, 0)
+		);
+		mix-blend-mode: screen;
+		opacity: 0.72;
+		animation: pro-badge-shimmer 2.9s linear infinite;
+		pointer-events: none;
+	}
+
+	.pro-tier-badge > span {
+		position: relative;
+		z-index: 1;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.28rem;
+	}
+
+	.pro-tier-badge > span::before {
+		content: "✦";
+		font-size: 0.68em;
+		color: rgb(244 244 245 / 0.92);
+		filter: drop-shadow(0 0 4px var(--pro-highlight));
+		animation: pro-badge-sparkle 1.8s ease-in-out infinite;
 	}
 }
 

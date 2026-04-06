@@ -170,9 +170,9 @@ export function ModelCard({
 								{isProModel && (
 									<Badge
 										variant="secondary"
-										className="h-6 border border-violet-500/30 bg-violet-500/15 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider text-violet-300 hover:bg-violet-500/20"
+										className="pro-tier-badge h-6 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider"
 									>
-										Pro
+										<span>Pro</span>
 									</Badge>
 								)}
 							</div>
