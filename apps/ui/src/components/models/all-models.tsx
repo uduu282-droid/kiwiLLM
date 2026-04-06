@@ -239,30 +239,30 @@ const ModelTableRow = React.memo(
 					onClick={onNavigate}
 				>
 					{/* Provider Column */}
-					<TableCell className="font-medium">
-						<div className="flex items-center gap-2">
+					<TableCell className="py-3.5 font-medium">
+						<div className="flex items-center gap-3">
 							{row.hasAdditionalPricing ? (
 								<button
 									onClick={(e) => {
 										e.stopPropagation();
 										onToggleExpand();
 									}}
-									className="p-0.5 hover:bg-muted rounded"
+									className="rounded p-1 hover:bg-muted"
 								>
 									{isExpanded ? (
-										<ChevronDown className="h-4 w-4 text-muted-foreground" />
+										<ChevronDown className="h-4.5 w-4.5 text-muted-foreground" />
 									) : (
-										<ChevronRight className="h-4 w-4 text-muted-foreground" />
+										<ChevronRight className="h-4.5 w-4.5 text-muted-foreground" />
 									)}
 								</button>
 							) : (
-								<div className="w-5 h-5" />
+								<div className="h-6 w-6" />
 							)}
 							{ProviderIcon ? (
-								<ProviderIcon className="w-4 h-4" />
+								<ProviderIcon className="h-5 w-5" />
 							) : (
 								<div
-									className="w-4 h-4 rounded-sm flex items-center justify-center text-xs font-medium text-white"
+									className="flex h-5 w-5 items-center justify-center rounded-sm text-xs font-medium text-white"
 									style={{
 										backgroundColor: row.providerInfo?.color ?? "#6b7280",
 									}}
@@ -270,12 +270,14 @@ const ModelTableRow = React.memo(
 									{row.displayProviderName.charAt(0).toUpperCase()}
 								</div>
 							)}
-							<span className="text-sm">{row.displayProviderName}</span>
+							<span className="text-[15px] font-medium">
+								{row.displayProviderName}
+							</span>
 							{row.provider.deactivatedAt && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<span className="shrink-0 cursor-help">
-											<AlertCircle className="h-3.5 w-3.5 text-red-500" />
+											<AlertCircle className="h-4 w-4 text-red-500" />
 										</span>
 									</TooltipTrigger>
 									<TooltipContent>
@@ -292,7 +294,7 @@ const ModelTableRow = React.memo(
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<span className="shrink-0 cursor-help">
-											<AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+											<AlertTriangle className="h-4 w-4 text-amber-500" />
 										</span>
 									</TooltipTrigger>
 									<TooltipContent>
@@ -305,62 +307,64 @@ const ModelTableRow = React.memo(
 									</TooltipContent>
 								</Tooltip>
 							)}
-							<ExternalLink className="h-3 w-3 text-muted-foreground" />
+							<ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
 						</div>
 					</TableCell>
 
 					{/* Model ID Column */}
-					<TableCell>
-						<div className="flex items-center gap-2">
+					<TableCell className="py-3.5">
+						<div className="flex items-center gap-2.5">
 							<Link
 								href={`/models/${encodeURIComponent(row.model.id)}`}
 								onClick={(e) => e.stopPropagation()}
-								className="font-medium text-sm hover:text-primary hover:underline"
+								className="font-medium hover:text-primary hover:underline"
 							>
-								<div>{row.displayModelName}</div>
+								<div className="text-[15px] leading-6">
+									{row.displayModelName}
+								</div>
 								{row.displayModelName !== row.model.id && (
-									<div className="text-xs text-muted-foreground font-mono">
+									<div className="font-mono text-[13px] text-muted-foreground">
 										{row.model.id}
 									</div>
 								)}
 							</Link>
 							<button
 								onClick={(e) => onCopy(row.model.id, row.rowKey, e)}
-								className="p-1 hover:bg-muted rounded transition-colors"
+								className="rounded p-1.5 hover:bg-muted transition-colors"
 								title={copiedModel === row.rowKey ? "Copied!" : "Copy model ID"}
 							>
 								{copiedModel === row.rowKey ? (
-									<Check className="h-3 w-3 text-green-500" />
+									<Check className="h-3.5 w-3.5 text-green-500" />
 								) : (
-									<Copy className="h-3 w-3 text-muted-foreground" />
+									<Copy className="h-3.5 w-3.5 text-muted-foreground" />
 								)}
 							</button>
 						</div>
 					</TableCell>
 
 					{/* Input Price Column */}
-					<TableCell className="text-right font-mono text-sm">
+					<TableCell className="py-3.5 text-right font-mono text-[15px]">
 						{formatPrice(row.provider.inputPrice, row.provider.discount)}
 					</TableCell>
 
 					{/* Output Price Column */}
-					<TableCell className="text-right font-mono text-sm">
+					<TableCell className="py-3.5 text-right font-mono text-[15px]">
 						{formatPrice(row.provider.outputPrice, row.provider.discount)}
 					</TableCell>
 
 					{/* Cache Read Price Column */}
-					<TableCell className="text-right font-mono text-sm">
+					<TableCell className="py-3.5 text-right font-mono text-[15px]">
 						{formatPrice(row.provider.cachedInputPrice, row.provider.discount)}
 					</TableCell>
 
 					{/* Features Column */}
-					<TableCell className="text-center">
-						<div className="flex justify-center gap-1">
+					<TableCell className="py-3.5 text-center">
+						<div className="flex justify-center gap-1.5">
 							{row.capabilities
 								.slice(0, 4)
 								.map(({ icon: Icon, label, color }) => (
 									<div key={label} className="p-0.5" title={label}>
-										<Icon className={`h-4 w-4 ${color}`} />
+										<Icon className={`h-4.5 w-4.5 ${color}`} />
 									</div>
 								))}
 						</div>
@@ -1687,10 +1691,10 @@ export function AllModels({
 	const renderTableView = () => (
 		<div className="rounded-md border">
 			<div className="relative w-full overflow-x-auto">
-				<Table>
+				<Table className="text-[15px]">
 					<TableHeader className="top-0 z-10 bg-background/95 backdrop-blur">
 						<TableRow>
-							<TableHead className="w-[180px] bg-background/95 backdrop-blur-sm border-b">
+							<TableHead className="h-12 w-[200px] bg-background/95 border-b backdrop-blur-sm">
 								<Button
 									variant="ghost"
 									onClick={() => handleSort("provider")}
@@ -1700,7 +1704,7 @@ export function AllModels({
 									{getSortIcon("provider")}
 								</Button>
 							</TableHead>
-							<TableHead className="w-[280px] bg-background/95 backdrop-blur-sm border-b">
+							<TableHead className="h-12 w-[320px] bg-background/95 border-b backdrop-blur-sm">
 								<Button
 									variant="ghost"
 									onClick={() => handleSort("name")}
@@ -1710,7 +1714,7 @@ export function AllModels({
 									{getSortIcon("name")}
 								</Button>
 							</TableHead>
-							<TableHead className="text-right bg-background/95 backdrop-blur-sm border-b">
+							<TableHead className="h-12 bg-background/95 text-right border-b backdrop-blur-sm">
 								<Button
 									variant="ghost"
 									onClick={() => handleSort("inputPrice")}
@@ -1720,7 +1724,7 @@ export function AllModels({
 									{getSortIcon("inputPrice")}
 								</Button>
 							</TableHead>
-							<TableHead className="text-right bg-background/95 backdrop-blur-sm border-b">
+							<TableHead className="h-12 bg-background/95 text-right border-b backdrop-blur-sm">
 								<Button
 									variant="ghost"
 									onClick={() => handleSort("outputPrice")}
@@ -1730,7 +1734,7 @@ export function AllModels({
 									{getSortIcon("outputPrice")}
 								</Button>
 							</TableHead>
-							<TableHead className="text-right bg-background/95 backdrop-blur-sm border-b">
+							<TableHead className="h-12 bg-background/95 text-right border-b backdrop-blur-sm">
 								<Button
 									variant="ghost"
 									onClick={() => handleSort("cachedInputPrice")}
@@ -1740,7 +1744,7 @@ export function AllModels({
 									{getSortIcon("cachedInputPrice")}
 								</Button>
 							</TableHead>
-							<TableHead className="text-center bg-background/95 backdrop-blur-sm border-b uppercase text-xs tracking-wider font-semibold">
+							<TableHead className="h-12 bg-background/95 text-center border-b text-[11px] font-semibold uppercase tracking-wider backdrop-blur-sm">
 								Features
 							</TableHead>
 						</TableRow>
