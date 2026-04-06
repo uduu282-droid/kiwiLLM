@@ -49,7 +49,8 @@ function resolveCompanyFromModel(
 		haystack.includes("gpt") ||
 		haystack.includes("o1") ||
 		haystack.includes("o3") ||
-		haystack.includes("o4")
+		haystack.includes("o4") ||
+		modelFamily === "openai"
 	) {
 		return {
 			iconProviderId: "openai",
@@ -94,6 +95,12 @@ function resolveCompanyFromModel(
 			name: "DeepSeek",
 		};
 	}
+	if (modelFamily === "nvidia" || haystack.includes("nemoguard")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "NVIDIA",
+		};
+	}
 	if (haystack.includes("kimi")) {
 		return {
 			iconProviderId: "moonshot",
@@ -119,7 +126,8 @@ function resolveCompanyFromModel(
 	if (
 		haystack.includes("llama") ||
 		haystack.includes("nemotron") ||
-		haystack.includes("llama-4")
+		haystack.includes("llama-4") ||
+		modelFamily === "meta"
 	) {
 		return {
 			iconProviderId: "meta",
@@ -136,6 +144,28 @@ function resolveCompanyFromModel(
 		return {
 			iconProviderId: "llmgateway",
 			name: "IBM",
+		};
+	}
+	if (modelFamily === "cohere" || haystack.includes("command-r")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Cohere",
+		};
+	}
+	if (modelFamily === "databricks" || haystack.includes("dbrx")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Databricks",
+		};
+	}
+	if (
+		modelFamily === "amazon" ||
+		modelFamily === "aws" ||
+		haystack.includes("nova-pro")
+	) {
+		return {
+			iconProviderId: "aws-bedrock",
+			name: "Amazon",
 		};
 	}
 	if (modelFamily === "ai21" || haystack.includes("jamba")) {
@@ -166,6 +196,22 @@ function resolveCompanyFromModel(
 		return {
 			iconProviderId: "llmgateway",
 			name: "Canopy",
+		};
+	}
+	if (
+		modelFamily === "stability" ||
+		haystack.includes("stable-diffusion") ||
+		haystack.includes("sdxl")
+	) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Stability AI",
+		};
+	}
+	if (modelFamily === "black-forest-labs" || haystack.includes("flux")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Black Forest Labs",
 		};
 	}
 	if (modelFamily === "marin" || haystack.includes("marin-")) {
@@ -208,6 +254,40 @@ function resolveCompanyFromModel(
 		return {
 			iconProviderId: "llmgateway",
 			name: "SpeakLeash",
+		};
+	}
+	if (modelFamily === "utter" || haystack.includes("eurollm")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "EuroLLM",
+		};
+	}
+	if (modelFamily === "stockmark" || haystack.includes("stockmark")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "Stockmark",
+		};
+	}
+	if (modelFamily === "thedrummer" || haystack.includes("rocinante")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "TheDrummer",
+		};
+	}
+	if (
+		modelFamily === "openrouter" ||
+		haystack.includes("trinity") ||
+		haystack.includes("cybertron")
+	) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "OpenRouter",
+		};
+	}
+	if (modelFamily === "stepfun" || haystack.includes("step-")) {
+		return {
+			iconProviderId: "llmgateway",
+			name: "StepFun",
 		};
 	}
 	if (modelFamily === "nvidia") {
