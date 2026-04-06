@@ -97,7 +97,7 @@ function resolveCompanyFromModel(
 	}
 	if (modelFamily === "nvidia" || haystack.includes("nemoguard")) {
 		return {
-			iconProviderId: "llmgateway",
+			iconProviderId: "nvidia",
 			name: "NVIDIA",
 		};
 	}
@@ -292,7 +292,7 @@ function resolveCompanyFromModel(
 	}
 	if (modelFamily === "nvidia") {
 		return {
-			iconProviderId: "llmgateway",
+			iconProviderId: "nvidia",
 			name: "NVIDIA",
 		};
 	}
