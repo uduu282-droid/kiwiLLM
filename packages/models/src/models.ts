@@ -16,6 +16,10 @@ import {
 } from "./models/freecfmodels.js";
 import { googleModels } from "./models/google.js";
 import {
+	groqWorkerModels,
+	groqWorkerProviderAugments,
+} from "./models/groq-worker.js";
+import {
 	ishChatProxyModels,
 	ishChatProxyProviderAugments,
 } from "./models/ish-chat-proxy.js";
@@ -314,6 +318,7 @@ export const models: ModelDefinition[] = [
 		...ishChatProxyModels,
 		...literouterProxyModels,
 		...freecfmodelsModels,
+		...groqWorkerModels,
 		...openrouterAiHubModels,
 		...svelteAiEnhancedModels,
 	].map((model) => {
@@ -323,6 +328,7 @@ export const models: ModelDefinition[] = [
 		const ishChatProxyProviders = ishChatProxyProviderAugments[model.id] ?? [];
 		const literouterProviders = literouterProxyProviderAugments[model.id] ?? [];
 		const freecfmodelsProviders = freecfmodelsProviderAugments[model.id] ?? [];
+		const groqWorkerProviders = groqWorkerProviderAugments[model.id] ?? [];
 		const openrouterAiHubProviders =
 			openrouterAiHubProviderAugments[model.id] ?? [];
 		const svelteAiEnhancedProviders =
@@ -333,6 +339,7 @@ export const models: ModelDefinition[] = [
 			ishChatProxyProviders.length === 0 &&
 			literouterProviders.length === 0 &&
 			freecfmodelsProviders.length === 0 &&
+			groqWorkerProviders.length === 0 &&
 			openrouterAiHubProviders.length === 0 &&
 			svelteAiEnhancedProviders.length === 0
 		) {
@@ -347,6 +354,7 @@ export const models: ModelDefinition[] = [
 				...ishChatProxyProviders,
 				...literouterProviders,
 				...freecfmodelsProviders,
+				...groqWorkerProviders,
 				...openrouterAiHubProviders,
 				...svelteAiEnhancedProviders,
 			],
