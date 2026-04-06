@@ -239,7 +239,7 @@ const pricingAliases = new Map<string, string>([
 	["claude-3-sonnet", "claude-3-sonnet-20240229"],
 	["claude-3.5-sonnet", "claude-3-5-sonnet"],
 	["claude-3.5-haiku", "claude-3-5-haiku"],
-	["claude-3.5-opus", "claude-opus-4-5"],
+	["claude-3.5-opus", "claude-opus-4-5-20251101"],
 	["claude-3-sonnet", "claude-3-sonnet-20240229"],
 	["claude-4", "claude-sonnet-4"],
 	["claude-4-sonnet", "claude-sonnet-4-5"],
@@ -275,22 +275,41 @@ const pricingAliases = new Map<string, string>([
 	["mistral-small", "mistral-small-2506"],
 	["mistral-small-3.1", "mistral-small-2506"],
 	["mistral-nemo", "mistral-nemotron"],
+	["mistral-small-24b-instruct-2501", "mistral-small-2506"],
+	["mistral-7b-instruct", "mistral-7b-instruct-together"],
+	["devstral", "devstral-2512"],
+	["ministral", "ministral-14b-2512"],
 	["llama", "llama-3.1-8b-instruct"],
+	["llama-2-7b", "llama-3-8b-instruct"],
+	["llama-3-8b", "llama-3-8b-instruct"],
 	["llama-3.1", "llama-3.1-8b-instruct"],
+	["llama-3.1-8b-awq", "llama-3.1-8b-instruct"],
+	["llama-3.1-8b-fp8", "llama-3.1-8b-instruct"],
 	["llama-3.2", "llama-3.2-3b-instruct"],
+	["llama-3.2-1b", "llama-3.2-3b-instruct"],
+	["llama-3.2-11b-vision", "llama-3.2-11b-instruct"],
+	["llama-3.2-11b-vision-instruct", "llama-3.2-11b-instruct"],
+	["llama-3.2-90b-vision-instruct", "llama-4-scout-17b-instruct"],
 	["llama-3.3", "llama-3.3-70b-instruct"],
+	["llama-3.3-70b-fp8", "llama-3.3-70b-instruct"],
 	["llama-4-maverick", "llama-4-maverick-17b-instruct"],
+	["llama-4-maverick-17b-128e-instruct", "llama-4-maverick-17b-instruct"],
 	["llama-guard-3", "llama-guard-3-8b"],
+	["llama-3-sonar-large-32k-online", "sonar-pro"],
+	["llama-3-sonar-small-32k-online", "sonar"],
 	["nova-pro-v1", "nova-pro"],
 	["perplexity-pro", "sonar-pro"],
 	["qwen", "qwen-plus"],
+	["qwq-32b", "qwen-qwq-32b"],
 	["qwen-2.5-72b-instruct", "qwen25-72b-instruct"],
 	["qwen-2.5-7b-instruct", "qwen25-coder-7b"],
 	["qwen-2.5-coder", "qwen25-coder-7b"],
+	["qwen2-7b-instruct", "qwen25-coder-7b"],
+	["qwen2.5-7b-instruct", "qwen25-coder-7b"],
 	["qwen-3-32b", "qwen3-32b"],
 	["qwen-3-30b", "qwen3-30b-a3b"],
 	["qwen-3-235b-a22b", "qwen3-235b-a22b-instruct-2507"],
-	["qwen2.5-7b-instruct", "qwen-2.5-7b-instruct"],
+	["qwen2.5-coder-32b-instruct", "qwen3-32b"],
 	["qwen2.5-coder-7b-instruct", "qwen25-coder-7b"],
 	["qwen3.5", "qwen-plus"],
 	["qwen3.5-plus", "qwen-max"],
@@ -304,13 +323,51 @@ const pricingAliases = new Map<string, string>([
 	["claude-opus-4.6-fast", "claude-opus-4-6"],
 	["gemini-3-pro", "gemini-3-pro-preview"],
 	["gemini-3-flash", "gemini-3-flash-preview"],
+	["gemini-pro", "gemini-1.5-pro"],
+	["gemini-pro-vision", "gemini-1.5-pro"],
 	["gemma-3-27b-it", "gemma-3-27b"],
+	["gemma-3-12b", "gemma-3-12b-it"],
+	["grok-2", "grok-2-1212"],
+	["gpt-oss-safeguard-20b", "gpt-oss-20b"],
+	["llama-3.2-3b", "llama-3.2-3b-instruct"],
+	["llama-3-8b-awq", "llama-3-8b-instruct"],
+	["llama-3-meta", "llama-3-8b-instruct"],
+	["llama-3.1-8b-instant", "llama-3.1-8b-instruct"],
+	["llama-3.3-70b-versatile", "llama-3.3-70b-instruct"],
+	["llama-prompt-guard-2-22m", "llama-guard-3-8b"],
+	["llama-prompt-guard-2-86m", "llama-guard-3-8b"],
+	["mistral-small-24b-instruct", "mistral-small-2506"],
+	["mistral-7b-instruct-v0.2", "mistral-7b-instruct-together"],
+	["mistral-7b-instruct-v0.3", "mistral-7b-instruct-together"],
+	["ministral-14b-instruct-2512", "ministral-14b-2512"],
+	["devstral-2-123b-instruct-2512", "devstral-2512"],
+	["deepseek-v3.5", "deepseek-chat"],
+	["llama-3.2-1b-instruct", "llama-3.2-3b-instruct"],
+	["llama-3.1-nemotron-70b-instruct", "llama-3.1-70b-instruct"],
+	["mistral-large-3-675b-instruct-2512", "mistral-large-2512"],
+	["mistral-small-4-119b-2603", "mistral-small-2506"],
 	["llama-3.1-8b-instruct-turbo", "llama-3.1-8b-instruct"],
 	["minimax-m1", "minimax-m1"],
 ]);
 
 function normalizeId(value: string): string {
 	return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function resolvePricingAlias(modelId: string): string {
+	let current = modelId;
+	const visited = new Set<string>();
+
+	while (!visited.has(current)) {
+		visited.add(current);
+		const next = pricingAliases.get(current);
+		if (!next) {
+			return current;
+		}
+		current = next;
+	}
+
+	return current;
 }
 
 function copyReferencePricing(
@@ -419,7 +476,7 @@ export function getOfficialProxyPricing(
 	modelId: string,
 	providerModelName?: string,
 ): ReferencePricing {
-	const canonicalId = pricingAliases.get(modelId) ?? modelId;
+	const canonicalId = resolvePricingAlias(modelId);
 	const manualPricing =
 		manualReferencePricingById.get(canonicalId) ??
 		manualReferencePricingById.get(normalizeId(canonicalId));
