@@ -178,6 +178,15 @@ export function getProviderEndpoint(
 						"https://botnation-worker.revai.workers.dev",
 					) ?? "https://botnation-worker.revai.workers.dev";
 				break;
+			case "kiwillm-groq-worker":
+				url =
+					getProviderEnvValue(
+						"kiwillm-groq-worker",
+						"baseUrl",
+						configIndex,
+						"https://groq-worker.revai.workers.dev",
+					) ?? "https://groq-worker.revai.workers.dev";
+				break;
 			case "kiwillm-claude-talkai":
 				url =
 					getProviderEnvValue(

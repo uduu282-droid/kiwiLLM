@@ -300,6 +300,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-groq-worker",
+		name: "KiwiLLM Groq Worker",
+		description:
+			"KiwiLLM-hosted Groq worker exposed through an OpenAI-compatible endpoint.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_GROQ_WORKER_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
 		id: "kiwillm-claude-talkai",
 		name: "KiwiLLM Claude TalkAI",
 		description:
