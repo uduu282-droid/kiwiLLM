@@ -75,6 +75,14 @@ const manualReferencePricingById = new Map<string, ReferencePricing>([
 		},
 	],
 	[
+		"o4-mini-deep-research",
+		{
+			inputPrice: 2 / 1e6,
+			cachedInputPrice: 0.5 / 1e6,
+			outputPrice: 8 / 1e6,
+		},
+	],
+	[
 		"gpt-5-codex",
 		{
 			inputPrice: 1.25 / 1e6,
