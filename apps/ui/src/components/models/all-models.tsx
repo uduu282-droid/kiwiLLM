@@ -76,8 +76,8 @@ import { cn, formatDeprecationDate } from "@/lib/utils";
 import * as modelCatalog from "@llmgateway/models";
 import {
 	freeTierModelIds,
-	proOnlyTierModelIds,
-	starterOnlyTierModelIds,
+	proTierModelIds,
+	starterTierModelIds,
 } from "@llmgateway/models";
 
 import { ModelCard } from "./model-card";
@@ -244,10 +244,15 @@ const ModelTableRow = React.memo(
 		const isFreeModel =
 			(row.model.free ?? false) || freeTierModelIds.has(row.model.id);
 		const isPayAsYouGoModel = payAsYouGoOnlyTierModelIds.has(row.model.id);
-		const isStarterOnlyModel =
-			!isPayAsYouGoModel && starterOnlyTierModelIds.has(row.model.id);
-		const isProOnlyModel =
-			!isPayAsYouGoModel && proOnlyTierModelIds.has(row.model.id);
+		const isStarterModel =
+			!isPayAsYouGoModel &&
+			!isFreeModel &&
+			starterTierModelIds.has(row.model.id);
+		const isProModel =
+			!isPayAsYouGoModel &&
+			!isFreeModel &&
+			!isStarterModel &&
+			proTierModelIds.has(row.model.id);
 		const requestPrice =
 			row.provider.requestPrice !== null &&
 			row.provider.requestPrice !== undefined
@@ -363,7 +368,7 @@ const ModelTableRow = React.memo(
 											PAYG
 										</Badge>
 									)}
-									{!isFreeModel && isStarterOnlyModel && (
+									{isStarterModel && (
 										<Badge
 											variant="secondary"
 											className="h-5 border border-sky-500/30 bg-sky-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider text-sky-300 hover:bg-sky-500/20"
@@ -371,7 +376,7 @@ const ModelTableRow = React.memo(
 											Starter
 										</Badge>
 									)}
-									{!isFreeModel && !isStarterOnlyModel && isProOnlyModel && (
+									{isProModel && (
 										<Badge
 											variant="secondary"
 											className="h-5 border border-violet-500/30 bg-violet-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider text-violet-300 hover:bg-violet-500/20"
