@@ -18,6 +18,7 @@ import {
 import { logger } from "@llmgateway/logger";
 import { HealthChecker } from "@llmgateway/shared";
 
+import { audioRoute } from "./audio/route.js";
 import { anthropic } from "./anthropic/anthropic.js";
 import { chat } from "./chat/chat.js";
 import { imagesRoute } from "./images/route.js";
@@ -25,6 +26,7 @@ import { mcpHandler, registerMcpOAuthRoutes } from "./mcp/mcp.js";
 import { tracingMiddleware } from "./middleware/tracing.js";
 import { models } from "./models/route.js";
 import { responses } from "./responses/responses.js";
+import { videosRoute } from "./videos/route.js";
 
 import type { ServerTypes } from "./vars.js";
 
@@ -132,7 +134,8 @@ app.use("*", async (c, next) => {
 		c.req.method === "POST" &&
 		!c.req.path.startsWith("/mcp") &&
 		!c.req.path.startsWith("/oauth") &&
-		!c.req.path.startsWith("/v1/images")
+		!c.req.path.startsWith("/v1/images") &&
+		!c.req.path.startsWith("/v1/audio")
 	) {
 		const contentType = c.req.header("Content-Type");
 		if (!contentType || !contentType.includes("application/json")) {
@@ -350,6 +353,8 @@ v1.route("/images", imagesRoute);
 v1.route("/models", models);
 v1.route("/messages", anthropic);
 v1.route("/responses", responses);
+v1.route("/audio", audioRoute);
+v1.route("/videos", videosRoute);
 
 app.route("/v1", v1);
 
