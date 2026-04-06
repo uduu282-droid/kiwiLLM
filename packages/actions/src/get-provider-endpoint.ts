@@ -12,7 +12,7 @@ import type { ProviderKeyOptions } from "@llmgateway/db";
  * Get the endpoint URL for a provider API call
  */
 export function getProviderEndpoint(
-	provider: ProviderId,
+	provider: ProviderId | string,
 	baseUrl?: string,
 	model?: string,
 	token?: string,
@@ -186,6 +186,15 @@ export function getProviderEndpoint(
 						configIndex,
 						"https://groq-worker.revai.workers.dev",
 					) ?? "https://groq-worker.revai.workers.dev";
+				break;
+			case "kiwillm-swift-sora-video":
+				url =
+					getProviderEnvValue(
+						"kiwillm-swift-sora-video",
+						"baseUrl",
+						configIndex,
+						"https://swift-sora-video.revai.workers.dev",
+					) ?? "https://swift-sora-video.revai.workers.dev";
 				break;
 			case "kiwillm-claude-talkai":
 				url =
@@ -540,6 +549,7 @@ export function getProviderEndpoint(
 		case "kiwillm-cerebras-ai":
 		case "kiwillm-grok-proxy":
 		case "kiwillm-gpt-oss-worker":
+		case "kiwillm-swift-sora-video":
 		case "kiwillm-claude-v3xg":
 			return `${url}/v1/chat/completions`;
 		case "kiwillm-completions-me":

@@ -60,8 +60,8 @@ const modelSchema = z.object({
 	description: z.string().optional(),
 	family: z.string(),
 	architecture: z.object({
-		input_modalities: z.array(z.enum(["text", "image", "audio"])),
-		output_modalities: z.array(z.enum(["text", "image", "audio"])),
+		input_modalities: z.array(z.enum(["text", "image", "audio", "video"])),
+		output_modalities: z.array(z.enum(["text", "image", "audio", "video"])),
 		tokenizer: z.string().optional(),
 	}),
 	top_provider: z.object({
@@ -192,7 +192,7 @@ modelsApi.openapi(listModels, async (c) => {
 
 		const modelData = filteredModels.map((model: ModelDefinition) => {
 			// Determine input modalities (if model supports images)
-			const inputModalities: ("text" | "image" | "audio")[] = ["text"];
+			const inputModalities: ("text" | "image" | "audio" | "video")[] = ["text"];
 
 			// Check if any provider has vision support
 			if (model.providers.some((p) => p.vision)) {
@@ -204,7 +204,7 @@ modelsApi.openapi(listModels, async (c) => {
 			}
 
 			// Determine output modalities from model definition or default to text only
-			const outputModalities: ("text" | "image" | "audio")[] = model.output ?? [
+			const outputModalities: ("text" | "image" | "audio" | "video")[] = model.output ?? [
 				"text",
 			];
 

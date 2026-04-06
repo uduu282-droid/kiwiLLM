@@ -42,7 +42,7 @@ export function hasProviderEnvironmentToken(
 }
 
 export function getProviderEnvValue(
-	provider: Provider,
+	provider: Provider | string,
 	key: string,
 	configIndex?: number,
 	defaultValue?: string,

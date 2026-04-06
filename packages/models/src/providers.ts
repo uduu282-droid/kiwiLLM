@@ -317,6 +317,23 @@ export const providers = [
 		announcement: null,
 	},
 	{
+		id: "kiwillm-swift-sora-video",
+		name: "KiwiLLM Swift Sora Video",
+		description:
+			"KiwiLLM-hosted Swift Sora video worker exposing video generation.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_SWIFT_SORA_VIDEO_BASE_URL",
+			},
+		},
+		streaming: false,
+		cancellation: false,
+		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
 		id: "kiwillm-claude-talkai",
 		name: "KiwiLLM Claude TalkAI",
 		description:

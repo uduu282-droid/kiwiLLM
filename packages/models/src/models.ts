@@ -44,6 +44,7 @@ import {
 	svelteAiEnhancedModels,
 	svelteAiEnhancedProviderAugments,
 } from "./models/svelte-ai-enhanced.js";
+import { swiftSoraVideoModels } from "./models/swift-sora-video.js";
 import { xaiModels } from "./models/xai.js";
 import { zaiModels } from "./models/zai.js";
 
@@ -264,7 +265,7 @@ export interface ModelDefinition {
 	/**
 	 * Output formats supported by the model (defaults to ['text'] if not specified)
 	 */
-	output?: ("text" | "image" | "audio")[];
+	output?: ("text" | "image" | "audio" | "video")[];
 	/**
 	 * Whether this model requires an image input to function (e.g. image editing models).
 	 */
@@ -321,6 +322,7 @@ export const models: ModelDefinition[] = [
 		...groqWorkerModels,
 		...openrouterAiHubModels,
 		...svelteAiEnhancedModels,
+		...swiftSoraVideoModels,
 	].map((model) => {
 		const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
 		const completionsMeProviders =
