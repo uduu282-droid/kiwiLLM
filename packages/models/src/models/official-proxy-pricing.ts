@@ -278,6 +278,27 @@ const manualReferencePricingById = new Map<string, ReferencePricing>([
 		},
 	],
 	[
+		"phi-3-small-8k-instruct",
+		{
+			inputPrice: 0.15 / 1e6,
+			outputPrice: 0.6 / 1e6,
+		},
+	],
+	[
+		"phi-3-small-128k-instruct",
+		{
+			inputPrice: 0.15 / 1e6,
+			outputPrice: 0.6 / 1e6,
+		},
+	],
+	[
+		"phi-3.5-vision-instruct",
+		{
+			inputPrice: 0.2 / 1e6,
+			outputPrice: 0.8 / 1e6,
+		},
+	],
+	[
 		"mistral-nemo",
 		{
 			inputPrice: 0.15 / 1e6,
@@ -296,6 +317,20 @@ const manualReferencePricingById = new Map<string, ReferencePricing>([
 		{
 			inputPrice: 0.1 / 1e6,
 			cachedInputPrice: 0.02 / 1e6,
+			outputPrice: 0.3 / 1e6,
+		},
+	],
+	[
+		"ernie-4.5-21b-a3b-thinking",
+		{
+			inputPrice: 0.2 / 1e6,
+			outputPrice: 0.6 / 1e6,
+		},
+	],
+	[
+		"mimo-v2-flash",
+		{
+			inputPrice: 0.1 / 1e6,
 			outputPrice: 0.3 / 1e6,
 		},
 	],
@@ -417,6 +452,8 @@ const pricingAliases = new Map<string, string>([
 	["deepseek-v3.1-terminus", "deepseek-chat"],
 	["deepseek-v3.2-exp", "deepseek-chat"],
 	["hermes-2-pro-llama-3-8b", "hermes-2-pro-llama-3-8b"],
+	["gemini-2.0-pro", "gemini-1.5-pro"],
+	["kimi-k2-instruct-0905", "kimi-k2.5"],
 	["claude-3-5-sonnet-reasoning", "claude-3-5-sonnet"],
 	["claude-opus-4.5", "claude-opus-4-5-20251101"],
 	["claude-opus-4.6-fast", "claude-opus-4-6"],
@@ -475,6 +512,191 @@ function resolvePricingAlias(modelId: string): string {
 	}
 
 	return current;
+}
+
+function createTextPricing(
+	inputPricePerMillion: number,
+	outputPricePerMillion: number,
+): ReferencePricing {
+	return {
+		inputPrice: inputPricePerMillion / 1e6,
+		outputPrice: outputPricePerMillion / 1e6,
+	};
+}
+
+function createRequestPricing(requestPrice: number): ReferencePricing {
+	return {
+		requestPrice,
+	};
+}
+
+function extractModelSize(values: string): number | undefined {
+	const match = values.match(/(\d+(?:\.\d+)?)b/i);
+	return match ? Number(match[1]) : undefined;
+}
+
+function getFallbackProxyPricing(
+	modelId: string,
+	providerModelName?: string,
+): ReferencePricing | undefined {
+	const values = `${modelId} ${providerModelName ?? ""}`.toLowerCase();
+	const size = extractModelSize(values);
+
+	if (values.includes("sora-video")) {
+		return createRequestPricing(1);
+	}
+
+	if (values.includes("flux-1-schnell")) {
+		return createRequestPricing(0.02);
+	}
+
+	if (values.includes("stable-diffusion-xl")) {
+		return createRequestPricing(0.03);
+	}
+
+	if (values.includes("whisper-large-v3-turbo")) {
+		return createRequestPricing(0.003);
+	}
+
+	if (values.includes("whisper-large-v3")) {
+		return createRequestPricing(0.006);
+	}
+
+	if (values.includes("riva-translate")) {
+		return createRequestPricing(0.01);
+	}
+
+	if (values.includes("orpheus")) {
+		return createRequestPricing(0.01);
+	}
+
+	if (values.includes("oswe-vscode-prime")) {
+		return createTextPricing(1.25, 10);
+	}
+
+	if (values.includes("oswe-vscode-secondary")) {
+		return createTextPricing(0.75, 4.5);
+	}
+
+	if (values.includes("kat-coder-pro")) {
+		return createTextPricing(1.25, 10);
+	}
+
+	if (values.includes("groq-compound-mini")) {
+		return createTextPricing(0.1, 0.3);
+	}
+
+	if (values.includes("groq-compound")) {
+		return createTextPricing(0.2, 0.6);
+	}
+
+	if (values.includes("trinity-large-preview")) {
+		return createTextPricing(0.4, 1.2);
+	}
+
+	if (values.includes("trinity")) {
+		return createTextPricing(0.2, 0.6);
+	}
+
+	if (
+		values.includes("guard") ||
+		values.includes("safety") ||
+		values.includes("reward") ||
+		values.includes("gliner") ||
+		values.includes("pii")
+	) {
+		return createTextPricing(0.02, 0.06);
+	}
+
+	if (values.includes("gemma")) {
+		if (size !== undefined && size <= 2) {
+			return createTextPricing(0.02, 0.06);
+		}
+
+		if (size !== undefined && size <= 12) {
+			return createTextPricing(0.08, 0.24);
+		}
+
+		return createTextPricing(0.25, 0.75);
+	}
+
+	if (
+		values.includes("mistral") ||
+		values.includes("mixtral") ||
+		values.includes("magistral") ||
+		values.includes("codestral") ||
+		values.includes("mathstral")
+	) {
+		if (values.includes("large") || (size !== undefined && size >= 100)) {
+			return createTextPricing(0.6, 1.8);
+		}
+
+		if (size !== undefined && size >= 20) {
+			return createTextPricing(0.2, 0.6);
+		}
+
+		return createTextPricing(0.1, 0.3);
+	}
+
+	if (
+		values.includes("llama") ||
+		values.includes("nemotron") ||
+		values.includes("swallow") ||
+		values.includes("marin") ||
+		values.includes("breeze") ||
+		values.includes("italia") ||
+		values.includes("eurollm") ||
+		values.includes("falcon") ||
+		values.includes("chatglm") ||
+		values.includes("rakuten") ||
+		values.includes("sarvam") ||
+		values.includes("bielik") ||
+		values.includes("stockmark") ||
+		values.includes("baichuan") ||
+		values.includes("teuken") ||
+		values.includes("euryale") ||
+		values.includes("lunaris") ||
+		values.includes("stheno") ||
+		values.includes("solar")
+	) {
+		if (size !== undefined && size >= 100) {
+			return createTextPricing(0.8, 2.4);
+		}
+
+		if (size !== undefined && size >= 40) {
+			return createTextPricing(0.4, 1.2);
+		}
+
+		if (size !== undefined && size >= 20) {
+			return createTextPricing(0.2, 0.6);
+		}
+
+		if (size !== undefined && size >= 10) {
+			return createTextPricing(0.12, 0.36);
+		}
+
+		return createTextPricing(0.08, 0.24);
+	}
+
+	if (values.includes("phi-2")) {
+		return createTextPricing(0.08, 0.24);
+	}
+
+	if (
+		values.includes("dbrx") ||
+		values.includes("wizardlm") ||
+		values.includes("reka") ||
+		values.includes("rocinante") ||
+		values.includes("una-cybertron")
+	) {
+		if (size !== undefined && size >= 20) {
+			return createTextPricing(0.25, 0.75);
+		}
+
+		return createTextPricing(0.12, 0.36);
+	}
+
+	return undefined;
 }
 
 function copyReferencePricing(
@@ -599,6 +821,8 @@ export function getOfficialProxyPricing(
 					normalizeId(providerModelName),
 				)
 			: undefined) ??
+		getFallbackProxyPricing(canonicalId, providerModelName) ??
+		getFallbackProxyPricing(modelId, providerModelName) ??
 		{}
 	);
 }
