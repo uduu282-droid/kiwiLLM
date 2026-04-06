@@ -220,6 +220,109 @@
 	font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
 }
 
+@keyframes payg-badge-glow {
+	0%,
+	100% {
+		box-shadow:
+			0 -3px 8px -6px rgba(255, 248, 220, 0.3) inset,
+			0 -7px 12px -8px rgba(255, 171, 64, 0.18) inset,
+			0 0 0 1px rgba(255, 171, 64, 0.24),
+			0 0 12px rgba(255, 171, 64, 0.12);
+		filter: saturate(1) brightness(1);
+	}
+	50% {
+		box-shadow:
+			0 -4px 10px -6px rgba(255, 255, 255, 0.42) inset,
+			0 -10px 16px -8px rgba(255, 171, 64, 0.32) inset,
+			0 0 0 1px rgba(255, 171, 64, 0.34),
+			0 0 18px rgba(255, 140, 0, 0.22);
+		filter: saturate(1.08) brightness(1.06);
+	}
+}
+
+@keyframes payg-badge-shimmer {
+	from {
+		transform: translateX(-150%) skewX(-18deg);
+	}
+	to {
+		transform: translateX(180%) skewX(-18deg);
+	}
+}
+
+@keyframes payg-badge-flicker {
+	0%,
+	100% {
+		opacity: 0.9;
+	}
+	50% {
+		opacity: 0.55;
+	}
+}
+
+@layer components {
+	.payg-tier-badge {
+		--payg-highlight: rgba(255, 171, 64, 0.95);
+		position: relative;
+		overflow: hidden;
+		border: 1px solid rgba(255, 171, 64, 0.34);
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02)),
+			linear-gradient(135deg, rgba(255, 180, 70, 0.24), rgba(255, 111, 0, 0.18));
+		color: rgb(255 237 173);
+		text-shadow: 0 0 10px rgba(255, 200, 87, 0.24);
+		animation: payg-badge-glow 2.8s ease-in-out infinite;
+	}
+
+	.payg-tier-badge::before {
+		content: "";
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background-image: linear-gradient(
+			180deg,
+			rgba(255, 255, 255, 0.22),
+			rgba(255, 171, 64, 0.18) 22%,
+			rgba(255, 171, 64, 0) 62%
+		);
+		opacity: 0.82;
+		pointer-events: none;
+	}
+
+	.payg-tier-badge::after {
+		content: "";
+		position: absolute;
+		inset: -45% auto -45% -55%;
+		width: 42%;
+		background: linear-gradient(
+			90deg,
+			rgba(255, 255, 255, 0),
+			rgba(255, 255, 255, 0.58),
+			rgba(255, 244, 214, 0.16),
+			rgba(255, 255, 255, 0)
+		);
+		mix-blend-mode: screen;
+		opacity: 0.72;
+		animation: payg-badge-shimmer 2.8s linear infinite;
+		pointer-events: none;
+	}
+
+	.payg-tier-badge > span {
+		position: relative;
+		z-index: 1;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.275rem;
+	}
+
+	.payg-tier-badge > span::before {
+		content: "✦";
+		font-size: 0.72em;
+		color: rgb(255 251 235 / 0.9);
+		filter: drop-shadow(0 0 3px var(--payg-highlight));
+		animation: payg-badge-flicker 1.9s linear infinite;
+	}
+}
+
 @utility bg-noise {
 	&::before {
 		content: "";
