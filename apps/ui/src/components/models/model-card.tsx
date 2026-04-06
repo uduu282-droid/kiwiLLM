@@ -1,6 +1,6 @@
 "use client";
 
-import { freeTierModelIds } from "@llmgateway/models";
+import { freeTierModelIds, starterOnlyTierModelIds } from "@llmgateway/models";
 import {
 	AlertTriangle,
 	AlertCircle,
@@ -77,6 +77,7 @@ export function ModelCard({
 	const [copiedModel, setCopiedModel] = useState<string | null>(null);
 	const [showAllProviders, setShowAllProviders] = useState(false);
 	const isFreeModel = model.free || freeTierModelIds.has(model.id);
+	const isStarterOnlyModel = starterOnlyTierModelIds.has(model.id);
 
 	const copyToClipboard = (text: string) => {
 		void navigator.clipboard.writeText(text);
@@ -132,6 +133,14 @@ export function ModelCard({
 										className="h-6 border border-emerald-500/30 bg-emerald-500/15 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/20"
 									>
 										Free
+									</Badge>
+								)}
+								{isStarterOnlyModel && (
+									<Badge
+										variant="secondary"
+										className="h-6 border border-sky-500/30 bg-sky-500/15 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider text-sky-300 hover:bg-sky-500/20"
+									>
+										Starter
 									</Badge>
 								)}
 							</div>
