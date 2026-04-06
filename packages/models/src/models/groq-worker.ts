@@ -186,4 +186,42 @@ export const groqWorkerModels = [
 			jsonOutputSchema: false,
 		},
 	),
+	createProxyModel(
+		"whisper-large-v3",
+		"openai",
+		"whisper-large-v3",
+		{
+			name: "Whisper Large v3",
+			description:
+				"Whisper Large v3 audio model exposed by the Groq KiwiLLM worker.",
+			output: ["audio"],
+		},
+		{
+			contextSize: 0,
+			maxOutput: 0,
+			streaming: false,
+			tools: false,
+			jsonOutput: false,
+			jsonOutputSchema: false,
+		},
+	),
+	createProxyModel(
+		"whisper-large-v3-turbo",
+		"openai",
+		"whisper-large-v3-turbo",
+		{
+			name: "Whisper Large v3 Turbo",
+			description:
+				"Whisper Large v3 Turbo audio model exposed by the Groq KiwiLLM worker.",
+			output: ["audio"],
+		},
+		{
+			contextSize: 0,
+			maxOutput: 0,
+			streaming: false,
+			tools: false,
+			jsonOutput: false,
+			jsonOutputSchema: false,
+		},
+	),
 ] as const satisfies ModelDefinition[];

@@ -212,7 +212,9 @@ function generateModelToml(model: ModelDefinition): string | null {
 		inputModalities.push("image");
 	}
 
-	const outputModalities: string[] = model.output?.includes("image") ? ["text", "image"] : ["text"];
+	const outputModalities: string[] = model.output?.length
+		? [...model.output]
+		: ["text"];
 
 	// Determine status
 	let status: "alpha" | "beta" | "deprecated" | undefined;

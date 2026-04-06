@@ -1,9 +1,13 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 
+import { getProviderEndpoint } from "@llmgateway/actions";
 import { logger } from "@llmgateway/logger";
 import {
+	getProviderEnvConfig,
+	hasProviderEnvironmentToken,
 	models as modelsList,
+	type Provider,
 	providers,
 	type ProviderModelMapping,
 	type ModelDefinition,
@@ -13,6 +17,41 @@ import type { ServerTypes } from "@/vars.js";
 
 export const modelsApi = new OpenAPIHono<ServerTypes>();
 
+function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
+	return !getProviderEnvConfig(providerId)?.required.apiKey;
+}
+
+function canPubliclyRouteProviderMapping(
+	provider: ProviderModelMapping,
+): boolean {
+	const providerId = provider.providerId as Provider;
+	if (
+		!providerCanUseHostedRouteWithoutKey(providerId) &&
+		!hasProviderEnvironmentToken(providerId)
+	) {
+		return false;
+	}
+
+	try {
+		return Boolean(
+			getProviderEndpoint(
+				providerId,
+				undefined,
+				provider.modelName,
+				undefined,
+				false,
+				provider.reasoning === true,
+				false,
+				undefined,
+				0,
+				provider.imageGenerations === true,
+			),
+		);
+	} catch {
+		return false;
+	}
+}
+
 const modelSchema = z.object({
 	id: z.string(),
 	name: z.string(),
@@ -21,8 +60,8 @@ const modelSchema = z.object({
 	description: z.string().optional(),
 	family: z.string(),
 	architecture: z.object({
-		input_modalities: z.array(z.enum(["text", "image"])),
-		output_modalities: z.array(z.enum(["text", "image"])),
+		input_modalities: z.array(z.enum(["text", "image", "audio"])),
+		output_modalities: z.array(z.enum(["text", "image", "audio"])),
 		tokenizer: z.string().optional(),
 	}),
 	top_provider: z.object({
@@ -116,46 +155,58 @@ modelsApi.openapi(listModels, async (c) => {
 		const excludeDeprecated = query.exclude_deprecated || false;
 		const currentDate = new Date();
 
-		// Filter models based on deactivation and deprecation status of their provider mappings
-		const filteredModels = modelsList.filter((model: ModelDefinition) => {
-			// Check if all provider mappings are deactivated
-			const allDeactivated = model.providers.every(
-				(provider) =>
-					(provider as ProviderModelMapping).deactivatedAt &&
-					currentDate > (provider as ProviderModelMapping).deactivatedAt!,
-			);
+		const filteredModels = modelsList
+			.map((model: ModelDefinition) => {
+				const routeableProviders = model.providers.filter((provider) => {
+					const providerMapping = provider as ProviderModelMapping;
 
-			// Filter out models where all providers are deactivated (unless explicitly included)
-			if (!includeDeactivated && allDeactivated) {
-				return false;
-			}
+					if (
+						!includeDeactivated &&
+						providerMapping.deactivatedAt &&
+						currentDate > providerMapping.deactivatedAt
+					) {
+						return false;
+					}
 
-			// Check if all provider mappings are deprecated
-			const allDeprecated = model.providers.every(
-				(provider) =>
-					(provider as ProviderModelMapping).deprecatedAt &&
-					currentDate > (provider as ProviderModelMapping).deprecatedAt!,
-			);
+					if (
+						excludeDeprecated &&
+						providerMapping.deprecatedAt &&
+						currentDate > providerMapping.deprecatedAt
+					) {
+						return false;
+					}
 
-			// Filter out models where all providers are deprecated if requested
-			if (excludeDeprecated && allDeprecated) {
-				return false;
-			}
+					return canPubliclyRouteProviderMapping(providerMapping);
+				});
 
-			return true;
-		});
+				if (routeableProviders.length === 0) {
+					return undefined;
+				}
+
+				return {
+					...model,
+					providers: routeableProviders,
+				} satisfies ModelDefinition;
+			})
+			.filter((model): model is ModelDefinition => model !== undefined);
 
 		const modelData = filteredModels.map((model: ModelDefinition) => {
 			// Determine input modalities (if model supports images)
-			const inputModalities: ("text" | "image")[] = ["text"];
+			const inputModalities: ("text" | "image" | "audio")[] = ["text"];
 
 			// Check if any provider has vision support
 			if (model.providers.some((p) => p.vision)) {
 				inputModalities.push("image");
 			}
 
+			if ((model.output as readonly string[] | undefined)?.includes("audio")) {
+				inputModalities.push("audio");
+			}
+
 			// Determine output modalities from model definition or default to text only
-			const outputModalities: ("text" | "image")[] = model.output ?? ["text"];
+			const outputModalities: ("text" | "image" | "audio")[] = model.output ?? [
+				"text",
+			];
 
 			const firstProviderWithPricing = model.providers.find(
 				(p: ProviderModelMapping) =>
