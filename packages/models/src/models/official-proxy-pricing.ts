@@ -213,6 +213,62 @@ const manualReferencePricingById = new Map<string, ReferencePricing>([
 		},
 	],
 	[
+		"phi-3-mini-4k-instruct",
+		{
+			inputPrice: 0.13 / 1e6,
+			outputPrice: 0.52 / 1e6,
+		},
+	],
+	[
+		"phi-3-mini-128k-instruct",
+		{
+			inputPrice: 0.13 / 1e6,
+			outputPrice: 0.52 / 1e6,
+		},
+	],
+	[
+		"phi-3.5-mini-instruct",
+		{
+			inputPrice: 0.13 / 1e6,
+			outputPrice: 0.52 / 1e6,
+		},
+	],
+	[
+		"phi-3-medium-4k-instruct",
+		{
+			inputPrice: 0.17 / 1e6,
+			outputPrice: 0.68 / 1e6,
+		},
+	],
+	[
+		"phi-3-medium-128k-instruct",
+		{
+			inputPrice: 0.17 / 1e6,
+			outputPrice: 0.68 / 1e6,
+		},
+	],
+	[
+		"phi-4",
+		{
+			inputPrice: 0.125 / 1e6,
+			outputPrice: 0.5 / 1e6,
+		},
+	],
+	[
+		"phi-4-mini",
+		{
+			inputPrice: 0.075 / 1e6,
+			outputPrice: 0.3 / 1e6,
+		},
+	],
+	[
+		"phi-4-multimodal",
+		{
+			inputPrice: 0.08 / 1e6,
+			outputPrice: 0.32 / 1e6,
+		},
+	],
+	[
 		"minimax-m1",
 		{
 			inputPrice: 0.4 / 1e6,
@@ -346,6 +402,14 @@ const pricingAliases = new Map<string, string>([
 	["llama-3.1-nemotron-70b-instruct", "llama-3.1-70b-instruct"],
 	["mistral-large-3-675b-instruct-2512", "mistral-large-2512"],
 	["mistral-small-4-119b-2603", "mistral-small-2506"],
+	["phi-3-mini-4k-instruct", "phi-3-mini-4k-instruct"],
+	["phi-3-mini-128k-instruct", "phi-3-mini-128k-instruct"],
+	["phi-3.5-mini-instruct", "phi-3.5-mini-instruct"],
+	["phi-3-medium-4k-instruct", "phi-3-medium-4k-instruct"],
+	["phi-3-medium-128k-instruct", "phi-3-medium-128k-instruct"],
+	["phi-4-mini-instruct", "phi-4-mini"],
+	["phi-4-mini-flash-reasoning", "phi-4-mini"],
+	["phi-4-multimodal-instruct", "phi-4-multimodal"],
 	["llama-3.1-8b-instruct-turbo", "llama-3.1-8b-instruct"],
 	["minimax-m1", "minimax-m1"],
 ]);
