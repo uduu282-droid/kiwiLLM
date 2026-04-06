@@ -129,7 +129,7 @@ export function ModelCard({
 								{isFreeModel && (
 									<Badge
 										variant="secondary"
-										className="h-6 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider"
+										className="h-6 border border-emerald-500/30 bg-emerald-500/15 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/20"
 									>
 										Free
 									</Badge>

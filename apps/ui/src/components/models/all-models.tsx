@@ -334,7 +334,7 @@ const ModelTableRow = React.memo(
 									{(row.model.free || freeTierModelIds.has(row.model.id)) && (
 										<Badge
 											variant="secondary"
-											className="h-5 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider"
+											className="h-5 border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/20"
 										>
 											Free
 										</Badge>
