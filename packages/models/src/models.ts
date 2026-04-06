@@ -338,7 +338,10 @@ function applyOfficialProxyPricing(model: ModelDefinition): ModelDefinition {
 				return provider;
 			}
 
-			const officialPricing = getOfficialProxyPricing(model.id);
+			const officialPricing = getOfficialProxyPricing(
+				model.id,
+				provider.modelName,
+			);
 			if (!hasExplicitPricing(officialPricing)) {
 				return provider;
 			}

@@ -9,7 +9,7 @@ function createProxyMapping(
 	modelName: string,
 	overrides: Partial<ProviderModelMapping> = {},
 ): ProviderModelMapping {
-	const officialPricing = getOfficialProxyPricing(pricingId);
+	const officialPricing = getOfficialProxyPricing(pricingId, modelName);
 
 	return {
 		test: "skip",

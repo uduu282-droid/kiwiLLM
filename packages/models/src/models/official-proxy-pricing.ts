@@ -1,11 +1,13 @@
 import { alibabaModels } from "./alibaba.js";
 import { anthropicModels } from "./anthropic.js";
+import { bytedanceModels } from "./bytedance.js";
 import { googleModels } from "./google.js";
 import { metaModels } from "./meta.js";
 import { minimaxModels } from "./minimax.js";
 import { mistralModels } from "./mistral.js";
 import { moonshotModels } from "./moonshot.js";
 import { openaiModels } from "./openai.js";
+import { perplexityModels } from "./perplexity.js";
 import { xaiModels } from "./xai.js";
 import { zaiModels } from "./zai.js";
 
@@ -29,21 +31,91 @@ type ReferencePricing = Pick<
 
 const referencePricingById = new Map<string, ReferencePricing>();
 const referencePricingByNormalizedId = new Map<string, ReferencePricing>();
+const referencePricingByNormalizedModelName = new Map<
+	string,
+	ReferencePricing
+>();
+const manualReferencePricingById = new Map<string, ReferencePricing>([
+	[
+		"command-a",
+		{
+			inputPrice: 2.5 / 1e6,
+			outputPrice: 10 / 1e6,
+		},
+	],
+	[
+		"command-r",
+		{
+			inputPrice: 0.15 / 1e6,
+			outputPrice: 0.6 / 1e6,
+		},
+	],
+	[
+		"command-r-08-2024",
+		{
+			inputPrice: 0.15 / 1e6,
+			outputPrice: 0.6 / 1e6,
+		},
+	],
+	[
+		"command-r-plus",
+		{
+			inputPrice: 2.5 / 1e6,
+			outputPrice: 10 / 1e6,
+		},
+	],
+	[
+		"command-r-plus-08-2024",
+		{
+			inputPrice: 2.5 / 1e6,
+			outputPrice: 10 / 1e6,
+		},
+	],
+	[
+		"nova-pro",
+		{
+			inputPrice: 0.8 / 1e6,
+			outputPrice: 3.2 / 1e6,
+		},
+	],
+	[
+		"jamba-1.5-mini-instruct",
+		{
+			inputPrice: 0.2 / 1e6,
+			outputPrice: 0.4 / 1e6,
+		},
+	],
+]);
 
 const pricingAliases = new Map<string, string>([
 	["claude-3-sonnet", "claude-3-sonnet-20240229"],
 	["claude-3.5-sonnet", "claude-3-5-sonnet"],
 	["claude-3.5-haiku", "claude-3-5-haiku"],
+	["claude-3.5-opus", "claude-opus-4-5"],
 	["claude-4", "claude-sonnet-4"],
+	["claude-4-sonnet", "claude-sonnet-4-5"],
+	["claude-4-opus", "claude-opus-4-5"],
 	["claude-4.5", "claude-sonnet-4-5"],
 	["claude-sonnet-4.5", "claude-sonnet-4-5"],
 	["claude-sonnet-4.6", "claude-sonnet-4-6"],
+	["deepseek-chat", "deepseek-v3"],
+	["deepseek-coder", "deepseek-v3"],
+	["gemini", "gemini-2.5-pro"],
+	["gemini-advanced", "gemini-2.5-pro"],
+	["gemini-ultra", "gemini-2.5-pro"],
 	["mistral-large", "mistral-large-latest"],
+	["mistral-large-2", "mistral-large-latest"],
 	["mistral-small", "mistral-small-2506"],
 	["mistral-nemo", "mistral-nemotron"],
+	["nova-pro-v1", "nova-pro"],
+	["perplexity-pro", "sonar-pro"],
+	["qwen", "qwen-plus"],
 	["qwen-2.5-72b-instruct", "qwen25-72b-instruct"],
+	["qwen-2.5-7b-instruct", "qwen25-coder-7b"],
 	["qwen-3-32b", "qwen3-32b"],
 	["qwen-3-235b-a22b", "qwen3-235b-a22b-instruct-2507"],
+	["qwen3.5", "qwen-plus"],
+	["qwen3.5-plus", "qwen-max"],
 ]);
 
 function normalizeId(value: string): string {
@@ -118,6 +190,15 @@ function registerReferenceModels(
 		if (pricing) {
 			referencePricingById.set(model.id, pricing);
 			referencePricingByNormalizedId.set(normalizeId(model.id), pricing);
+			for (const provider of model.providers) {
+				if (provider.providerId.startsWith("kiwillm-")) {
+					continue;
+				}
+				referencePricingByNormalizedModelName.set(
+					normalizeId(provider.modelName),
+					pricing,
+				);
+			}
 		}
 	}
 }
@@ -131,6 +212,8 @@ registerReferenceModels(mistralModels, ["mistral"]);
 registerReferenceModels(moonshotModels, ["moonshot"]);
 registerReferenceModels(minimaxModels, ["minimax"]);
 registerReferenceModels(zaiModels, ["zai"]);
+registerReferenceModels(bytedanceModels, ["bytedance"]);
+registerReferenceModels(perplexityModels, ["perplexity"]);
 registerReferenceModels(metaModels, [
 	"aws-bedrock",
 	"nebius",
@@ -140,11 +223,23 @@ registerReferenceModels(metaModels, [
 	"novita",
 ]);
 
-export function getOfficialProxyPricing(modelId: string): ReferencePricing {
+export function getOfficialProxyPricing(
+	modelId: string,
+	providerModelName?: string,
+): ReferencePricing {
 	const canonicalId = pricingAliases.get(modelId) ?? modelId;
+	const manualPricing =
+		manualReferencePricingById.get(canonicalId) ??
+		manualReferencePricingById.get(normalizeId(canonicalId));
 	return (
+		manualPricing ??
 		referencePricingById.get(canonicalId) ??
 		referencePricingByNormalizedId.get(normalizeId(canonicalId)) ??
+		(providerModelName
+			? referencePricingByNormalizedModelName.get(
+					normalizeId(providerModelName),
+				)
+			: undefined) ??
 		{}
 	);
 }
