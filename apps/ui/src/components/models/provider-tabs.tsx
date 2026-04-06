@@ -3,10 +3,12 @@
 import Link from "next/link";
 
 import { Button } from "@/lib/components/button";
-import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
+import {
+	getDisplayProviderIcon,
+	getDisplayProviderInfo,
+} from "@/lib/model-catalog-display";
 
 import { providers as providerDefinitions } from "@llmgateway/models";
-import { getProviderIcon } from "@llmgateway/shared/components";
 
 interface ProviderTabsProps {
 	modelId: string;
@@ -57,7 +59,7 @@ export function ProviderTabs({
 	return (
 		<div className="flex flex-wrap gap-2 mb-6">
 			{groupedProviders.map((provider) => {
-				const ProviderIcon = getProviderIcon(provider.iconProviderId);
+				const ProviderIcon = getDisplayProviderIcon(provider.iconProviderId);
 
 				return (
 					<Link

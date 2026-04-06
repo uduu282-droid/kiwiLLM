@@ -37,12 +37,11 @@ import {
 import { useAppConfig } from "@/lib/config";
 import { XIcon } from "@/lib/icons/XIcon";
 import {
+	getDisplayProviderIcon,
 	getDisplayModelName,
 	getDisplayProviderInfo,
 } from "@/lib/model-catalog-display";
 import { formatContextSize, formatDeprecationDate } from "@/lib/utils";
-
-import { getProviderIcon } from "@llmgateway/shared/components";
 
 import type { ApiModelProviderMapping, ApiProvider } from "@/lib/fetch-models";
 import type { StabilityLevel } from "@llmgateway/models";
@@ -89,7 +88,7 @@ export function ModelProviderCard({
 		providerName: provider.providerInfo?.name,
 		modelId: modelName,
 	});
-	const ProviderIcon = getProviderIcon(displayProvider.iconProviderId);
+	const ProviderIcon = getDisplayProviderIcon(displayProvider.iconProviderId);
 	const providerStability = provider.stability ?? modelStability;
 
 	const shareUrl = `${config.appUrl}/models/${encodeURIComponent(modelName)}/${encodeURIComponent(provider.providerId)}`;
@@ -144,7 +143,7 @@ export function ModelProviderCard({
 	const numericDiscount =
 		typeof provider.discount === "string"
 			? parseFloat(provider.discount)
-			: provider.discount ?? 0;
+			: (provider.discount ?? 0);
 	const inputPrice =
 		typeof provider.inputPrice === "string"
 			? parseFloat(provider.inputPrice)
@@ -523,8 +522,7 @@ export function ModelProviderCard({
 														${requestPrice.toFixed(3)}
 													</span>
 													<span className="text-green-600 font-semibold">
-														$
-														{(requestPrice * (1 - numericDiscount)).toFixed(3)}
+														${(requestPrice * (1 - numericDiscount)).toFixed(3)}
 													</span>
 												</>
 											) : (
@@ -567,16 +565,13 @@ export function ModelProviderCard({
 													{formatPrice(tier.outputPrice)} out
 												</span>
 												<span className="text-green-600 font-semibold ml-2">
-													{formatPrice(
-														tier.inputPrice * (1 - numericDiscount),
-													)}{" "}
+													{formatPrice(tier.inputPrice * (1 - numericDiscount))}{" "}
 													in /{" "}
 													{tier.cachedInputPrice !== null &&
 														tier.cachedInputPrice !== undefined && (
 															<>
 																{formatPrice(
-																	tier.cachedInputPrice *
-																		(1 - numericDiscount),
+																	tier.cachedInputPrice * (1 - numericDiscount),
 																)}{" "}
 																cached /{" "}
 															</>
@@ -715,7 +710,7 @@ export function ModelProviderCard({
 					asChild
 				>
 					<a
-								href={`${config.playgroundUrl}?model=${encodeURIComponent(publicModelName)}`}
+						href={`${config.playgroundUrl}?model=${encodeURIComponent(publicModelName)}`}
 						target="_blank"
 						rel="noopener noreferrer"
 					>

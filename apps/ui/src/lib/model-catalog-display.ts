@@ -1,4 +1,10 @@
+import {
+	ProviderIcons,
+	type ProviderIconKey,
+} from "@llmgateway/shared/components";
+
 import type { ApiProvider } from "@/lib/fetch-models";
+import type { ComponentType } from "react";
 
 interface DisplayProviderInfo {
 	iconProviderId: string;
@@ -19,7 +25,10 @@ function normalizeValue(value?: string | null) {
 	return value?.toLowerCase() ?? "";
 }
 
-function resolveCompanyFromModel(modelId?: string | null, family?: string | null) {
+function resolveCompanyFromModel(
+	modelId?: string | null,
+	family?: string | null,
+) {
 	const model = normalizeValue(modelId);
 	const modelFamily = normalizeValue(family);
 	const haystack = `${model} ${modelFamily}`;
@@ -280,6 +289,20 @@ export function getDisplayProviderName(
 		modelId,
 		family,
 	}).name;
+}
+
+export function getDisplayProviderIcon(
+	iconProviderId: string,
+): ComponentType<{ className?: string }> | null {
+	if (ProviderIcons[iconProviderId as ProviderIconKey]) {
+		return ProviderIcons[iconProviderId as ProviderIconKey];
+	}
+
+	const normalizedProvider = iconProviderId
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, "-") as ProviderIconKey;
+
+	return ProviderIcons[normalizedProvider] ?? null;
 }
 
 export function getDisplayModelName({

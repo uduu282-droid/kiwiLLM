@@ -24,10 +24,11 @@ import {
 	TooltipTrigger,
 } from "@/lib/components/tooltip";
 import { useAppConfig } from "@/lib/config";
-import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
+import {
+	getDisplayProviderIcon,
+	getDisplayProviderInfo,
+} from "@/lib/model-catalog-display";
 import { formatContextSize, formatDeprecationDate } from "@/lib/utils";
-
-import { getProviderIcon } from "@llmgateway/shared/components";
 
 import type {
 	ApiModel,
@@ -217,7 +218,7 @@ export function ModelCard({
 								modelId: model.id,
 								family: model.family,
 							});
-							const ProviderIcon = getProviderIcon(
+							const ProviderIcon = getDisplayProviderIcon(
 								displayProvider.iconProviderId,
 							);
 
