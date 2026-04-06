@@ -2,8 +2,6 @@ import React from "react";
 
 import { cn } from "@/lib/utils";
 
-import { Logo } from "./ui/logo";
-
 import type { ProviderId } from "@llmgateway/models";
 
 // Anthropic Icon
@@ -81,6 +79,10 @@ export const MetaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 
 export const NvidiaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
 	<RasterLogoIcon {...props} src={NVIDIA_COLOR_PNG} alt="NVIDIA" />
+);
+
+export const KiwillmIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+	<RasterLogoIcon {...props} src="/brand/kiwillm-logo.png" alt="KiwiLLM" />
 );
 
 // ByteDance Icon
@@ -1243,7 +1245,7 @@ export const MinimaxIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
 
 // Export all icons as a map for easy access
 export const ProviderIcons = {
-	llmgateway: Logo,
+	llmgateway: KiwillmIcon,
 	anthropic: AnthropicIcon,
 	bytedance: BytedanceIcon,
 	deepseek: DeepseekIcon,
@@ -1321,6 +1323,6 @@ export const getProviderIcon = (
 	const normalizedProvider = provider
 		.toLowerCase()
 		.replace(/[^a-z0-9]/g, "-") as ProviderIconKey;
-	return ProviderIcons[normalizedProvider] || Logo;
+	return ProviderIcons[normalizedProvider] || KiwillmIcon;
 };
 
