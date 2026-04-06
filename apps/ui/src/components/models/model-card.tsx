@@ -33,8 +33,8 @@ import { formatContextSize, formatDeprecationDate } from "@/lib/utils";
 import * as modelCatalog from "@llmgateway/models";
 import {
 	freeTierModelIds,
-	proOnlyTierModelIds,
-	starterOnlyTierModelIds,
+	proTierModelIds,
+	starterTierModelIds,
 } from "@llmgateway/models";
 
 import type {
@@ -87,10 +87,13 @@ export function ModelCard({
 			.payAsYouGoOnlyTierModelIds ?? new Set<string>();
 	const isFreeModel = (model.free ?? false) || freeTierModelIds.has(model.id);
 	const isPayAsYouGoModel = payAsYouGoOnlyTierModelIds.has(model.id);
-	const isStarterOnlyModel =
-		!isPayAsYouGoModel && starterOnlyTierModelIds.has(model.id);
-	const isProOnlyModel =
-		!isPayAsYouGoModel && proOnlyTierModelIds.has(model.id);
+	const isStarterModel =
+		!isPayAsYouGoModel && !isFreeModel && starterTierModelIds.has(model.id);
+	const isProModel =
+		!isPayAsYouGoModel &&
+		!isFreeModel &&
+		!isStarterModel &&
+		proTierModelIds.has(model.id);
 
 	const copyToClipboard = (text: string) => {
 		void navigator.clipboard.writeText(text);
@@ -156,7 +159,7 @@ export function ModelCard({
 										PAYG
 									</Badge>
 								)}
-								{!isFreeModel && isStarterOnlyModel && (
+								{isStarterModel && (
 									<Badge
 										variant="secondary"
 										className="h-6 border border-sky-500/30 bg-sky-500/15 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider text-sky-300 hover:bg-sky-500/20"
@@ -164,7 +167,7 @@ export function ModelCard({
 										Starter
 									</Badge>
 								)}
-								{!isFreeModel && !isStarterOnlyModel && isProOnlyModel && (
+								{isProModel && (
 									<Badge
 										variant="secondary"
 										className="h-6 border border-violet-500/30 bg-violet-500/15 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider text-violet-300 hover:bg-violet-500/20"
