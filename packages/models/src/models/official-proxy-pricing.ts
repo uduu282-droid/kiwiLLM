@@ -38,6 +38,93 @@ const referencePricingByNormalizedModelName = new Map<
 >();
 const manualReferencePricingById = new Map<string, ReferencePricing>([
 	[
+		"chatgpt-4o-latest",
+		{
+			inputPrice: 5 / 1e6,
+			outputPrice: 15 / 1e6,
+		},
+	],
+	[
+		"gpt-4-32k",
+		{
+			inputPrice: 60 / 1e6,
+			outputPrice: 120 / 1e6,
+		},
+	],
+	[
+		"gpt-4-vision-preview",
+		{
+			inputPrice: 10 / 1e6,
+			outputPrice: 30 / 1e6,
+		},
+	],
+	[
+		"gpt-3.5-turbo-0125",
+		{
+			inputPrice: 0.5 / 1e6,
+			outputPrice: 1.5 / 1e6,
+		},
+	],
+	[
+		"o1-preview",
+		{
+			inputPrice: 15 / 1e6,
+			cachedInputPrice: 7.5 / 1e6,
+			outputPrice: 60 / 1e6,
+		},
+	],
+	[
+		"gpt-5-codex",
+		{
+			inputPrice: 1.25 / 1e6,
+			cachedInputPrice: 0.125 / 1e6,
+			outputPrice: 10 / 1e6,
+		},
+	],
+	[
+		"gpt-5.1-codex-max",
+		{
+			inputPrice: 1.25 / 1e6,
+			cachedInputPrice: 0.125 / 1e6,
+			outputPrice: 10 / 1e6,
+		},
+	],
+	[
+		"gpt-5.4-mini",
+		{
+			inputPrice: 0.75 / 1e6,
+			cachedInputPrice: 0.075 / 1e6,
+			outputPrice: 4.5 / 1e6,
+		},
+	],
+	[
+		"gpt-5.4-nano",
+		{
+			inputPrice: 0.2 / 1e6,
+			cachedInputPrice: 0.02 / 1e6,
+			outputPrice: 1.25 / 1e6,
+		},
+	],
+	[
+		"gpt-5-image",
+		{
+			inputPrice: 5 / 1e6,
+			cachedInputPrice: 1.25 / 1e6,
+			outputPrice: 10 / 1e6,
+			imageInputPrice: 8 / 1e6,
+			imageOutputPrice: 32 / 1e6,
+		},
+	],
+	[
+		"gpt-5-image-mini",
+		{
+			inputPrice: 2 / 1e6,
+			cachedInputPrice: 0.2 / 1e6,
+			imageInputPrice: 2.5 / 1e6,
+			imageOutputPrice: 8 / 1e6,
+		},
+	],
+	[
 		"command-a",
 		{
 			inputPrice: 2.5 / 1e6,
@@ -93,6 +180,59 @@ const manualReferencePricingById = new Map<string, ReferencePricing>([
 			outputPrice: 0.06 / 1e6,
 		},
 	],
+	[
+		"claude-3-sonnet-20240229",
+		{
+			inputPrice: 3 / 1e6,
+			cachedInputPrice: 0.3 / 1e6,
+			minCacheableTokens: 1024,
+			outputPrice: 15 / 1e6,
+		},
+	],
+	[
+		"claude-instant",
+		{
+			inputPrice: 1.63 / 1e6,
+			outputPrice: 5.51 / 1e6,
+		},
+	],
+	[
+		"deepseek-chat",
+		{
+			inputPrice: 0.28 / 1e6,
+			cachedInputPrice: 0.028 / 1e6,
+			outputPrice: 0.42 / 1e6,
+		},
+	],
+	[
+		"deepseek-reasoner",
+		{
+			inputPrice: 0.28 / 1e6,
+			cachedInputPrice: 0.028 / 1e6,
+			outputPrice: 0.42 / 1e6,
+		},
+	],
+	[
+		"minimax-m1",
+		{
+			inputPrice: 0.4 / 1e6,
+			outputPrice: 2.2 / 1e6,
+			pricingTiers: [
+				{
+					name: "Up to 200K",
+					upToTokens: 200000,
+					inputPrice: 0.4 / 1e6,
+					outputPrice: 2.2 / 1e6,
+				},
+				{
+					name: "Over 200K",
+					upToTokens: Infinity,
+					inputPrice: 1.3 / 1e6,
+					outputPrice: 2.2 / 1e6,
+				},
+			],
+		},
+	],
 ]);
 
 const pricingAliases = new Map<string, string>([
@@ -115,12 +255,21 @@ const pricingAliases = new Map<string, string>([
 	["gemini-advanced", "gemini-2.5-pro"],
 	["gemini-ultra", "gemini-2.5-pro"],
 	["gpt", "gpt-4o"],
+	["chatgpt-4o-latest", "gpt-4o"],
 	["gpt-3.5-turbo-16k", "gpt-3.5-turbo"],
+	["gpt-3.5-turbo-0125", "gpt-3.5-turbo"],
+	["gpt-4-turbo-preview", "gpt-4-turbo"],
 	["gpt-4-plus", "gpt-4o"],
 	["gpt-4-mini", "gpt-4o-mini"],
 	["gpt-4-nano", "gpt-4.1-nano"],
+	["gpt-5-codex", "gpt-5.2-codex"],
 	["gpt-5.2-high", "gpt-5.2"],
+	["gpt-5.1-codex-max", "gpt-5.1-codex-max"],
+	["gpt-5.4-mini", "gpt-5.4-mini"],
+	["gpt-5.4-nano", "gpt-5.4-nano"],
+	["o1-preview", "o1"],
 	["grok", "grok-3"],
+	["claude-2", "claude-2.1"],
 	["mistral-large", "mistral-large-latest"],
 	["mistral-large-2", "mistral-large-latest"],
 	["mistral-small", "mistral-small-2506"],
@@ -147,8 +296,17 @@ const pricingAliases = new Map<string, string>([
 	["qwen3.5-plus", "qwen-max"],
 	["qwen3-thinking-2507", "qwen3-next-80b-a3b-thinking"],
 	["deepseek-v3-0324", "deepseek-v3"],
+	["deepseek-chat-v3-0324", "deepseek-chat"],
+	["deepseek-r1", "deepseek-reasoner"],
+	["deepseek-v3.2-exp", "deepseek-chat"],
+	["claude-3-5-sonnet-reasoning", "claude-3-5-sonnet"],
+	["claude-opus-4.5", "claude-opus-4-5-20251101"],
+	["claude-opus-4.6-fast", "claude-opus-4-6"],
+	["gemini-3-pro", "gemini-3-pro-preview"],
+	["gemini-3-flash", "gemini-3-flash-preview"],
 	["gemma-3-27b-it", "gemma-3-27b"],
 	["llama-3.1-8b-instruct-turbo", "llama-3.1-8b-instruct"],
+	["minimax-m1", "minimax-m1"],
 ]);
 
 function normalizeId(value: string): string {
