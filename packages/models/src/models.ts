@@ -34,6 +34,11 @@ import { minimaxModels } from "./models/minimax.js";
 import { mistralModels } from "./models/mistral.js";
 import { moonshotModels } from "./models/moonshot.js";
 import { nousresearchModels } from "./models/nousresearch.js";
+import {
+	nvidiaWorkerModels,
+	nvidiaWorkerProviderAugments,
+} from "./models/nvidia-worker.js";
+import { getOfficialProxyPricing } from "./models/official-proxy-pricing.js";
 import { openaiModels } from "./models/openai.js";
 import {
 	openrouterAiHubModels,
@@ -44,6 +49,7 @@ import {
 	svelteAiEnhancedModels,
 	svelteAiEnhancedProviderAugments,
 } from "./models/svelte-ai-enhanced.js";
+import { swiftSoraVideoModels } from "./models/swift-sora-video.js";
 import { xaiModels } from "./models/xai.js";
 import { zaiModels } from "./models/zai.js";
 
@@ -264,7 +270,7 @@ export interface ModelDefinition {
 	/**
 	 * Output formats supported by the model (defaults to ['text'] if not specified)
 	 */
-	output?: ("text" | "image" | "audio")[];
+	output?: ("text" | "image" | "audio" | "video")[];
 	/**
 	 * Whether this model requires an image input to function (e.g. image editing models).
 	 */
@@ -310,6 +316,316 @@ const baseModels: ModelDefinition[] = [
 	...zaiModels,
 ] as const;
 
+export const freeTierModelIds = new Set<string>([
+	"gpt-4o-mini",
+	"gpt-4.1-mini",
+	"gpt-4.1-nano",
+	"gpt-3.5-turbo",
+	"gpt-oss-20b",
+	"gemini-2.5-flash",
+	"gemini-2.0-flash",
+	"gemini-2.0-flash-lite",
+	"gemini-1.5-flash",
+	"gemini-1.5-flash-8b",
+	"gemma-2-2b-it",
+	"gemma-2-9b-it",
+	"gemma-3-4b-it",
+	"gemma-3-12b-it",
+	"llama-3.1-8b-instant",
+	"llama-3.1-8b-instruct",
+	"llama-3.2-1b-instruct",
+	"llama-3.2-3b-instruct",
+	"llama-3.2-11b-instruct",
+	"llama3-8b-instruct",
+	"qwen-2.5-7b-instruct",
+	"qwen2.5-coder-7b-instruct",
+	"qwen2-7b-instruct",
+	"qwen3-32b",
+	"qwen3-coder-flash",
+	"qwen-flash",
+	"qwen-turbo",
+	"deepseek-chat",
+	"deepseek-v3",
+	"deepseek-v3.1",
+	"deepseek-r1-distill-llama-8b",
+	"deepseek-r1-0528",
+	"phi-4-mini-instruct",
+	"phi-4-mini-flash-reasoning",
+	"phi-3.5-mini-instruct",
+	"phi-3-mini-4k-instruct",
+	"phi-3-mini-128k-instruct",
+	"phi-3-small-8k-instruct",
+	"phi-3-small-128k-instruct",
+	"mistral-small",
+	"mistral-nemo",
+	"mistral-7b-instruct-v0.3",
+	"ministral-3b-2512",
+	"ministral-8b-2512",
+	"jamba-1.5-mini-instruct",
+	"granite-guardian-3.0-8b",
+	"solar-10.7b-instruct",
+	"eurollm-9b-instruct",
+	"falcon3-7b-instruct",
+	"baichuan2-13b-chat",
+]);
+
+export const starterOnlyTierModelIds = new Set<string>([
+	"claude-3-5-haiku",
+	"claude-haiku-4.5",
+	"grok-4-1-fast",
+	"sonar",
+	"kimi-k2.5",
+	"minimax-m1",
+	"llama-3.3-70b-versatile",
+	"llama-3.2-11b-vision-instruct",
+	"qwen2.5-coder-32b-instruct",
+	"qwen3-14b",
+	"qwen3-30b-a3b",
+	"deepseek-r1-distill-llama-70b",
+	"deepseek-v3.5",
+	"phi-4",
+	"phi-4-multimodal-instruct",
+	"mistral-large-2",
+	"mixtral-8x7b-instruct-together",
+	"command-r",
+	"command-r-08-2024",
+	"command-a",
+	"gemini-3-flash-preview",
+	"gemini-3-pro-preview",
+	"gemini-3.1-flash-lite-preview",
+	"qwen3-vl-8b-instruct",
+	"chatglm3-6b",
+	"rakutenai-7b-instruct",
+	"sarvam-m",
+	"bielik-11b-v2.6-instruct",
+	"stockmark-2-100b-instruct",
+	"gpt-4o",
+	"gpt-4.1",
+	"gpt-5.2",
+	"o1-mini",
+	"o3-mini",
+	"claude-3-5-sonnet",
+	"claude-3-7-sonnet",
+	"claude-sonnet-4",
+	"gemini-1.5-pro",
+	"gemini-2.5-pro",
+	"gemini-3-pro",
+	"grok-3",
+	"grok-4-fast",
+	"sonar-pro",
+	"kimi-k2",
+	"minimax-m2.1-lightning",
+	"qwen-max",
+	"qwen-plus",
+	"qwen3-next-80b-a3b-instruct",
+	"qwen3-coder-30b-a3b-instruct",
+	"qwen3-coder",
+	"qwen3-thinking-2507",
+	"llama-3.1-70b-instruct",
+	"llama-3.1-405b-instruct",
+	"llama-3.3-70b-instruct",
+	"llama-4-scout",
+	"llama-4-maverick",
+	"deepseek-reasoner",
+	"deepseek-r1",
+	"mistral-large",
+	"codestral-2508",
+	"devstral-2512",
+	"command-r-plus",
+	"nova-pro",
+	"glm-4.5",
+	"glm4.7",
+	"step-3.5-flash",
+	"magistral-small-2506",
+	"mixtral-8x22b-instruct-v0.1",
+	"dbrx-instruct",
+	"wizardlm-2-8x22b",
+	"nemotron",
+	"dracarys-llama-3.1-70b-instruct",
+	"mistral-small-2506",
+	"gpt-5-mini",
+	"gemini-3.1-pro-preview",
+	"claude-4-sonnet",
+	"qwen3-max",
+	"gemini-3-flash",
+	"mistral-small-24b-instruct",
+	"llama-4-maverick-17b-instruct",
+]);
+
+export const proOnlyTierModelIds = new Set<string>([
+	"claude-3-haiku",
+	"claude-3-haiku-20240307",
+	"claude-3-5-haiku-20241022",
+	"claude-haiku-4-5",
+	"grok-3-mini",
+	"grok-3-mini-fast",
+	"kimi-k2-thinking-turbo",
+	"minimax-text-01",
+	"gemini-3-flash-preview",
+	"gemini-3.1-flash-lite-preview",
+	"qwen3-vl-8b-instruct",
+	"qwen3-vl-flash",
+	"qwen3-4b-fp8",
+	"qwen3-32b-fp8",
+	"qwen3-30b-a3b-fp8",
+	"mistral-small-24b-instruct-2501",
+	"mistral-small-3.1",
+	"ministral-14b-2512",
+	"llama-4-scout-17b-instruct",
+	"rakutenai-7b-chat",
+	"breeze-7b-instruct",
+	"marin-8b-instruct",
+	"teuken-7b-instruct-commercial-v0.4",
+	"llama-3.1-nemotron-nano-8b-v1",
+	"nvidia-nemotron-nano-9b-v2",
+	"nemotron-mini-4b-instruct",
+	"nemotron-nano-12b-v2-vl",
+	"llama-3.1-nemotron-nano-vl-8b-v1",
+	"llama3-chatqa-1.5-8b",
+	"gliner-pii",
+	"gpt-5",
+	"gpt-5.1",
+	"gpt-5-pro",
+	"gpt-5.2-pro",
+	"gpt-5.4-pro",
+	"o3",
+	"claude-4-opus",
+	"claude-opus-4.5",
+	"claude-opus-4.6",
+	"claude-sonnet-4.5",
+	"claude-sonnet-4.6",
+	"gemini-3-pro-preview",
+	"gemini-3-pro-image-preview",
+	"grok-4",
+	"grok-4-fast-reasoning",
+	"grok-4-20-beta-0309-reasoning",
+	"grok-4-20-multi-agent-beta-0309",
+	"grok-code-fast-1",
+	"sonar-reasoning-pro",
+	"kimi-k2-thinking",
+	"minimax-m2.5",
+	"qwen3-235b-a22b-thinking-2507",
+	"qwen3-coder-480b-a35b-instruct",
+	"qwen3-next-80b-a3b-thinking",
+	"qwen3-vl-235b-a22b-thinking",
+	"llama-4-maverick-17b-128e-instruct",
+	"mistral-large-3-675b-instruct-2512",
+	"glm-5",
+]);
+
+export const payAsYouGoOnlyTierModelIds = new Set<string>([
+	"claude-4-opus",
+	"claude-opus-4.5",
+	"claude-opus-4.6",
+	"claude-sonnet-4.5",
+	"claude-sonnet-4.6",
+	"claude-4-sonnet",
+	"gemini-2.5-pro",
+	"gemini-3-pro-preview",
+	"gemini-3-pro-image-preview",
+	"gemini-3.1-pro-preview",
+	"gemini-2.5-pro-preview-06-05",
+	"grok-4",
+	"grok-4-fast-reasoning",
+	"grok-4-20-beta-0309-reasoning",
+	"grok-4-20-multi-agent-beta-0309",
+	"grok-code-fast-1",
+	"gpt-5",
+	"gpt-5.1",
+	"gpt-5.2",
+	"gpt-5-pro",
+	"gpt-5.2-pro",
+	"gpt-5.4-pro",
+	"gpt-5-codex",
+	"o3",
+	"o4-mini-deep-research",
+	"qwen3-235b-a22b-thinking-2507",
+	"qwen3-coder-480b-a35b-instruct",
+	"qwen3-next-80b-a3b-thinking",
+	"qwen3-vl-235b-a22b-thinking",
+	"qwen3-max",
+	"qwen3-max-2026-01-23",
+	"qwen3.5-plus",
+	"qwen35-397b-a17b",
+	"kimi-k2-thinking",
+	"kimi-k2-thinking-turbo",
+	"minimax-m2.5",
+	"sonar-reasoning-pro",
+	"glm-5",
+	"mistral-large-3-675b-instruct-2512",
+	"gpt-5-image",
+]);
+
+export const starterTierModelIds = new Set<string>([
+	...[...freeTierModelIds, ...starterOnlyTierModelIds].filter(
+		(modelId) => !payAsYouGoOnlyTierModelIds.has(modelId),
+	),
+]);
+
+export const proTierModelIds = new Set<string>([
+	...[...starterTierModelIds, ...proOnlyTierModelIds].filter(
+		(modelId) => !payAsYouGoOnlyTierModelIds.has(modelId),
+	),
+]);
+
+function hasExplicitPricing(provider: Partial<ProviderModelMapping>): boolean {
+	return (
+		(provider.inputPrice ?? 0) > 0 ||
+		(provider.outputPrice ?? 0) > 0 ||
+		(provider.requestPrice ?? 0) > 0 ||
+		(provider.pricingTiers?.length ?? 0) > 0 ||
+		(provider.imageInputPrice ?? 0) > 0 ||
+		(provider.imageOutputPrice ?? 0) > 0
+	);
+}
+
+function applyOfficialProxyPricing(model: ModelDefinition): ModelDefinition {
+	return {
+		...model,
+		providers: model.providers.map((provider) => {
+			if (!provider.providerId.startsWith("kiwillm-")) {
+				return provider;
+			}
+			if (hasExplicitPricing(provider)) {
+				return provider;
+			}
+
+			const officialPricing = getOfficialProxyPricing(
+				model.id,
+				provider.modelName,
+			);
+			if (!hasExplicitPricing(officialPricing)) {
+				return provider;
+			}
+
+			return {
+				...provider,
+				inputPrice: officialPricing.inputPrice ?? provider.inputPrice,
+				outputPrice: officialPricing.outputPrice ?? provider.outputPrice,
+				cachedInputPrice:
+					officialPricing.cachedInputPrice ?? provider.cachedInputPrice,
+				minCacheableTokens:
+					officialPricing.minCacheableTokens ?? provider.minCacheableTokens,
+				imageInputPrice:
+					officialPricing.imageInputPrice ?? provider.imageInputPrice,
+				imageOutputPrice:
+					officialPricing.imageOutputPrice ?? provider.imageOutputPrice,
+				imageOutputTokensByResolution:
+					officialPricing.imageOutputTokensByResolution ??
+					provider.imageOutputTokensByResolution,
+				imageInputTokensByResolution:
+					officialPricing.imageInputTokensByResolution ??
+					provider.imageInputTokensByResolution,
+				requestPrice: officialPricing.requestPrice ?? provider.requestPrice,
+				discount: officialPricing.discount ?? provider.discount,
+				pricingTiers: officialPricing.pricingTiers ?? provider.pricingTiers,
+				webSearchPrice:
+					officialPricing.webSearchPrice ?? provider.webSearchPrice,
+			};
+		}),
+	};
+}
+
 export const models: ModelDefinition[] = [
 	...[
 		...baseModels,
@@ -319,8 +635,10 @@ export const models: ModelDefinition[] = [
 		...literouterProxyModels,
 		...freecfmodelsModels,
 		...groqWorkerModels,
+		...nvidiaWorkerModels,
 		...openrouterAiHubModels,
 		...svelteAiEnhancedModels,
+		...swiftSoraVideoModels,
 	].map((model) => {
 		const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
 		const completionsMeProviders =
@@ -329,6 +647,7 @@ export const models: ModelDefinition[] = [
 		const literouterProviders = literouterProxyProviderAugments[model.id] ?? [];
 		const freecfmodelsProviders = freecfmodelsProviderAugments[model.id] ?? [];
 		const groqWorkerProviders = groqWorkerProviderAugments[model.id] ?? [];
+		const nvidiaWorkerProviders = nvidiaWorkerProviderAugments[model.id] ?? [];
 		const openrouterAiHubProviders =
 			openrouterAiHubProviderAugments[model.id] ?? [];
 		const svelteAiEnhancedProviders =
@@ -340,13 +659,22 @@ export const models: ModelDefinition[] = [
 			literouterProviders.length === 0 &&
 			freecfmodelsProviders.length === 0 &&
 			groqWorkerProviders.length === 0 &&
+			nvidiaWorkerProviders.length === 0 &&
 			openrouterAiHubProviders.length === 0 &&
 			svelteAiEnhancedProviders.length === 0
 		) {
-			return model;
+			return applyOfficialProxyPricing({
+				...model,
+				free:
+					freeTierModelIds.has(model.id) ||
+					("free" in model && model.free === true),
+			});
 		}
-		return {
+		return applyOfficialProxyPricing({
 			...model,
+			free:
+				freeTierModelIds.has(model.id) ||
+				("free" in model && model.free === true),
 			providers: [
 				...model.providers,
 				...chataiProviders,
@@ -355,9 +683,10 @@ export const models: ModelDefinition[] = [
 				...literouterProviders,
 				...freecfmodelsProviders,
 				...groqWorkerProviders,
+				...nvidiaWorkerProviders,
 				...openrouterAiHubProviders,
 				...svelteAiEnhancedProviders,
 			],
-		};
+		});
 	}),
 ];

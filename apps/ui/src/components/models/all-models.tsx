@@ -73,6 +73,13 @@ import {
 } from "@/lib/model-catalog-display";
 import { cn, formatDeprecationDate } from "@/lib/utils";
 
+import * as modelCatalog from "@llmgateway/models";
+import {
+	freeTierModelIds,
+	proOnlyTierModelIds,
+	starterOnlyTierModelIds,
+} from "@llmgateway/models";
+
 import { ModelCard } from "./model-card";
 
 import type {
@@ -231,6 +238,16 @@ const ModelTableRow = React.memo(
 		) => React.ReactNode;
 	}) => {
 		const { ProviderIcon } = row;
+		const payAsYouGoOnlyTierModelIds =
+			(modelCatalog as { payAsYouGoOnlyTierModelIds?: Set<string> })
+				.payAsYouGoOnlyTierModelIds ?? new Set<string>();
+		const isFreeModel =
+			(row.model.free ?? false) || freeTierModelIds.has(row.model.id);
+		const isPayAsYouGoModel = payAsYouGoOnlyTierModelIds.has(row.model.id);
+		const isStarterOnlyModel =
+			!isPayAsYouGoModel && starterOnlyTierModelIds.has(row.model.id);
+		const isProOnlyModel =
+			!isPayAsYouGoModel && proOnlyTierModelIds.has(row.model.id);
 		const requestPrice =
 			row.provider.requestPrice !== null &&
 			row.provider.requestPrice !== undefined
@@ -328,8 +345,40 @@ const ModelTableRow = React.memo(
 								onClick={(e) => e.stopPropagation()}
 								className="font-medium hover:text-primary hover:underline"
 							>
-								<div className="text-[15px] leading-6">
-									{row.displayModelName}
+								<div className="flex items-center gap-2 text-[15px] leading-6">
+									<span>{row.displayModelName}</span>
+									{isFreeModel && (
+										<Badge
+											variant="secondary"
+											className="h-5 border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/20"
+										>
+											Free
+										</Badge>
+									)}
+									{!isFreeModel && isPayAsYouGoModel && (
+										<Badge
+											variant="secondary"
+											className="h-5 border border-amber-500/30 bg-amber-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider text-amber-300 hover:bg-amber-500/20"
+										>
+											PAYG
+										</Badge>
+									)}
+									{!isFreeModel && isStarterOnlyModel && (
+										<Badge
+											variant="secondary"
+											className="h-5 border border-sky-500/30 bg-sky-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider text-sky-300 hover:bg-sky-500/20"
+										>
+											Starter
+										</Badge>
+									)}
+									{!isFreeModel && !isStarterOnlyModel && isProOnlyModel && (
+										<Badge
+											variant="secondary"
+											className="h-5 border border-violet-500/30 bg-violet-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wider text-violet-300 hover:bg-violet-500/20"
+										>
+											Pro
+										</Badge>
+									)}
 								</div>
 								{row.displayModelName !== row.model.id && (
 									<div className="font-mono text-[13px] text-muted-foreground">

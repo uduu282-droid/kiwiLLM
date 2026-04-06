@@ -30,6 +30,13 @@ import {
 } from "@/lib/model-catalog-display";
 import { formatContextSize, formatDeprecationDate } from "@/lib/utils";
 
+import * as modelCatalog from "@llmgateway/models";
+import {
+	freeTierModelIds,
+	proOnlyTierModelIds,
+	starterOnlyTierModelIds,
+} from "@llmgateway/models";
+
 import type {
 	ApiModel,
 	ApiModelProviderMapping,
@@ -75,6 +82,15 @@ export function ModelCard({
 	const config = useAppConfig();
 	const [copiedModel, setCopiedModel] = useState<string | null>(null);
 	const [showAllProviders, setShowAllProviders] = useState(false);
+	const payAsYouGoOnlyTierModelIds =
+		(modelCatalog as { payAsYouGoOnlyTierModelIds?: Set<string> })
+			.payAsYouGoOnlyTierModelIds ?? new Set<string>();
+	const isFreeModel = (model.free ?? false) || freeTierModelIds.has(model.id);
+	const isPayAsYouGoModel = payAsYouGoOnlyTierModelIds.has(model.id);
+	const isStarterOnlyModel =
+		!isPayAsYouGoModel && starterOnlyTierModelIds.has(model.id);
+	const isProOnlyModel =
+		!isPayAsYouGoModel && proOnlyTierModelIds.has(model.id);
 
 	const copyToClipboard = (text: string) => {
 		void navigator.clipboard.writeText(text);
@@ -120,9 +136,43 @@ export function ModelCard({
 				<div className="p-4 space-y-4">
 					<div className="space-y-3">
 						<div className="flex items-start justify-between gap-4">
-							<h3 className="text-2xl font-bold text-foreground tracking-tight">
-								{model.name ?? model.id}
-							</h3>
+							<div className="flex items-center gap-2">
+								<h3 className="text-2xl font-bold text-foreground tracking-tight">
+									{model.name ?? model.id}
+								</h3>
+								{isFreeModel && (
+									<Badge
+										variant="secondary"
+										className="h-6 border border-emerald-500/30 bg-emerald-500/15 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider text-emerald-300 hover:bg-emerald-500/20"
+									>
+										Free
+									</Badge>
+								)}
+								{!isFreeModel && isPayAsYouGoModel && (
+									<Badge
+										variant="secondary"
+										className="h-6 border border-amber-500/30 bg-amber-500/15 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider text-amber-300 hover:bg-amber-500/20"
+									>
+										PAYG
+									</Badge>
+								)}
+								{!isFreeModel && isStarterOnlyModel && (
+									<Badge
+										variant="secondary"
+										className="h-6 border border-sky-500/30 bg-sky-500/15 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider text-sky-300 hover:bg-sky-500/20"
+									>
+										Starter
+									</Badge>
+								)}
+								{!isFreeModel && !isStarterOnlyModel && isProOnlyModel && (
+									<Badge
+										variant="secondary"
+										className="h-6 border border-violet-500/30 bg-violet-500/15 px-2 py-0 text-[10px] font-semibold uppercase tracking-wider text-violet-300 hover:bg-violet-500/20"
+									>
+										Pro
+									</Badge>
+								)}
+							</div>
 							<div
 								onClick={(e) => e.stopPropagation()}
 								onMouseDown={(e) => e.stopPropagation()}
