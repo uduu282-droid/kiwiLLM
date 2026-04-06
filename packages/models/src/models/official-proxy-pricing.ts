@@ -7,6 +7,7 @@ import { metaModels } from "./meta.js";
 import { minimaxModels } from "./minimax.js";
 import { mistralModels } from "./mistral.js";
 import { moonshotModels } from "./moonshot.js";
+import { nousresearchModels } from "./nousresearch.js";
 import { openaiModels } from "./openai.js";
 import { perplexityModels } from "./perplexity.js";
 import { xaiModels } from "./xai.js";
@@ -399,6 +400,7 @@ const pricingAliases = new Map<string, string>([
 	["deepseek-r1-distill-llama-8b", "deepseek-reasoner"],
 	["deepseek-v3.1-terminus", "deepseek-chat"],
 	["deepseek-v3.2-exp", "deepseek-chat"],
+	["hermes-2-pro-llama-3-8b", "hermes-2-pro-llama-3-8b"],
 	["claude-3-5-sonnet-reasoning", "claude-3-5-sonnet"],
 	["claude-opus-4.5", "claude-opus-4-5-20251101"],
 	["claude-opus-4.6-fast", "claude-opus-4-6"],
@@ -548,6 +550,7 @@ registerReferenceModels(deepseekModels, ["nebius"]);
 registerReferenceModels(xaiModels, ["xai"]);
 registerReferenceModels(mistralModels, ["mistral"]);
 registerReferenceModels(moonshotModels, ["moonshot"]);
+registerReferenceModels(nousresearchModels, ["novita", "nebius"]);
 registerReferenceModels(minimaxModels, ["minimax"]);
 registerReferenceModels(zaiModels, ["zai"]);
 registerReferenceModels(bytedanceModels, ["bytedance"]);
