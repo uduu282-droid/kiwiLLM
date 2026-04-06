@@ -66,10 +66,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/lib/components/tooltip";
-import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
+import {
+	getDisplayProviderIcon,
+	getDisplayModelName,
+	getDisplayProviderInfo,
+} from "@/lib/model-catalog-display";
 import { cn, formatDeprecationDate } from "@/lib/utils";
-
-import { getProviderIcon } from "@llmgateway/shared/components";
 
 import { ModelCard } from "./model-card";
 
@@ -125,6 +127,7 @@ interface FlattenedModelRow {
 	provider: ApiModelProviderMapping;
 	providerInfo: ApiProvider;
 	displayProviderName: string;
+	displayModelName: string;
 	hasAdditionalPricing: boolean;
 	rowKey: string;
 	capabilities: CapabilityIcon[];
@@ -314,7 +317,12 @@ const ModelTableRow = React.memo(
 								onClick={(e) => e.stopPropagation()}
 								className="font-medium text-sm hover:text-primary hover:underline"
 							>
-								{row.model.id}
+								<div>{row.displayModelName}</div>
+								{row.displayModelName !== row.model.id && (
+									<div className="text-xs text-muted-foreground font-mono">
+										{row.model.id}
+									</div>
+								)}
 							</Link>
 							<button
 								onClick={(e) => onCopy(row.model.id, row.rowKey, e)}
@@ -537,15 +545,17 @@ export function AllModels({
 						(mapping) =>
 							!mapping.deprecatedAt || new Date(mapping.deprecatedAt) > now,
 					)
-					.map((mapping) =>
-						getDisplayProviderInfo({
-							providerId: mapping.providerId,
-							providerName:
-								providers.find((provider) => provider.id === mapping.providerId)
-									?.name ?? null,
-							modelId: model.id,
-							family: model.family,
-						}).name,
+					.map(
+						(mapping) =>
+							getDisplayProviderInfo({
+								providerId: mapping.providerId,
+								providerName:
+									providers.find(
+										(provider) => provider.id === mapping.providerId,
+									)?.name ?? null,
+								modelId: model.id,
+								family: model.family,
+							}).name,
 					),
 			),
 		);
@@ -981,13 +991,14 @@ export function AllModels({
 	const filteredProviderCount = useMemo(() => {
 		const uniqueProviders = new Set(
 			modelsWithProviders.flatMap((model) =>
-				model.providerDetails.map((p) =>
-					getDisplayProviderInfo({
-						providerId: p.provider.providerId,
-						providerName: p.providerInfo?.name,
-						modelId: model.id,
-						family: model.family,
-					}).name,
+				model.providerDetails.map(
+					(p) =>
+						getDisplayProviderInfo({
+							providerId: p.provider.providerId,
+							providerName: p.providerInfo?.name,
+							modelId: model.id,
+							family: model.family,
+						}).name,
 				),
 			),
 		);
@@ -1044,10 +1055,15 @@ export function AllModels({
 					provider,
 					providerInfo,
 					displayProviderName: displayProvider.name,
+					displayModelName: getDisplayModelName({
+						modelId: model.id,
+						modelName: model.name,
+						family: model.family,
+					}),
 					hasAdditionalPricing,
 					rowKey: `${provider.providerId}-${model.id}`,
 					capabilities: computeCapabilities(provider, model),
-					ProviderIcon: getProviderIcon(displayProvider.iconProviderId),
+					ProviderIcon: getDisplayProviderIcon(displayProvider.iconProviderId),
 				});
 			}
 		}
@@ -1074,8 +1090,8 @@ export function AllModels({
 					bValue = b.displayProviderName.toLowerCase();
 					break;
 				case "name":
-					aValue = (a.model.name ?? a.model.id).toLowerCase();
-					bValue = (b.model.name ?? b.model.id).toLowerCase();
+					aValue = a.displayModelName.toLowerCase();
+					bValue = b.displayModelName.toLowerCase();
 					break;
 				case "inputPrice": {
 					const aPrice = a.provider.inputPrice;
@@ -1546,7 +1562,7 @@ export function AllModels({
 							<SelectContent>
 								<SelectItem value="all">All providers</SelectItem>
 								{providerFilterOptions.map((provider) => {
-									const ProviderIcon = getProviderIcon(
+									const ProviderIcon = getDisplayProviderIcon(
 										provider.iconProviderId,
 									);
 									return (

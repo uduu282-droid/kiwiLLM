@@ -36,10 +36,12 @@ import {
 } from "@/lib/components/tooltip";
 import { useAppConfig } from "@/lib/config";
 import { XIcon } from "@/lib/icons/XIcon";
-import { getDisplayProviderInfo } from "@/lib/model-catalog-display";
+import {
+	getDisplayProviderIcon,
+	getDisplayModelName,
+	getDisplayProviderInfo,
+} from "@/lib/model-catalog-display";
 import { formatContextSize, formatDeprecationDate } from "@/lib/utils";
-
-import { getProviderIcon } from "@llmgateway/shared/components";
 
 import type { ApiModelProviderMapping, ApiProvider } from "@/lib/fetch-models";
 import type { StabilityLevel } from "@llmgateway/models";
@@ -77,16 +79,20 @@ export function ModelProviderCard({
 	const [copied, setCopied] = useState(false);
 	const [urlCopied, setUrlCopied] = useState(false);
 	const publicModelName = modelName;
+	const displayModelName = getDisplayModelName({
+		modelId: modelName,
+		modelName: null,
+	});
 	const displayProvider = getDisplayProviderInfo({
 		providerId: provider.providerId,
 		providerName: provider.providerInfo?.name,
 		modelId: modelName,
 	});
-	const ProviderIcon = getProviderIcon(displayProvider.iconProviderId);
+	const ProviderIcon = getDisplayProviderIcon(displayProvider.iconProviderId);
 	const providerStability = provider.stability ?? modelStability;
 
 	const shareUrl = `${config.appUrl}/models/${encodeURIComponent(modelName)}/${encodeURIComponent(provider.providerId)}`;
-	const shareTitle = `${displayProvider.name} - ${modelName} on KiwiLLM`;
+	const shareTitle = `${displayProvider.name} - ${displayModelName} on KiwiLLM`;
 
 	const getStabilityBadgeProps = (stability?: StabilityLevel) => {
 		switch (stability) {
@@ -137,7 +143,7 @@ export function ModelProviderCard({
 	const numericDiscount =
 		typeof provider.discount === "string"
 			? parseFloat(provider.discount)
-			: provider.discount ?? 0;
+			: (provider.discount ?? 0);
 	const inputPrice =
 		typeof provider.inputPrice === "string"
 			? parseFloat(provider.inputPrice)
@@ -196,7 +202,7 @@ export function ModelProviderCard({
 							</div>
 							<div className="flex items-center gap-2">
 								<code className="text-xs bg-muted px-2 py-1 rounded font-mono">
-									{publicModelName}
+									{displayModelName}
 								</code>
 								<div className="flex items-center gap-1">
 									<Button
@@ -516,8 +522,7 @@ export function ModelProviderCard({
 														${requestPrice.toFixed(3)}
 													</span>
 													<span className="text-green-600 font-semibold">
-														$
-														{(requestPrice * (1 - numericDiscount)).toFixed(3)}
+														${(requestPrice * (1 - numericDiscount)).toFixed(3)}
 													</span>
 												</>
 											) : (
@@ -560,16 +565,13 @@ export function ModelProviderCard({
 													{formatPrice(tier.outputPrice)} out
 												</span>
 												<span className="text-green-600 font-semibold ml-2">
-													{formatPrice(
-														tier.inputPrice * (1 - numericDiscount),
-													)}{" "}
+													{formatPrice(tier.inputPrice * (1 - numericDiscount))}{" "}
 													in /{" "}
 													{tier.cachedInputPrice !== null &&
 														tier.cachedInputPrice !== undefined && (
 															<>
 																{formatPrice(
-																	tier.cachedInputPrice *
-																		(1 - numericDiscount),
+																	tier.cachedInputPrice * (1 - numericDiscount),
 																)}{" "}
 																cached /{" "}
 															</>
@@ -708,7 +710,7 @@ export function ModelProviderCard({
 					asChild
 				>
 					<a
-								href={`${config.playgroundUrl}?model=${encodeURIComponent(publicModelName)}`}
+						href={`${config.playgroundUrl}?model=${encodeURIComponent(publicModelName)}`}
 						target="_blank"
 						rel="noopener noreferrer"
 					>
