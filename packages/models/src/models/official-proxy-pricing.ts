@@ -292,6 +292,14 @@ const manualReferencePricingById = new Map<string, ReferencePricing>([
 		},
 	],
 	[
+		"step-3.5-flash",
+		{
+			inputPrice: 0.1 / 1e6,
+			cachedInputPrice: 0.02 / 1e6,
+			outputPrice: 0.3 / 1e6,
+		},
+	],
+	[
 		"minimax-m1",
 		{
 			inputPrice: 0.4 / 1e6,
