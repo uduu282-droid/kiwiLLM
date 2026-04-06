@@ -1,7 +1,6 @@
-import type {
-	ModelDefinition,
-	ProviderModelMapping,
-} from "@/models.js";
+import { getOfficialProxyPricing } from "./official-proxy-pricing.js";
+
+import type { ModelDefinition, ProviderModelMapping } from "@/models.js";
 
 const chataiProxyProviderId = "kiwillm-chatai-proxy" as const;
 
@@ -9,13 +8,25 @@ function createProxyMapping(
 	modelName: string,
 	overrides: Partial<ProviderModelMapping> = {},
 ): ProviderModelMapping {
+	const officialPricing = getOfficialProxyPricing(modelName, modelName);
+
 	return {
 		test: "skip",
 		providerId: chataiProxyProviderId,
 		modelName,
-		inputPrice: 0,
-		outputPrice: 0,
-		requestPrice: 0,
+		inputPrice: officialPricing.inputPrice ?? 0,
+		outputPrice: officialPricing.outputPrice ?? 0,
+		cachedInputPrice: officialPricing.cachedInputPrice,
+		minCacheableTokens: officialPricing.minCacheableTokens,
+		imageInputPrice: officialPricing.imageInputPrice,
+		imageOutputPrice: officialPricing.imageOutputPrice,
+		imageOutputTokensByResolution:
+			officialPricing.imageOutputTokensByResolution,
+		imageInputTokensByResolution: officialPricing.imageInputTokensByResolution,
+		requestPrice: officialPricing.requestPrice ?? 0,
+		discount: officialPricing.discount,
+		pricingTiers: officialPricing.pricingTiers,
+		webSearchPrice: officialPricing.webSearchPrice,
 		contextSize: 128000,
 		maxOutput: 16384,
 		streaming: true,
@@ -147,100 +158,162 @@ export const chataiProxyProviderAugments: Record<
 };
 
 export const chataiProxyModels = [
-	createProxyModel("gpt-5.2-high", "openai", {
-		name: "GPT-5.2 High",
-		description: "High-reasoning GPT-5.2 variant exposed by the ChatAI proxy.",
-	}, {
-		contextSize: 400000,
-		maxOutput: 128000,
-		reasoning: true,
-		vision: true,
-		webSearch: true,
-	}),
-	createProxyModel("gpt-4-plus", "openai", {
-		name: "GPT-4 Plus",
-		description: "GPT-4 Plus exposed by the ChatAI proxy.",
-	}, {
-		vision: true,
-	}),
-	createProxyModel("gpt-4-mini", "openai", {
-		name: "GPT-4 Mini",
-		description: "Compact GPT-4 variant exposed by the ChatAI proxy.",
-	}, {
-		vision: true,
-	}),
+	createProxyModel(
+		"gpt-5.2-high",
+		"openai",
+		{
+			name: "GPT-5.2 High",
+			description:
+				"High-reasoning GPT-5.2 variant exposed by the ChatAI proxy.",
+		},
+		{
+			contextSize: 400000,
+			maxOutput: 128000,
+			reasoning: true,
+			vision: true,
+			webSearch: true,
+		},
+	),
+	createProxyModel(
+		"gpt-4-plus",
+		"openai",
+		{
+			name: "GPT-4 Plus",
+			description: "GPT-4 Plus exposed by the ChatAI proxy.",
+		},
+		{
+			vision: true,
+		},
+	),
+	createProxyModel(
+		"gpt-4-mini",
+		"openai",
+		{
+			name: "GPT-4 Mini",
+			description: "Compact GPT-4 variant exposed by the ChatAI proxy.",
+		},
+		{
+			vision: true,
+		},
+	),
 	createProxyModel("gpt-4-nano", "openai", {
 		name: "GPT-4 Nano",
 		description: "Small GPT-4 variant exposed by the ChatAI proxy.",
 	}),
-	createProxyModel("o4-mini-deep-research", "openai", {
-		name: "o4 Mini Deep Research",
-		description: "Research-tuned o4-mini variant exposed by the ChatAI proxy.",
-	}, {
-		contextSize: 200000,
-		reasoning: true,
-		vision: true,
-		webSearch: true,
-	}),
-	createProxyModel("claude-4-opus", "anthropic", {
-		name: "Claude 4 Opus",
-		description: "Claude 4 Opus exposed by the ChatAI proxy.",
-	}, {
-		contextSize: 200000,
-		vision: true,
-	}),
-	createProxyModel("claude-4-sonnet", "anthropic", {
-		name: "Claude 4 Sonnet",
-		description: "Claude 4 Sonnet exposed by the ChatAI proxy.",
-	}, {
-		contextSize: 200000,
-		vision: true,
-	}),
-	createProxyModel("claude-3.5-opus", "anthropic", {
-		name: "Claude 3.5 Opus",
-		description: "Claude 3.5 Opus exposed by the ChatAI proxy.",
-	}, {
-		contextSize: 200000,
-		vision: true,
-	}),
-	createProxyModel("claude-3.5-sonnet", "anthropic", {
-		name: "Claude 3.5 Sonnet",
-		description: "Claude 3.5 Sonnet exposed by the ChatAI proxy.",
-	}, {
-		contextSize: 200000,
-		vision: true,
-	}),
-	createProxyModel("claude-3.7-sonnet", "anthropic", {
-		name: "Claude 3.7 Sonnet",
-		description: "Claude 3.7 Sonnet exposed by the ChatAI proxy.",
-	}, {
-		contextSize: 200000,
-		vision: true,
-	}),
-	createProxyModel("gemini-2.0-pro", "google", {
-		name: "Gemini 2.0 Pro",
-		description: "Gemini 2.0 Pro exposed by the ChatAI proxy.",
-	}, {
-		contextSize: 1048576,
-		vision: true,
-		tools: true,
-	}),
-	createProxyModel("gemini-advanced", "google", {
-		name: "Gemini Advanced",
-		description: "Gemini Advanced exposed by the ChatAI proxy.",
-	}, {
-		contextSize: 1048576,
-		vision: true,
-		tools: true,
-	}),
-	createProxyModel("gemini-ultra", "google", {
-		name: "Gemini Ultra",
-		description: "Gemini Ultra exposed by the ChatAI proxy.",
-	}, {
-		contextSize: 1048576,
-		vision: true,
-		tools: true,
-	}),
+	createProxyModel(
+		"o4-mini-deep-research",
+		"openai",
+		{
+			name: "o4 Mini Deep Research",
+			description:
+				"Research-tuned o4-mini variant exposed by the ChatAI proxy.",
+		},
+		{
+			contextSize: 200000,
+			reasoning: true,
+			vision: true,
+			webSearch: true,
+		},
+	),
+	createProxyModel(
+		"claude-4-opus",
+		"anthropic",
+		{
+			name: "Claude 4 Opus",
+			description: "Claude 4 Opus exposed by the ChatAI proxy.",
+		},
+		{
+			contextSize: 200000,
+			vision: true,
+		},
+	),
+	createProxyModel(
+		"claude-4-sonnet",
+		"anthropic",
+		{
+			name: "Claude 4 Sonnet",
+			description: "Claude 4 Sonnet exposed by the ChatAI proxy.",
+		},
+		{
+			contextSize: 200000,
+			vision: true,
+		},
+	),
+	createProxyModel(
+		"claude-3.5-opus",
+		"anthropic",
+		{
+			name: "Claude 3.5 Opus",
+			description: "Claude 3.5 Opus exposed by the ChatAI proxy.",
+		},
+		{
+			contextSize: 200000,
+			vision: true,
+		},
+	),
+	createProxyModel(
+		"claude-3.5-sonnet",
+		"anthropic",
+		{
+			name: "Claude 3.5 Sonnet",
+			description: "Claude 3.5 Sonnet exposed by the ChatAI proxy.",
+		},
+		{
+			contextSize: 200000,
+			vision: true,
+		},
+	),
+	createProxyModel(
+		"claude-3.7-sonnet",
+		"anthropic",
+		{
+			name: "Claude 3.7 Sonnet",
+			description: "Claude 3.7 Sonnet exposed by the ChatAI proxy.",
+		},
+		{
+			contextSize: 200000,
+			vision: true,
+		},
+	),
+	createProxyModel(
+		"gemini-2.0-pro",
+		"google",
+		{
+			name: "Gemini 2.0 Pro",
+			description: "Gemini 2.0 Pro exposed by the ChatAI proxy.",
+		},
+		{
+			contextSize: 1048576,
+			vision: true,
+			tools: true,
+		},
+	),
+	createProxyModel(
+		"gemini-advanced",
+		"google",
+		{
+			name: "Gemini Advanced",
+			description: "Gemini Advanced exposed by the ChatAI proxy.",
+		},
+		{
+			contextSize: 1048576,
+			vision: true,
+			tools: true,
+		},
+	),
+	createProxyModel(
+		"gemini-ultra",
+		"google",
+		{
+			name: "Gemini Ultra",
+			description: "Gemini Ultra exposed by the ChatAI proxy.",
+		},
+		{
+			contextSize: 1048576,
+			vision: true,
+			tools: true,
+		},
+	),
 	createProxyModel("llama-4-maverick", "meta", {
 		name: "Llama 4 Maverick",
 		description: "Llama 4 Maverick exposed by the ChatAI proxy.",
@@ -257,18 +330,28 @@ export const chataiProxyModels = [
 		name: "Llama 3.1",
 		description: "Llama 3.1 exposed by the ChatAI proxy.",
 	}),
-	createProxyModel("llama-guard-3", "meta", {
-		name: "Llama Guard 3",
-		description: "Llama Guard 3 exposed by the ChatAI proxy.",
-	}, {
-		tools: false,
-	}),
-	createProxyModel("qwen3-thinking-2507", "alibaba", {
-		name: "Qwen3 Thinking 2507",
-		description: "Qwen3 Thinking 2507 exposed by the ChatAI proxy.",
-	}, {
-		reasoning: true,
-	}),
+	createProxyModel(
+		"llama-guard-3",
+		"meta",
+		{
+			name: "Llama Guard 3",
+			description: "Llama Guard 3 exposed by the ChatAI proxy.",
+		},
+		{
+			tools: false,
+		},
+	),
+	createProxyModel(
+		"qwen3-thinking-2507",
+		"alibaba",
+		{
+			name: "Qwen3 Thinking 2507",
+			description: "Qwen3 Thinking 2507 exposed by the ChatAI proxy.",
+		},
+		{
+			reasoning: true,
+		},
+	),
 	createProxyModel("qwen3.5", "alibaba", {
 		name: "Qwen3.5",
 		description: "Qwen3.5 exposed by the ChatAI proxy.",
@@ -293,11 +376,16 @@ export const chataiProxyModels = [
 		name: "Grok",
 		description: "Grok exposed by the ChatAI proxy.",
 	}),
-	createProxyModel("perplexity-pro", "perplexity", {
-		name: "Perplexity Pro",
-		description: "Perplexity Pro exposed by the ChatAI proxy.",
-	}, {
-		tools: false,
-		webSearch: true,
-	}),
+	createProxyModel(
+		"perplexity-pro",
+		"perplexity",
+		{
+			name: "Perplexity Pro",
+			description: "Perplexity Pro exposed by the ChatAI proxy.",
+		},
+		{
+			tools: false,
+			webSearch: true,
+		},
+	),
 ] as const satisfies ModelDefinition[];

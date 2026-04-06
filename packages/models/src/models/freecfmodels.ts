@@ -1,7 +1,6 @@
-import type {
-	ModelDefinition,
-	ProviderModelMapping,
-} from "@/models.js";
+import { getOfficialProxyPricing } from "./official-proxy-pricing.js";
+
+import type { ModelDefinition, ProviderModelMapping } from "@/models.js";
 
 const freecfmodelsProviderId = "kiwillm-freecfmodels" as const;
 
@@ -9,13 +8,25 @@ function createProxyMapping(
 	modelName: string,
 	overrides: Partial<ProviderModelMapping> = {},
 ): ProviderModelMapping {
+	const officialPricing = getOfficialProxyPricing(modelName, modelName);
+
 	return {
 		test: "skip",
 		providerId: freecfmodelsProviderId,
 		modelName,
-		inputPrice: 0,
-		outputPrice: 0,
-		requestPrice: 0,
+		inputPrice: officialPricing.inputPrice ?? 0,
+		outputPrice: officialPricing.outputPrice ?? 0,
+		cachedInputPrice: officialPricing.cachedInputPrice,
+		minCacheableTokens: officialPricing.minCacheableTokens,
+		imageInputPrice: officialPricing.imageInputPrice,
+		imageOutputPrice: officialPricing.imageOutputPrice,
+		imageOutputTokensByResolution:
+			officialPricing.imageOutputTokensByResolution,
+		imageInputTokensByResolution: officialPricing.imageInputTokensByResolution,
+		requestPrice: officialPricing.requestPrice ?? 0,
+		discount: officialPricing.discount,
+		pricingTiers: officialPricing.pricingTiers,
+		webSearchPrice: officialPricing.webSearchPrice,
 		contextSize: 131072,
 		maxOutput: 16384,
 		streaming: true,
@@ -99,13 +110,17 @@ export const freecfmodelsModels = [
 		name: "Llama 3.1 8B FP8",
 		description: "Llama 3.1 8B FP8 exposed by the Free CF Models worker.",
 	}),
-	createProxyModel("llama-3.2-11b-vision", "meta", {
-		name: "Llama 3.2 11B Vision",
-		description:
-			"Llama 3.2 11B Vision exposed by the Free CF Models worker.",
-	}, {
-		vision: true,
-	}),
+	createProxyModel(
+		"llama-3.2-11b-vision",
+		"meta",
+		{
+			name: "Llama 3.2 11B Vision",
+			description: "Llama 3.2 11B Vision exposed by the Free CF Models worker.",
+		},
+		{
+			vision: true,
+		},
+	),
 	createProxyModel("llama-3.3-70b-fp8", "meta", {
 		name: "Llama 3.3 70B FP8",
 		description: "Llama 3.3 70B FP8 exposed by the Free CF Models worker.",
@@ -126,30 +141,50 @@ export const freecfmodelsModels = [
 		name: "Llama 2 7B",
 		description: "Llama 2 7B exposed by the Free CF Models worker.",
 	}),
-	createProxyModel("llama-guard-3", "meta", {
-		name: "Llama Guard 3",
-		description: "Llama Guard 3 exposed by the Free CF Models worker.",
-	}, {
-		tools: false,
-	}),
-	createProxyModel("qwq-32b", "alibaba", {
-		name: "QwQ 32B",
-		description: "QwQ 32B exposed by the Free CF Models worker.",
-	}, {
-		reasoning: true,
-	}),
-	createProxyModel("qwen-3-30b", "alibaba", {
-		name: "Qwen 3 30B",
-		description: "Qwen 3 30B exposed by the Free CF Models worker.",
-	}, {
-		reasoning: true,
-	}),
-	createProxyModel("qwen-2.5-coder", "alibaba", {
-		name: "Qwen 2.5 Coder",
-		description: "Qwen 2.5 Coder exposed by the Free CF Models worker.",
-	}, {
-		reasoning: true,
-	}),
+	createProxyModel(
+		"llama-guard-3",
+		"meta",
+		{
+			name: "Llama Guard 3",
+			description: "Llama Guard 3 exposed by the Free CF Models worker.",
+		},
+		{
+			tools: false,
+		},
+	),
+	createProxyModel(
+		"qwq-32b",
+		"alibaba",
+		{
+			name: "QwQ 32B",
+			description: "QwQ 32B exposed by the Free CF Models worker.",
+		},
+		{
+			reasoning: true,
+		},
+	),
+	createProxyModel(
+		"qwen-3-30b",
+		"alibaba",
+		{
+			name: "Qwen 3 30B",
+			description: "Qwen 3 30B exposed by the Free CF Models worker.",
+		},
+		{
+			reasoning: true,
+		},
+	),
+	createProxyModel(
+		"qwen-2.5-coder",
+		"alibaba",
+		{
+			name: "Qwen 2.5 Coder",
+			description: "Qwen 2.5 Coder exposed by the Free CF Models worker.",
+		},
+		{
+			reasoning: true,
+		},
+	),
 	createProxyModel("gemma-3-12b", "google", {
 		name: "Gemma 3 12B",
 		description: "Gemma 3 12B exposed by the Free CF Models worker.",
@@ -174,26 +209,36 @@ export const freecfmodelsModels = [
 		name: "Llama",
 		description: "Llama exposed by the Free CF Models worker.",
 	}),
-	createProxyModel("flux-1-schnell", "black-forest-labs", {
-		name: "FLUX.1 Schnell",
-		description:
-			"FLUX.1 Schnell image generation exposed by the Free CF Models worker.",
-		output: ["image"],
-	}, {
-		streaming: false,
-		tools: false,
-		jsonOutput: false,
-		imageGenerations: true,
-	}),
-	createProxyModel("stable-diffusion-xl", "stability", {
-		name: "Stable Diffusion XL",
-		description:
-			"Stable Diffusion XL image generation exposed by the Free CF Models worker.",
-		output: ["image"],
-	}, {
-		streaming: false,
-		tools: false,
-		jsonOutput: false,
-		imageGenerations: true,
-	}),
+	createProxyModel(
+		"flux-1-schnell",
+		"black-forest-labs",
+		{
+			name: "FLUX.1 Schnell",
+			description:
+				"FLUX.1 Schnell image generation exposed by the Free CF Models worker.",
+			output: ["image"],
+		},
+		{
+			streaming: false,
+			tools: false,
+			jsonOutput: false,
+			imageGenerations: true,
+		},
+	),
+	createProxyModel(
+		"stable-diffusion-xl",
+		"stability",
+		{
+			name: "Stable Diffusion XL",
+			description:
+				"Stable Diffusion XL image generation exposed by the Free CF Models worker.",
+			output: ["image"],
+		},
+		{
+			streaming: false,
+			tools: false,
+			jsonOutput: false,
+			imageGenerations: true,
+		},
+	),
 ] as const satisfies ModelDefinition[];

@@ -1,7 +1,6 @@
-import type {
-	ModelDefinition,
-	ProviderModelMapping,
-} from "@/models.js";
+import { getOfficialProxyPricing } from "./official-proxy-pricing.js";
+
+import type { ModelDefinition, ProviderModelMapping } from "@/models.js";
 
 const literouterProxyProviderId = "kiwillm-literouter-proxy" as const;
 
@@ -9,13 +8,25 @@ function createProxyMapping(
 	modelName: string,
 	overrides: Partial<ProviderModelMapping> = {},
 ): ProviderModelMapping {
+	const officialPricing = getOfficialProxyPricing(modelName, modelName);
+
 	return {
 		test: "skip",
 		providerId: literouterProxyProviderId,
 		modelName,
-		inputPrice: 0,
-		outputPrice: 0,
-		requestPrice: 0,
+		inputPrice: officialPricing.inputPrice ?? 0,
+		outputPrice: officialPricing.outputPrice ?? 0,
+		cachedInputPrice: officialPricing.cachedInputPrice,
+		minCacheableTokens: officialPricing.minCacheableTokens,
+		imageInputPrice: officialPricing.imageInputPrice,
+		imageOutputPrice: officialPricing.imageOutputPrice,
+		imageOutputTokensByResolution:
+			officialPricing.imageOutputTokensByResolution,
+		imageInputTokensByResolution: officialPricing.imageInputTokensByResolution,
+		requestPrice: officialPricing.requestPrice ?? 0,
+		discount: officialPricing.discount,
+		pricingTiers: officialPricing.pricingTiers,
+		webSearchPrice: officialPricing.webSearchPrice,
 		contextSize: 128000,
 		maxOutput: 16384,
 		streaming: true,
@@ -109,30 +120,45 @@ export const literouterProxyProviderAugments: Record<
 };
 
 export const literouterProxyModels = [
-	createProxyModel("deepseek-v3-0324", "deepseek", {
-		name: "DeepSeek V3 0324",
-		description: "DeepSeek V3 0324 exposed by the LiteRouter proxy.",
-	}, {
-		contextSize: 163840,
-	}),
+	createProxyModel(
+		"deepseek-v3-0324",
+		"deepseek",
+		{
+			name: "DeepSeek V3 0324",
+			description: "DeepSeek V3 0324 exposed by the LiteRouter proxy.",
+		},
+		{
+			contextSize: 163840,
+		},
+	),
 	createProxyModel("devstral", "mistral", {
 		name: "Devstral",
 		description: "Devstral exposed by the LiteRouter proxy.",
 	}),
-	createProxyModel("ernie-4.5-21b-a3b-thinking", "baidu", {
-		name: "ERNIE 4.5 21B A3B Thinking",
-		description:
-			"ERNIE 4.5 21B A3B Thinking exposed by the LiteRouter proxy.",
-	}, {
-		reasoning: true,
-	}),
-	createProxyModel("gemini", "google", {
-		name: "Gemini",
-		description: "Gemini exposed by the LiteRouter proxy.",
-	}, {
-		contextSize: 1048576,
-		vision: true,
-	}),
+	createProxyModel(
+		"ernie-4.5-21b-a3b-thinking",
+		"baidu",
+		{
+			name: "ERNIE 4.5 21B A3B Thinking",
+			description:
+				"ERNIE 4.5 21B A3B Thinking exposed by the LiteRouter proxy.",
+		},
+		{
+			reasoning: true,
+		},
+	),
+	createProxyModel(
+		"gemini",
+		"google",
+		{
+			name: "Gemini",
+			description: "Gemini exposed by the LiteRouter proxy.",
+		},
+		{
+			contextSize: 1048576,
+			vision: true,
+		},
+	),
 	createProxyModel("gemma-3-27b-it", "google", {
 		name: "Gemma 3 27B IT",
 		description: "Gemma 3 27B IT exposed by the LiteRouter proxy.",
@@ -141,20 +167,30 @@ export const literouterProxyModels = [
 		name: "Gemma",
 		description: "Gemma exposed by the LiteRouter proxy.",
 	}),
-	createProxyModel("gpt", "openai", {
-		name: "GPT",
-		description: "GPT exposed by the LiteRouter proxy.",
-	}, {
-		vision: true,
-		reasoning: true,
-		webSearch: true,
-	}),
-	createProxyModel("kat-coder-pro", "openai", {
-		name: "Kat Coder Pro",
-		description: "Kat Coder Pro exposed by the LiteRouter proxy.",
-	}, {
-		reasoning: true,
-	}),
+	createProxyModel(
+		"gpt",
+		"openai",
+		{
+			name: "GPT",
+			description: "GPT exposed by the LiteRouter proxy.",
+		},
+		{
+			vision: true,
+			reasoning: true,
+			webSearch: true,
+		},
+	),
+	createProxyModel(
+		"kat-coder-pro",
+		"openai",
+		{
+			name: "Kat Coder Pro",
+			description: "Kat Coder Pro exposed by the LiteRouter proxy.",
+		},
+		{
+			reasoning: true,
+		},
+	),
 	createProxyModel("l3-8b-lunaris", "meta", {
 		name: "L3 8B Lunaris",
 		description: "L3 8B Lunaris exposed by the LiteRouter proxy.",
@@ -165,8 +201,7 @@ export const literouterProxyModels = [
 	}),
 	createProxyModel("llama-3.1-8b-instruct-turbo", "meta", {
 		name: "Llama 3.1 8B Instruct Turbo",
-		description:
-			"Llama 3.1 8B Instruct Turbo exposed by the LiteRouter proxy.",
+		description: "Llama 3.1 8B Instruct Turbo exposed by the LiteRouter proxy.",
 	}),
 	createProxyModel("llama", "meta", {
 		name: "Llama",
@@ -190,19 +225,23 @@ export const literouterProxyModels = [
 	}),
 	createProxyModel("nemotron-3-super-120b-a12b", "nvidia", {
 		name: "Nemotron 3 Super 120B A12B",
-		description:
-			"Nemotron 3 Super 120B A12B exposed by the LiteRouter proxy.",
+		description: "Nemotron 3 Super 120B A12B exposed by the LiteRouter proxy.",
 	}),
 	createProxyModel("nemotron", "nvidia", {
 		name: "Nemotron",
 		description: "Nemotron exposed by the LiteRouter proxy.",
 	}),
-	createProxyModel("qwen", "alibaba", {
-		name: "Qwen",
-		description: "Qwen exposed by the LiteRouter proxy.",
-	}, {
-		reasoning: true,
-	}),
+	createProxyModel(
+		"qwen",
+		"alibaba",
+		{
+			name: "Qwen",
+			description: "Qwen exposed by the LiteRouter proxy.",
+		},
+		{
+			reasoning: true,
+		},
+	),
 	createProxyModel("step-3.5-flash", "stepfun", {
 		name: "Step 3.5 Flash",
 		description: "Step 3.5 Flash exposed by the LiteRouter proxy.",
