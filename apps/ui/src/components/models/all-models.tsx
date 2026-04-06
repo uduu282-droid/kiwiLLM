@@ -231,6 +231,15 @@ const ModelTableRow = React.memo(
 		) => React.ReactNode;
 	}) => {
 		const { ProviderIcon } = row;
+		const requestPrice =
+			row.provider.requestPrice !== null &&
+			row.provider.requestPrice !== undefined
+				? parseFloat(row.provider.requestPrice)
+				: 0;
+		const showsRequestPricing = requestPrice > 0;
+		const requestPriceLabel = `$${requestPrice.toFixed(
+			requestPrice >= 1 ? 2 : 3,
+		)}/req`;
 
 		return (
 			<>
@@ -344,17 +353,33 @@ const ModelTableRow = React.memo(
 
 					{/* Input Price Column */}
 					<TableCell className="py-3.5 text-right font-mono text-[15px]">
-						{formatPrice(row.provider.inputPrice, row.provider.discount)}
+						{showsRequestPricing ? (
+							<div className="flex flex-col items-end">
+								<span className="font-semibold">{requestPriceLabel}</span>
+								<span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+									Per Request
+								</span>
+							</div>
+						) : (
+							formatPrice(row.provider.inputPrice, row.provider.discount)
+						)}
 					</TableCell>
 
 					{/* Output Price Column */}
 					<TableCell className="py-3.5 text-right font-mono text-[15px]">
-						{formatPrice(row.provider.outputPrice, row.provider.discount)}
+						{showsRequestPricing
+							? "—"
+							: formatPrice(row.provider.outputPrice, row.provider.discount)}
 					</TableCell>
 
 					{/* Cache Read Price Column */}
 					<TableCell className="py-3.5 text-right font-mono text-[15px]">
-						{formatPrice(row.provider.cachedInputPrice, row.provider.discount)}
+						{showsRequestPricing
+							? "—"
+							: formatPrice(
+									row.provider.cachedInputPrice,
+									row.provider.discount,
+								)}
 					</TableCell>
 
 					{/* Features Column */}
