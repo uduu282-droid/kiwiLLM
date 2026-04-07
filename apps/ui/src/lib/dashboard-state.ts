@@ -5,8 +5,14 @@ import { useMemo, useCallback } from "react";
 
 import { useUser } from "@/hooks/useUser";
 import { useApi } from "@/lib/fetch-client";
+import { LIVE_DASHBOARD_REFRESH_MS } from "@/lib/live-refresh";
 
-import type { Organization, Project } from "@/lib/types";
+import type { BillingAccount, Organization, Project } from "@/lib/types";
+
+interface PersonalBillingResponse extends BillingAccount {
+	createdAt: string;
+	updatedAt: string;
+}
 
 interface UseDashboardStateProps {
 	initialOrganizationsData?: unknown;
@@ -36,14 +42,29 @@ export function useDashboardState({
 			initialData: initialOrganizationsData as
 				| { organizations: Organization[] }
 				| undefined,
-			staleTime: 5 * 60 * 1000, // 5 minutes
+			staleTime: LIVE_DASHBOARD_REFRESH_MS,
 			refetchOnWindowFocus: false,
+			refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+			refetchIntervalInBackground: true,
 		},
 	);
 	const organizations = useMemo(
 		() => organizationsData?.organizations ?? [],
 		[organizationsData?.organizations],
 	);
+
+	const { data: rawPersonalOrgData } = api.useQuery(
+		"get",
+		"/dev-plans/personal-org",
+		{},
+		{
+			staleTime: LIVE_DASHBOARD_REFRESH_MS,
+			refetchOnWindowFocus: false,
+			refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+			refetchIntervalInBackground: true,
+		},
+	);
+	const personalOrgData = rawPersonalOrgData as PersonalBillingResponse | undefined;
 
 	// Derive selected organization from props or default to first
 	const selectedOrganization = useMemo(() => {
@@ -87,6 +108,60 @@ export function useDashboardState({
 		}
 		return projects[0] ?? null;
 	}, [selectedProjectId, projects]);
+
+	const billingAccount = useMemo<BillingAccount | null>(() => {
+		if (personalOrgData) {
+			return {
+				id: personalOrgData.id,
+				name: personalOrgData.name,
+				credits: personalOrgData.credits,
+				isPersonal: personalOrgData.isPersonal,
+				plan: personalOrgData.plan,
+				planExpiresAt: personalOrgData.planExpiresAt,
+				billingEmail: personalOrgData.billingEmail,
+				autoTopUpEnabled: personalOrgData.autoTopUpEnabled,
+				autoTopUpThreshold: personalOrgData.autoTopUpThreshold,
+				autoTopUpAmount: personalOrgData.autoTopUpAmount,
+				devPlan: personalOrgData.devPlan,
+				devPlanCreditsUsed: personalOrgData.devPlanCreditsUsed,
+				devPlanCreditsLimit: personalOrgData.devPlanCreditsLimit,
+				devPlanBillingCycleStart: personalOrgData.devPlanBillingCycleStart,
+				devPlanCancelled: personalOrgData.devPlanCancelled,
+				devPlanExpiresAt: personalOrgData.devPlanExpiresAt,
+				devPlanAllowAllModels: personalOrgData.devPlanAllowAllModels,
+			};
+		}
+
+		if (!selectedOrganization) {
+			return null;
+		}
+
+		return {
+			id: selectedOrganization.id,
+			name: selectedOrganization.name,
+			credits: selectedOrganization.credits,
+			isPersonal: selectedOrganization.isPersonal,
+			plan: selectedOrganization.plan,
+			planExpiresAt: selectedOrganization.planExpiresAt
+				? new Date(selectedOrganization.planExpiresAt).toISOString()
+				: null,
+			billingEmail: selectedOrganization.billingEmail,
+			autoTopUpEnabled: selectedOrganization.autoTopUpEnabled,
+			autoTopUpThreshold: selectedOrganization.autoTopUpThreshold,
+			autoTopUpAmount: selectedOrganization.autoTopUpAmount,
+			devPlan: selectedOrganization.devPlan,
+			devPlanCreditsUsed: selectedOrganization.devPlanCreditsUsed,
+			devPlanCreditsLimit: selectedOrganization.devPlanCreditsLimit,
+			devPlanBillingCycleStart: selectedOrganization.devPlanBillingCycleStart
+				? new Date(selectedOrganization.devPlanBillingCycleStart).toISOString()
+				: null,
+			devPlanCancelled: false,
+			devPlanExpiresAt: selectedOrganization.devPlanExpiresAt
+				? new Date(selectedOrganization.devPlanExpiresAt).toISOString()
+				: null,
+			devPlanAllowAllModels: selectedOrganization.devPlanAllowAllModels,
+		};
+	}, [personalOrgData, selectedOrganization]);
 
 	// Navigation functions for the new route structure
 	const handleOrganizationCreated = useCallback(
@@ -138,6 +213,7 @@ export function useDashboardState({
 
 	return {
 		selectedOrganization,
+		billingAccount,
 		selectedProject,
 		organizations,
 		projects,

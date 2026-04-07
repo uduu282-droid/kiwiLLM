@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
 import { OrganizationCreditsCard } from "@/components/credits/organization-credits-card";
@@ -60,6 +61,19 @@ interface DashboardClientProps {
 	initialActivityData?: ActivitT;
 }
 
+interface FreeRequestLimitData {
+	minute: {
+		used: number;
+		remaining: number;
+		limit: number;
+	};
+	day: {
+		used: number;
+		remaining: number;
+		limit: number;
+	};
+}
+
 export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -89,7 +103,8 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 		}
 	}, [searchParams, router, buildUrl]);
 
-	const { selectedOrganization, selectedProject } = useDashboardNavigation();
+	const { selectedOrganization, selectedProject, billingAccount } =
+		useDashboardNavigation();
 	const api = useApi();
 
 	const { data, isLoading } = api.useQuery(
@@ -131,6 +146,36 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 	);
 
 	const planLimits = apiKeysData?.planLimits;
+	const currentPlan = planLimits?.plan === "pro" ? "pro" : "free";
+
+	const { data: freeRequestLimitData } = useQuery<FreeRequestLimitData>({
+		queryKey: [
+			"free-request-limit",
+			selectedOrganization?.id ?? "",
+			currentPlan,
+			config.apiUrl,
+		],
+		enabled: !!selectedOrganization?.id && currentPlan !== "pro",
+		staleTime: LIVE_DASHBOARD_REFRESH_MS,
+		refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+		refetchIntervalInBackground: true,
+		queryFn: async () => {
+			const response = await fetch(
+				`${config.apiUrl}/activity/free-request-limit?organizationId=${encodeURIComponent(
+					selectedOrganization?.id ?? "",
+				)}`,
+				{
+					credentials: "include",
+				},
+			);
+
+			if (!response.ok) {
+				throw new Error("Failed to load free request limit usage");
+			}
+
+			return (await response.json()) as FreeRequestLimitData;
+		},
+	});
 
 	// Function to update URL with new metric parameter
 	const updateMetricInUrl = (newMetric: "costs" | "requests") => {
@@ -196,14 +241,25 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 		return tokens.toString();
 	};
 
-	const currentPlan = planLimits?.plan === "pro" ? "pro" : "free";
 	const requestLimits =
 		currentPlan === "pro"
 			? { label: "Pro limits", rpm: 20, rpd: 2000 }
 			: { label: "Free limits", rpm: 10, rpd: 200 };
+	const dailyRequestsUsed =
+		currentPlan === "pro"
+			? totalRequests
+			: (freeRequestLimitData?.day.used ?? 0);
+	const dailyRequestsRemaining =
+		currentPlan === "pro"
+			? Math.max(requestLimits.rpd - totalRequests, 0)
+			: (freeRequestLimitData?.day.remaining ?? requestLimits.rpd);
+	const minuteRequestsUsed =
+		currentPlan === "pro"
+			? 0
+			: (freeRequestLimitData?.minute.used ?? 0);
 	const requestUsagePercent =
 		requestLimits.rpd > 0
-			? Math.min(100, (totalRequests / requestLimits.rpd) * 100)
+			? Math.min(100, (dailyRequestsUsed / requestLimits.rpd) * 100)
 			: 0;
 
 	const isInitialLoading = !selectedOrganization;
@@ -330,7 +386,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 										<span className="font-medium text-white">
 											{isLoading
 												? "Loading..."
-												: `${totalRequests.toLocaleString()} used in selected range`}
+												: `${dailyRequestsUsed.toLocaleString()} used in last 24h`}
 										</span>
 									</div>
 									<div className="h-2 overflow-hidden rounded-full bg-white/5">
@@ -341,24 +397,25 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 									</div>
 									<div className="flex items-center justify-between text-xs text-zinc-500">
 										<span>
-											{format(from, "MMM d")} - {format(to, "MMM d")}
+											{requestLimits.rpm} max per minute
+											{currentPlan !== "pro"
+												? ` • ${minuteRequestsUsed.toLocaleString()} used this minute`
+												: ""}
 										</span>
 										<span>
-											{Math.max(
-												requestLimits.rpd - totalRequests,
-												0,
-											).toLocaleString()}{" "}
-											remaining if this range were compared to the daily cap
+											{dailyRequestsRemaining.toLocaleString()} remaining in the
+											last 24h
 										</span>
 									</div>
 									<p className="text-xs text-zinc-500">
 										The {requestLimits.rpd} RPD cap is a rolling 24-hour limit.
-										This bar shows usage for the currently selected date range.
+										Paid credit-backed requests do not count against the free
+										request bucket.
 									</p>
 								</div>
 							</CardContent>
 						</Card>
-						<OrganizationCreditsCard organization={selectedOrganization} />
+						<OrganizationCreditsCard organization={billingAccount} />
 						<MetricCard
 							label="Total Requests"
 							value={isLoading ? "Loading..." : totalRequests.toLocaleString()}

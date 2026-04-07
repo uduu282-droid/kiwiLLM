@@ -18,6 +18,7 @@ import { isCodingModel } from "@/lib/coding-models.js";
 import { calculateCosts, shouldBillCancelledRequests } from "@/lib/costs.js";
 import { throwIamException, validateModelAccess } from "@/lib/iam.js";
 import { calculateDataStorageCost, insertLog } from "@/lib/logs.js";
+import { assertHostedCreditsAvailable } from "@/lib/model-access.js";
 import {
 	createCombinedSignal,
 	createStreamingCombinedSignal,
@@ -68,6 +69,7 @@ import {
 } from "@llmgateway/models";
 
 import { completionsRequestSchema } from "./schemas/completions.js";
+import { applyPlatformSecurity } from "./tools/apply-platform-security.js";
 import { convertImagesToBase64 } from "./tools/convert-images-to-base64.js";
 import { countInputImages } from "./tools/count-input-images.js";
 import { createLogEntry } from "./tools/create-log-entry.js";
@@ -138,6 +140,7 @@ const bareModelProviderAliases: Record<string, string> = {
 	"gpt-4o-mini": "kiwillm-claude-talkai/gpt-4o-mini",
 	"gemini-2.5-pro": "kiwillm-chatai-proxy/gemini-2.5-pro",
 	"gpt-oss-120b": "kiwillm-freecfmodels/gpt-oss-120b",
+	"kimi-k2.5": "kiwillm-kimi/kimi-k2.5",
 };
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
@@ -642,6 +645,12 @@ chat.openapi(completions, async (c) => {
 		}
 	}
 
+	({ messages } = {
+		messages: applyPlatformSecurity(
+			messages as Parameters<typeof applyPlatformSecurity>[0],
+		).messages as typeof messages,
+	});
+
 	// Validate coding model restriction for dev plan personal orgs
 	// This check must happen BEFORE capability checks to give the right error message
 	if (
@@ -763,9 +772,8 @@ chat.openapi(completions, async (c) => {
 
 		// Get available providers based on project mode
 		let availableProviders: string[] = [];
-		let activeProviderKeys: Awaited<
-			ReturnType<typeof findActiveProviderKeys>
-		> = [];
+		let activeProviderKeys: Awaited<ReturnType<typeof findActiveProviderKeys>> =
+			[];
 
 		if (project.mode === "api-keys") {
 			activeProviderKeys = await findActiveProviderKeys(project.organizationId);
@@ -918,7 +926,10 @@ chat.openapi(completions, async (c) => {
 					const providerMapping = provider as ProviderModelMapping;
 
 					// Skip deprecated provider mappings
-					if (providerMapping.deprecatedAt && now > providerMapping.deprecatedAt) {
+					if (
+						providerMapping.deprecatedAt &&
+						now > providerMapping.deprecatedAt
+					) {
 						return false;
 					}
 
@@ -1006,15 +1017,21 @@ chat.openapi(completions, async (c) => {
 
 			if (selectedModel && selectedProviders.length > 0) {
 				if (free_models_only && !selectionPass.freeOnly) {
-					logger.warn("Falling back from free-only auto routing to general auto routing", {
-						organizationId: project.organizationId,
-						apiKeyId: apiKey.id,
-					});
+					logger.warn(
+						"Falling back from free-only auto routing to general auto routing",
+						{
+							organizationId: project.organizationId,
+							apiKeyId: apiKey.id,
+						},
+					);
 				} else if (!free_models_only && !selectionPass.restrictToAllowed) {
-					logger.warn("Falling back from curated auto routing to broad auto routing", {
-						organizationId: project.organizationId,
-						apiKeyId: apiKey.id,
-					});
+					logger.warn(
+						"Falling back from curated auto routing to broad auto routing",
+						{
+							organizationId: project.organizationId,
+							apiKeyId: apiKey.id,
+						},
+					);
 				}
 				break;
 			}
@@ -1171,7 +1188,9 @@ chat.openapi(completions, async (c) => {
 								...new Set([
 									...providerKeys.map((key) => key.provider),
 									...providers
-										.filter((p) => p.id !== "llmgateway" && p.id !== usedProvider)
+										.filter(
+											(p) => p.id !== "llmgateway" && p.id !== usedProvider,
+										)
 										.filter((p) =>
 											providerCanUseHostedRouteWithoutKey(p.id as Provider),
 										)
@@ -1236,7 +1255,9 @@ chat.openapi(completions, async (c) => {
 						try {
 							if (project.mode === "api-keys") {
 								if (!providerKey?.token) {
-									if (providerCanUseHostedRouteWithoutKey(provider.providerId)) {
+									if (
+										providerCanUseHostedRouteWithoutKey(provider.providerId)
+									) {
 										routingToken = "";
 										routingConfigIndex = 0;
 									} else {
@@ -1535,76 +1556,83 @@ chat.openapi(completions, async (c) => {
 			let routeableModelProviders = availableModelProviders;
 
 			if (routeableModelProviders.length === 0) {
-				routeableModelProviders = iamFilteredModelProviders.filter((provider) => {
-					if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
-						return false;
-					}
-					// If web search tool is requested, only include providers that support it
-					if (webSearchTool) {
-						if ((provider as ProviderModelMapping).webSearch !== true) {
+				routeableModelProviders = iamFilteredModelProviders.filter(
+					(provider) => {
+						if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
 							return false;
 						}
-					}
-					// If JSON output is requested, only include providers that support it
-					if (
-						response_format?.type === "json_object" ||
-						response_format?.type === "json_schema"
-					) {
-						if ((provider as ProviderModelMapping).jsonOutput !== true) {
-							return false;
+						// If web search tool is requested, only include providers that support it
+						if (webSearchTool) {
+							if ((provider as ProviderModelMapping).webSearch !== true) {
+								return false;
+							}
 						}
-					}
-					// If JSON schema output is requested, also include providers that support it
-					if (response_format?.type === "json_schema") {
-						if ((provider as ProviderModelMapping).jsonOutputSchema !== true) {
-							return false;
-						}
-					}
-					// If images are present in messages, only include providers that support vision
-					if (hasImages && (provider as ProviderModelMapping).vision !== true) {
-						return false;
-					}
-					// If reasoning_effort is specified, only include providers with reasoning support
-					if (reasoning_effort !== undefined) {
-						if ((provider as ProviderModelMapping).reasoning !== true) {
-							return false;
-						}
-					}
-					// If reasoning_effort is NOT specified, prefer non-reasoning providers
-					// by excluding reasoning providers when a non-reasoning alternative exists for same provider
-					if (reasoning_effort === undefined) {
-						const hasNonReasoningAlternative = modelInfo.providers.some(
-							(p) =>
-								p.providerId === provider.providerId &&
-								(p as ProviderModelMapping).reasoning !== true,
-						);
+						// If JSON output is requested, only include providers that support it
 						if (
-							hasNonReasoningAlternative &&
-							(provider as ProviderModelMapping).reasoning === true
+							response_format?.type === "json_object" ||
+							response_format?.type === "json_schema"
+						) {
+							if ((provider as ProviderModelMapping).jsonOutput !== true) {
+								return false;
+							}
+						}
+						// If JSON schema output is requested, also include providers that support it
+						if (response_format?.type === "json_schema") {
+							if (
+								(provider as ProviderModelMapping).jsonOutputSchema !== true
+							) {
+								return false;
+							}
+						}
+						// If images are present in messages, only include providers that support vision
+						if (
+							hasImages &&
+							(provider as ProviderModelMapping).vision !== true
 						) {
 							return false;
 						}
-					}
+						// If reasoning_effort is specified, only include providers with reasoning support
+						if (reasoning_effort !== undefined) {
+							if ((provider as ProviderModelMapping).reasoning !== true) {
+								return false;
+							}
+						}
+						// If reasoning_effort is NOT specified, prefer non-reasoning providers
+						// by excluding reasoning providers when a non-reasoning alternative exists for same provider
+						if (reasoning_effort === undefined) {
+							const hasNonReasoningAlternative = modelInfo.providers.some(
+								(p) =>
+									p.providerId === provider.providerId &&
+									(p as ProviderModelMapping).reasoning !== true,
+							);
+							if (
+								hasNonReasoningAlternative &&
+								(provider as ProviderModelMapping).reasoning === true
+							) {
+								return false;
+							}
+						}
 
-					try {
-						return Boolean(
-							getProviderEndpoint(
-								provider.providerId,
-								undefined,
-								provider.modelName,
-								undefined,
-								stream,
-								(provider as ProviderModelMapping).reasoning === true,
-								hasExistingToolCalls,
-								undefined,
-								0,
-								(provider as ProviderModelMapping).imageGenerations === true,
-							),
-						);
-					} catch {
-						return false;
-					}
-				});
+						try {
+							return Boolean(
+								getProviderEndpoint(
+									provider.providerId,
+									undefined,
+									provider.modelName,
+									undefined,
+									stream,
+									(provider as ProviderModelMapping).reasoning === true,
+									hasExistingToolCalls,
+									undefined,
+									0,
+									(provider as ProviderModelMapping).imageGenerations === true,
+								),
+							);
+						} catch {
+							return false;
+						}
+					},
+				);
 			}
 
 			if (routeableModelProviders.length === 0) {
@@ -1796,6 +1824,17 @@ chat.openapi(completions, async (c) => {
 	const selectedProviderIsZeroCost = isProviderMappingTrulyFree(
 		billingProviderMapping as ProviderModelMapping | undefined,
 	);
+	const resolvedModelDefinition = (finalModelInfo ??
+		modelInfo) as ModelDefinition;
+	const promptPreview = messages
+		.map((message) => messageContentToString(message.content))
+		.join("\n");
+	const estimatedPromptTokens =
+		estimateTokens(usedProvider, messages, null, null, null)
+			.calculatedPromptTokens ?? null;
+	const estimatedCompletionTokens = max_tokens ?? 1024;
+	const estimatedReasoningTokens = reasoning_max_tokens ?? null;
+	const estimatedWebSearchCount = webSearchTool ? 1 : null;
 
 	if (
 		project.mode === "credits" &&
@@ -1843,19 +1882,23 @@ chat.openapi(completions, async (c) => {
 			totalAvailableCredits <= 0 &&
 			!isFreeTierOrganization &&
 			!free_models_only &&
-			!((finalModelInfo ?? modelInfo) as ModelDefinition).free &&
+			!resolvedModelDefinition.free &&
 			!selectedProviderIsZeroCost
 		) {
-			if (organization.devPlan !== "none" && devPlanCreditsRemaining <= 0) {
-				const renewalDate = organization.devPlanExpiresAt
-					? new Date(organization.devPlanExpiresAt).toLocaleDateString()
-					: "your next billing date";
-				throw new HTTPException(402, {
-					message: `Dev Plan credit limit reached. Upgrade your plan or wait for renewal on ${renewalDate}.`,
-				});
-			}
-			throw new HTTPException(402, {
-				message: `Organization ${organization.id} has insufficient credits`,
+			await assertHostedCreditsAvailable({
+				organization,
+				model: resolvedModelDefinition,
+				provider: usedProvider,
+				providerIsZeroCost: selectedProviderIsZeroCost,
+				promptTokens: estimatedPromptTokens,
+				completionTokens: estimatedCompletionTokens,
+				reasoningTokens: estimatedReasoningTokens,
+				inputImageCount,
+				imageSize: image_config?.image_size,
+				webSearchCount: estimatedWebSearchCount,
+				fullOutput: {
+					prompt: promptPreview,
+				},
 			});
 		}
 
@@ -1898,20 +1941,23 @@ chat.openapi(completions, async (c) => {
 				totalAvailableCredits <= 0 &&
 				!isFreeTierOrganization &&
 				!free_models_only &&
-				!isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition) &&
+				!isModelTrulyFree(resolvedModelDefinition) &&
 				!selectedProviderIsZeroCost
 			) {
-				if (organization.devPlan !== "none" && devPlanCreditsRemaining <= 0) {
-					const renewalDate = organization.devPlanExpiresAt
-						? new Date(organization.devPlanExpiresAt).toLocaleDateString()
-						: "your next billing date";
-					throw new HTTPException(402, {
-						message: `No API key set for provider. Dev Plan credit limit reached. Upgrade your plan or wait for renewal on ${renewalDate}.`,
-					});
-				}
-				throw new HTTPException(402, {
-					message:
-						"No API key set for provider and organization has insufficient credits",
+				await assertHostedCreditsAvailable({
+					organization,
+					model: resolvedModelDefinition,
+					provider: usedProvider,
+					providerIsZeroCost: selectedProviderIsZeroCost,
+					promptTokens: estimatedPromptTokens,
+					completionTokens: estimatedCompletionTokens,
+					reasoningTokens: estimatedReasoningTokens,
+					inputImageCount,
+					imageSize: image_config?.image_size,
+					webSearchCount: estimatedWebSearchCount,
+					fullOutput: {
+						prompt: promptPreview,
+					},
 				});
 			}
 
@@ -1933,9 +1979,37 @@ chat.openapi(completions, async (c) => {
 		});
 	}
 
+	if (
+		(!providerKey || !providerKey.token) &&
+		!free_models_only &&
+		!isModelTrulyFree(resolvedModelDefinition) &&
+		!selectedProviderIsZeroCost
+	) {
+		await assertHostedCreditsAvailable({
+			organization,
+			model: resolvedModelDefinition,
+			provider: usedProvider,
+			providerIsZeroCost: selectedProviderIsZeroCost,
+			promptTokens: estimatedPromptTokens,
+			completionTokens: estimatedCompletionTokens,
+			reasoningTokens: estimatedReasoningTokens,
+			inputImageCount,
+			imageSize: image_config?.image_size,
+			webSearchCount: estimatedWebSearchCount,
+			fullOutput: {
+				prompt: promptPreview,
+			},
+		});
+	}
+
+	const shouldApplyFreeUserUsageLimit =
+		(!providerKey || !providerKey.token) &&
+		isFreeTierOrganization &&
+		(isModelTrulyFree(resolvedModelDefinition) || selectedProviderIsZeroCost);
+
 	// Apply free-tier protections when requests use Kiwi-managed provider tokens.
 	if (!providerKey || !providerKey.token) {
-		if (isFreeTierOrganization) {
+		if (shouldApplyFreeUserUsageLimit) {
 			try {
 				await validateFreeUserUsage(c, project.organizationId, {
 					skipEmailVerification: onboarding,
@@ -1947,8 +2021,7 @@ chat.openapi(completions, async (c) => {
 						? parseFloat(organization.devPlanCreditsLimit ?? "0") -
 							parseFloat(organization.devPlanCreditsUsed ?? "0")
 						: 0;
-				const totalAvailableCredits =
-					regularCredits + devPlanCreditsRemaining;
+				const totalAvailableCredits = regularCredits + devPlanCreditsRemaining;
 
 				if (
 					error instanceof HTTPException &&

@@ -116,10 +116,10 @@ function buildInsufficientCreditsMessage(
 	const available = formatCredits(availableCredits);
 
 	if (tier === "payg") {
-		return `Model ${modelId} is Pay as you go. This request is estimated to cost $${required}, but only $${available} credits are available. Add more credits and try again.`;
+		return `Low credit balance. Model ${modelId} is Pay as you go. This request is estimated to cost $${required}, but only $${available} credits are available. Add more credits and try again.`;
 	}
 
-	return `Model ${modelId} is in the ${tierLabel} catalog. This request is estimated to cost $${required}, but only $${available} credits are available. Add more credits or lower max_tokens and try again.`;
+	return `Low credit balance. Model ${modelId} is in the ${tierLabel} catalog. This request is estimated to cost $${required}, but only $${available} credits are available. Add more credits or lower max_tokens and try again.`;
 }
 
 export async function assertHostedCreditsAvailable(
