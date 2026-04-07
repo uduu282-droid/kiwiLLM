@@ -310,9 +310,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 							<CardContent className="p-6">
 								<div className="mb-5 flex items-start justify-between gap-4">
 									<div>
-										<p className="text-sm text-zinc-400">
-											Daily Request Limits
-										</p>
+										<p className="text-sm text-zinc-400">Request Limits</p>
 										<div className="mt-2 flex items-end gap-3">
 											<p className="text-3xl font-semibold tracking-tight text-white">
 												{requestLimits.rpm} RPM
@@ -332,7 +330,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 										<span className="font-medium text-white">
 											{isLoading
 												? "Loading..."
-												: `${totalRequests.toLocaleString()} used`}
+												: `${totalRequests.toLocaleString()} used in selected range`}
 										</span>
 									</div>
 									<div className="h-2 overflow-hidden rounded-full bg-white/5">
@@ -350,9 +348,13 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 												requestLimits.rpd - totalRequests,
 												0,
 											).toLocaleString()}{" "}
-											remaining
+											remaining if this range were compared to the daily cap
 										</span>
 									</div>
+									<p className="text-xs text-zinc-500">
+										The {requestLimits.rpd} RPD cap is a rolling 24-hour limit.
+										This bar shows usage for the currently selected date range.
+									</p>
 								</div>
 							</CardContent>
 						</Card>
