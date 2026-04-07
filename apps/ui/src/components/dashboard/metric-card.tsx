@@ -9,7 +9,7 @@ export function MetricCard({
 }: {
 	label: string;
 	value: string;
-	subtitle?: string;
+	subtitle?: React.ReactNode;
 	icon?: React.ReactNode;
 	accent?: "green" | "blue" | "purple";
 }) {
@@ -22,7 +22,9 @@ export function MetricCard({
 					</p>
 					<p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
 					{subtitle ? (
-						<p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+						<div className="mt-2 text-xs text-muted-foreground">
+							{subtitle}
+						</div>
 					) : null}
 				</div>
 				{icon ? (

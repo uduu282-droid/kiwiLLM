@@ -140,6 +140,27 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 		},
 	);
 
+	const { data: allTimeActivityResponse, isLoading: isAllTimeLoading } =
+		api.useQuery(
+			"get",
+			"/activity",
+			{
+				params: {
+					query: {
+						days: "36500",
+						...(selectedProject?.id ? { projectId: selectedProject.id } : {}),
+					},
+				},
+			},
+			{
+				enabled: !!selectedProject?.id,
+				refetchOnWindowFocus: false,
+				staleTime: 1000 * 60 * 30,
+				refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+				refetchIntervalInBackground: true,
+			},
+		);
+
 	// Get API keys data to check plan limits
 	const { data: apiKeysData } = api.useQuery(
 		"get",
@@ -188,9 +209,28 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 	};
 
 	const activityData = data?.activity ?? [];
+	const allTimeActivityData = allTimeActivityResponse?.activity ?? [];
 
 	const totalRequests =
 		activityData.reduce((sum, day) => sum + day.requestCount, 0) ?? 0;
+	const allTimeTotalRequests =
+		allTimeActivityData.reduce((sum, day) => sum + day.requestCount, 0) ?? 0;
+	const allTimeTotalCost =
+		allTimeActivityData.reduce((sum, day) => sum + day.cost, 0) ?? 0;
+	const allTimeAverageCacheRate =
+		allTimeActivityData.length > 0
+			? allTimeActivityData.reduce((sum, day) => sum + day.cacheRate, 0) /
+				allTimeActivityData.length
+			: 0;
+	const allTimeCreditsRequests =
+		allTimeActivityData.reduce((sum, day) => sum + day.creditsRequestCount, 0) ??
+		0;
+	const allTimeApiKeyRequests =
+		allTimeActivityData.reduce((sum, day) => sum + day.apiKeysRequestCount, 0) ??
+		0;
+	const firstActiveDate = allTimeActivityData[0]?.date;
+	const lastActiveDate =
+		allTimeActivityData[allTimeActivityData.length - 1]?.date;
 
 	// Track when user reaches 50+ calls for invite banner eligibility
 	useEffect(() => {
@@ -417,20 +457,67 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 						<OrganizationCreditsCard organization={selectedOrganization} />
 						<MetricCard
 							label="Total Requests"
-							value={isLoading ? "Loading..." : totalRequests.toLocaleString()}
+							value={
+								isAllTimeLoading
+									? "Loading..."
+									: allTimeTotalRequests.toLocaleString()
+							}
 							subtitle={
-								isLoading
-									? "–"
-									: `${format(from, "MMM d")} - ${format(to, "MMM d")}${
-											activityData.length > 0
-												? ` • ${(
-														activityData.reduce(
-															(sum, day) => sum + day.cacheRate,
-															0,
-														) / activityData.length
-													).toFixed(1)}% cached`
-												: ""
-										}`
+								isAllTimeLoading ? (
+									"–"
+								) : (
+									<div className="space-y-2">
+										<p className="text-zinc-500">All-time across this project</p>
+										<div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] sm:text-xs">
+											<div className="flex items-center justify-between gap-2">
+												<span className="text-zinc-500">Selected range</span>
+												<span className="font-medium text-foreground">
+													{totalRequests.toLocaleString()}
+												</span>
+											</div>
+											<div className="flex items-center justify-between gap-2">
+												<span className="text-zinc-500">Lifetime cached</span>
+												<span className="font-medium text-foreground">
+													{allTimeAverageCacheRate.toFixed(1)}%
+												</span>
+											</div>
+											<div className="flex items-center justify-between gap-2">
+												<span className="text-zinc-500">Credits requests</span>
+												<span className="font-medium text-foreground">
+													{allTimeCreditsRequests.toLocaleString()}
+												</span>
+											</div>
+											<div className="flex items-center justify-between gap-2">
+												<span className="text-zinc-500">API key requests</span>
+												<span className="font-medium text-foreground">
+													{allTimeApiKeyRequests.toLocaleString()}
+												</span>
+											</div>
+											<div className="flex items-center justify-between gap-2">
+												<span className="text-zinc-500">Started</span>
+												<span className="font-medium text-foreground">
+													{firstActiveDate
+														? format(new Date(`${firstActiveDate}T00:00:00`), "MMM d, yyyy")
+														: "—"}
+												</span>
+											</div>
+											<div className="flex items-center justify-between gap-2">
+												<span className="text-zinc-500">Last active</span>
+												<span className="font-medium text-foreground">
+													{lastActiveDate
+														? format(new Date(`${lastActiveDate}T00:00:00`), "MMM d, yyyy")
+														: "—"}
+												</span>
+											</div>
+										</div>
+										<p className="text-zinc-500">
+											Lifetime spend:{" "}
+											<span className="font-medium text-foreground">
+												{formatExactDashboardUsd(allTimeTotalCost)}
+											</span>
+										</p>
+									</div>
+								)
 							}
 							icon={<Zap className="h-4 w-4" />}
 							accent="purple"
