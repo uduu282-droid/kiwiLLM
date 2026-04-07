@@ -2,29 +2,26 @@
 
 import { format, subDays } from "date-fns";
 import {
-	CreditCard,
 	Zap,
 	Key,
-	KeyRound,
 	Activity,
 	CircleDollarSign,
-	BarChart3,
 	ChartColumnBig,
-	TrendingDown,
 	ArrowDownToLine,
 	ArrowUpFromLine,
 	Server,
-	Crown,
 	ExternalLink,
 	BookOpen,
 	FlaskConical,
 	MessageSquare,
+	Gauge,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
 import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
+import { OrganizationCreditsCard } from "@/components/credits/organization-credits-card";
 import { TopUpCreditsButton } from "@/components/credits/top-up-credits-dialog";
 import { CostBreakdownCard } from "@/components/dashboard/cost-breakdown-card";
 import { ErrorsReliabilityCard } from "@/components/dashboard/errors-reliability-card";
@@ -55,6 +52,7 @@ import {
 } from "@/lib/components/select";
 import { useAppConfig } from "@/lib/config";
 import { useApi } from "@/lib/fetch-client";
+import { LIVE_DASHBOARD_REFRESH_MS } from "@/lib/live-refresh";
 
 import type { ActivitT } from "@/types/activity";
 
@@ -65,7 +63,7 @@ interface DashboardClientProps {
 export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const { buildUrl, buildOrgUrl } = useDashboardNavigation();
+	const { buildUrl } = useDashboardNavigation();
 	const config = useAppConfig();
 
 	// Get date range from URL params
@@ -111,6 +109,8 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 			initialData: searchParams.get("from") ? initialActivityData : undefined,
 			refetchOnWindowFocus: false,
 			staleTime: 1000 * 60 * 5, // 5 minutes
+			refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+			refetchIntervalInBackground: true,
 		},
 	);
 
@@ -159,8 +159,6 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 		activityData.reduce((sum, day) => sum + day.dataStorageCost, 0) ?? 0;
 	const totalRequestCost =
 		activityData.reduce((sum, day) => sum + day.requestCost, 0) ?? 0;
-	const totalSavings =
-		activityData.reduce((sum, day) => sum + day.discountSavings, 0) ?? 0;
 	const totalInputTokens =
 		activityData.reduce((sum, day) => sum + day.inputTokens, 0) ?? 0;
 	const totalOutputTokens =
@@ -170,41 +168,11 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 	const totalCachedInputCost =
 		activityData.reduce((sum, day) => sum + day.cachedInputCost, 0) ?? 0;
 
-	const { mostUsedModel, mostUsedProvider } = (() => {
-		const modelCostMap = new Map<string, { cost: number; provider: string }>();
-		for (const day of activityData) {
-			for (const m of day.modelBreakdown) {
-				const existing = modelCostMap.get(m.id);
-				if (existing) {
-					existing.cost += m.cost;
-				} else {
-					modelCostMap.set(m.id, { cost: m.cost, provider: m.provider });
-				}
-			}
-		}
-		let topModel = "";
-		let topProvider = "";
-		let topCost = 0;
-		for (const [model, { cost, provider }] of Array.from(modelCostMap)) {
-			if (cost > topCost) {
-				topCost = cost;
-				topModel = model;
-				topProvider = provider;
-			}
-		}
-		return { mostUsedModel: topModel, mostUsedProvider: topProvider };
-	})();
-
 	const quickActions = [
 		{
-			href: "api-keys",
-			icon: Key,
-			label: "Manage API Keys",
-		},
-		{
-			href: "provider-keys",
-			icon: KeyRound,
-			label: "Provider Keys",
+			href: "usage",
+			icon: ChartColumnBig,
+			label: "Analytics",
 		},
 		{
 			href: "activity",
@@ -212,14 +180,9 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 			label: "View Activity",
 		},
 		{
-			href: "usage",
-			icon: BarChart3,
-			label: "Usage & Metrics",
-		},
-		{
-			href: "model-usage",
-			icon: ChartColumnBig,
-			label: "Model Usage",
+			href: "api-keys",
+			icon: Key,
+			label: "Manage API Keys",
 		},
 	] as const;
 
@@ -232,6 +195,16 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 		}
 		return tokens.toString();
 	};
+
+	const currentPlan = planLimits?.plan === "pro" ? "pro" : "free";
+	const requestLimits =
+		currentPlan === "pro"
+			? { label: "Pro limits", rpm: 20, rpd: 2000 }
+			: { label: "Free limits", rpm: 10, rpd: 200 };
+	const requestUsagePercent =
+		requestLimits.rpd > 0
+			? Math.min(100, (totalRequests / requestLimits.rpd) * 100)
+			: 0;
 
 	const isInitialLoading = !selectedOrganization;
 
@@ -268,55 +241,62 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 
 	return (
 		<div className="flex flex-col">
-			<div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-				<div className="flex flex-col md:flex-row items-center justify-between space-y-2">
-					<div>
-						<h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-						{selectedProject && (
-							<p className="text-sm text-muted-foreground mt-1">
-								Project: {selectedProject.name}
-								{selectedOrganization && (
-									<span className="ml-2">
-										• Organization: {selectedOrganization.name}
-									</span>
-								)}
-							</p>
-						)}
-					</div>
-					<div className="flex items-center space-x-2">
-						{selectedOrganization && selectedProject && (
-							<>
-								<CreateApiKeyDialog
-									selectedProject={selectedProject}
-									disabled={
-										planLimits
-											? planLimits.currentCount >= planLimits.maxKeys
-											: false
-									}
-									disabledMessage={
-										planLimits
-											? `${planLimits.plan === "pro" ? "Pro" : "Free"} plan allows maximum ${planLimits.maxKeys} API keys per project`
-											: undefined
-									}
-								>
-									<Button
-										variant="outline"
+			<div className="flex-1 space-y-6 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_25%),radial-gradient(circle_at_top_left,rgba(59,130,246,0.08),transparent_22%),#050505] p-4 pt-6 md:p-8">
+				<div className="rounded-[28px] border border-white/10 bg-black/30 px-6 py-6 shadow-[0_0_0_1px_rgba(255,255,255,0.04)] md:px-8">
+					<div className="flex flex-col md:flex-row items-center justify-between space-y-2">
+						<div>
+							<h1 className="text-3xl font-bold tracking-tight text-white">
+								Dashboard
+							</h1>
+							{selectedProject && (
+								<p className="mt-1 text-sm text-zinc-400">
+									Project: {selectedProject.name}
+									{selectedOrganization && (
+										<span className="ml-2">
+											• Organization: {selectedOrganization.name}
+										</span>
+									)}
+									<span className="ml-2">• Live usage refreshes every 15s</span>
+								</p>
+							)}
+						</div>
+						<div className="flex items-center space-x-2">
+							{selectedOrganization && selectedProject && (
+								<>
+									<CreateApiKeyDialog
+										selectedProject={selectedProject}
 										disabled={
-											!selectedProject ||
-											(planLimits
+											planLimits
 												? planLimits.currentCount >= planLimits.maxKeys
-												: false)
+												: false
 										}
-										className="flex items-center"
+										disabledMessage={
+											planLimits
+												? `${planLimits.plan === "pro" ? "Pro" : "Free"} plan allows maximum ${planLimits.maxKeys} API keys per project`
+												: undefined
+										}
 									>
-										<Key className="mr-2 h-4 w-4" />
-										Create API Key
-									</Button>
-								</CreateApiKeyDialog>
+										<Button
+											variant="outline"
+											disabled={
+												!selectedProject ||
+												(planLimits
+													? planLimits.currentCount >= planLimits.maxKeys
+													: false)
+											}
+											className="flex items-center border-white/10 bg-white/5 text-white hover:bg-white/10"
+										>
+											<Key className="mr-2 h-4 w-4" />
+											Create API Key
+										</Button>
+									</CreateApiKeyDialog>
+									<TopUpCreditsButton />
+								</>
+							)}
+							{selectedOrganization && !selectedProject && (
 								<TopUpCreditsButton />
-							</>
-						)}
-						{selectedOrganization && !selectedProject && <TopUpCreditsButton />}
+							)}
+						</div>
 					</div>
 				</div>
 
@@ -326,17 +306,59 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 
 				<div className="space-y-4">
 					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-						<MetricCard
-							label="Organization Credits"
-							value={`$${
-								selectedOrganization
-									? Number(selectedOrganization.credits).toFixed(8)
-									: "0.00"
-							}`}
-							subtitle="Available balance"
-							icon={<CreditCard className="h-4 w-4" />}
-							accent="blue"
-						/>
+						<Card className="rounded-[28px] border-white/10 bg-black/30 shadow-[0_0_0_1px_rgba(255,255,255,0.04)] lg:col-span-2">
+							<CardContent className="p-6">
+								<div className="mb-5 flex items-start justify-between gap-4">
+									<div>
+										<p className="text-sm text-zinc-400">Request Limits</p>
+										<div className="mt-2 flex items-end gap-3">
+											<p className="text-3xl font-semibold tracking-tight text-white">
+												{requestLimits.rpm} RPM
+											</p>
+											<p className="pb-1 text-sm text-zinc-500">
+												{requestLimits.rpd} RPD
+											</p>
+										</div>
+									</div>
+									<div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+										<Gauge className="h-5 w-5" />
+									</div>
+								</div>
+								<div className="space-y-3">
+									<div className="flex items-center justify-between text-sm">
+										<span className="text-zinc-400">{requestLimits.label}</span>
+										<span className="font-medium text-white">
+											{isLoading
+												? "Loading..."
+												: `${totalRequests.toLocaleString()} used in selected range`}
+										</span>
+									</div>
+									<div className="h-2 overflow-hidden rounded-full bg-white/5">
+										<div
+											className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all"
+											style={{ width: `${requestUsagePercent}%` }}
+										/>
+									</div>
+									<div className="flex items-center justify-between text-xs text-zinc-500">
+										<span>
+											{format(from, "MMM d")} - {format(to, "MMM d")}
+										</span>
+										<span>
+											{Math.max(
+												requestLimits.rpd - totalRequests,
+												0,
+											).toLocaleString()}{" "}
+											remaining if this range were compared to the daily cap
+										</span>
+									</div>
+									<p className="text-xs text-zinc-500">
+										The {requestLimits.rpd} RPD cap is a rolling 24-hour limit.
+										This bar shows usage for the currently selected date range.
+									</p>
+								</div>
+							</CardContent>
+						</Card>
+						<OrganizationCreditsCard organization={selectedOrganization} />
 						<MetricCard
 							label="Total Requests"
 							value={isLoading ? "Loading..." : totalRequests.toLocaleString()}
@@ -377,17 +399,6 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 							accent="purple"
 						/>
 						<MetricCard
-							label="Total Savings"
-							value={isLoading ? "Loading..." : `$${totalSavings.toFixed(4)}`}
-							subtitle={
-								isLoading
-									? "–"
-									: `Discounts from ${format(from, "MMM d")} - ${format(to, "MMM d")}`
-							}
-							icon={<TrendingDown className="h-4 w-4" />}
-							accent="green"
-						/>
-						<MetricCard
 							label="Input Tokens & Cost"
 							value={
 								isLoading
@@ -426,23 +437,10 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 							icon={<Server className="h-4 w-4" />}
 							accent="green"
 						/>
-						<MetricCard
-							label="Most Used Model"
-							value={isLoading ? "Loading..." : mostUsedModel || "—"}
-							subtitle={
-								isLoading
-									? "–"
-									: mostUsedProvider
-										? `Provider: ${mostUsedProvider}`
-										: `${format(from, "MMM d")} - ${format(to, "MMM d")}`
-							}
-							icon={<Crown className="h-4 w-4" />}
-							accent="blue"
-						/>
 					</div>
 					{!isLoading && totalRequests < 5 ? (
 						<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-							<Card className="col-span-4">
+							<Card className="col-span-4 rounded-[28px] border-white/10 bg-black/30 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
 								<CardHeader>
 									<CardTitle>Get Started</CardTitle>
 									<CardDescription>
@@ -485,7 +483,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 									</div>
 								</CardContent>
 							</Card>
-							<Card className="col-span-3">
+							<Card className="col-span-3 rounded-[28px] border-white/10 bg-black/30 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
 								<CardHeader>
 									<CardTitle>Quick Actions</CardTitle>
 									<CardDescription>
@@ -500,14 +498,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 											variant="outline"
 											className="w-full justify-start"
 										>
-											<Link
-												href={
-													action.href === "provider-keys"
-														? buildOrgUrl("org/provider-keys")
-														: buildUrl(action.href)
-												}
-												prefetch={true}
-											>
+											<Link href={buildUrl(action.href)} prefetch={true}>
 												<action.icon className="mr-2 h-4 w-4" />
 												{action.label}
 											</Link>
@@ -518,7 +509,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 						</div>
 					) : (
 						<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-							<Card className="col-span-4">
+							<Card className="col-span-4 rounded-[28px] border-white/10 bg-black/30 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
 								<CardHeader>
 									<div className="flex items-start justify-between">
 										<div className="flex-1">
@@ -553,7 +544,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 									/>
 								</CardContent>
 							</Card>
-							<Card className="col-span-3">
+							<Card className="col-span-3 rounded-[28px] border-white/10 bg-black/30 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
 								<CardHeader>
 									<CardTitle>Quick Actions</CardTitle>
 									<CardDescription>
@@ -568,14 +559,7 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 											variant="outline"
 											className="w-full justify-start"
 										>
-											<Link
-												href={
-													action.href === "provider-keys"
-														? buildOrgUrl("org/provider-keys")
-														: buildUrl(action.href)
-												}
-												prefetch={true}
-											>
+											<Link href={buildUrl(action.href)} prefetch={true}>
 												<action.icon className="mr-2 h-4 w-4" />
 												{action.label}
 											</Link>
@@ -589,10 +573,6 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
 						<div className="col-span-4 space-y-4">
 							<CostBreakdownCard initialActivityData={initialActivityData} />
-							<RecentActivityCard
-								activityData={activityData}
-								isLoading={isLoading}
-							/>
 						</div>
 						<div className="col-span-3">
 							<ErrorsReliabilityCard
@@ -600,6 +580,12 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 								isLoading={isLoading}
 							/>
 						</div>
+					</div>
+					<div>
+						<RecentActivityCard
+							activityData={activityData}
+							isLoading={isLoading}
+						/>
 					</div>
 				</div>
 			</div>
