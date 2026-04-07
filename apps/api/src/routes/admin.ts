@@ -3330,6 +3330,13 @@ admin.openapi(giftCreditsRoute, async (c) => {
 			})
 			.returning({ id: tables.transaction.id });
 
+		await tx.insert(tables.organizationAction).values({
+			organizationId: orgId,
+			type: "credit",
+			amount: creditAmount.toString(),
+			description,
+		});
+
 		const [updatedOrg] = await tx
 			.update(tables.organization)
 			.set({
@@ -3421,7 +3428,9 @@ admin.openapi(createCouponRoute, async (c) => {
 		`KIWI-${randomBytes(4).toString("hex").toUpperCase()}`;
 	const now = new Date();
 	const couponIdentifier = `coupon:${generatedCode}`;
-	const effectiveExpiresAt = expiresAt ?? new Date("2099-12-31T23:59:59.000Z");
+<<<<<<< HEAD
+	const effectiveExpiresAt =
+		expiresAt ?? new Date("2099-12-31T23:59:59.000Z");
 
 	try {
 		const [existingCoupon] = await db

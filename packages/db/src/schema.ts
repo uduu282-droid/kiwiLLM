@@ -178,6 +178,19 @@ export const referral = pgTable(
 			.notNull()
 			.unique()
 			.references(() => organization.id, { onDelete: "cascade" }),
+		status: text({
+			enum: ["pending", "rewarded", "blocked"],
+		})
+			.notNull()
+			.default("pending"),
+		signupIpAddress: text(),
+		signupUserAgent: text(),
+		qualifiedAt: timestamp(),
+		rewardedAt: timestamp(),
+		referrerRewardAmount: decimal().notNull().default("0"),
+		referredRewardAmount: decimal().notNull().default("0"),
+		qualifiedRequestId: text(),
+		blockReason: text(),
 	},
 	(table) => [
 		index("referral_referrer_organization_id_idx").on(
@@ -186,6 +199,7 @@ export const referral = pgTable(
 		index("referral_referred_organization_id_idx").on(
 			table.referredOrganizationId,
 		),
+		index("referral_status_idx").on(table.status),
 	],
 );
 
@@ -245,7 +259,7 @@ export const followUpEmail = pgTable(
 			.notNull()
 			.references(() => organization.id, { onDelete: "cascade" }),
 		emailType: text({
-			enum: ["no_purchase", "low_usage", "no_repurchase"],
+			enum: ["no_purchase", "low_usage", "no_repurchase", "low_balance"],
 		}).notNull(),
 		sentTo: text().notNull(),
 	},

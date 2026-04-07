@@ -19,12 +19,18 @@ import {
 	type LogInsertData,
 	lt,
 	organization,
+	shortid,
 	sql,
 	tables,
 } from "@llmgateway/db";
 import { logger } from "@llmgateway/logger";
 import { hasErrorCode } from "@llmgateway/models";
 import { calculateFees } from "@llmgateway/shared";
+import {
+	fromEmail,
+	getResendClient,
+	replyToEmail,
+} from "@llmgateway/shared/email";
 
 import { runFollowUpEmailsLoop } from "./services/follow-up-emails.js";
 import {
@@ -68,6 +74,8 @@ const LOCK_DURATION_MINUTES = 5;
 const BATCH_SIZE = Number(process.env.CREDIT_BATCH_SIZE) || 100;
 const BATCH_PROCESSING_INTERVAL_SECONDS =
 	Number(process.env.CREDIT_BATCH_INTERVAL) || 5;
+const LOW_BALANCE_WARNING_THRESHOLD = new Decimal(1);
+const LOW_BALANCE_WARNING_SUBJECT = "Low credit balance warning";
 
 const schema = z.object({
 	id: z.string(),
@@ -478,6 +486,149 @@ export async function cleanupExpiredLogData(): Promise<void> {
 	}
 }
 
+async function updateLowBalanceWarningState({
+	tx,
+	orgId,
+	organizationName,
+	billingEmail,
+	totalAvailableCredits,
+	warningsToSend,
+}: {
+	tx: Parameters<Parameters<typeof db.transaction>[0]>[0];
+	orgId: string;
+	organizationName: string;
+	billingEmail: string;
+	totalAvailableCredits: Decimal;
+	warningsToSend: Array<{
+		organizationId: string;
+		organizationName: string;
+		to: string;
+		totalAvailableCredits: string;
+	}>;
+}) {
+	if (totalAvailableCredits.lte(LOW_BALANCE_WARNING_THRESHOLD)) {
+		if (!billingEmail) {
+			return;
+		}
+
+		const existingWarning = await tx.execute(sql`
+			select id
+			from follow_up_email
+			where organization_id = ${orgId}
+				and email_type = 'low_balance'
+			limit 1
+		`);
+
+		if (existingWarning.rows.length === 0) {
+			await tx.execute(sql`
+				insert into follow_up_email (id, organization_id, email_type, sent_to, created_at)
+				values (${shortid()}, ${orgId}, 'low_balance', ${billingEmail}, now())
+			`);
+
+			warningsToSend.push({
+				organizationId: orgId,
+				organizationName,
+				to: billingEmail,
+				totalAvailableCredits: totalAvailableCredits.toFixed(2),
+			});
+		}
+
+		return;
+	}
+
+	await tx
+		.execute(sql`
+			delete from follow_up_email
+			where organization_id = ${orgId}
+				and email_type = 'low_balance'
+		`);
+}
+
+async function sendLowBalanceWarningEmail({
+	organizationId,
+	organizationName,
+	to,
+	totalAvailableCredits,
+}: {
+	organizationId: string;
+	organizationName: string;
+	to: string;
+	totalAvailableCredits: string;
+}) {
+	if (process.env.NODE_ENV !== "production") {
+		logger.info("Low balance warning email content (not sent in non-production)", {
+			organizationId,
+			to,
+			subject: LOW_BALANCE_WARNING_SUBJECT,
+			totalAvailableCredits,
+		});
+		return;
+	}
+
+	const client = getResendClient();
+	if (!client) {
+		logger.error(
+			"RESEND_API_KEY is not configured. Low balance warning email will not be sent.",
+			new Error(
+				`Resend not configured for low balance warning to ${to} for organization ${organizationId}`,
+			),
+		);
+		return;
+	}
+
+	const appUrl = process.env.APP_URL ?? "https://app.kiwillm.in";
+	const billingUrl = `${appUrl}/dashboard/settings/org/billing`;
+	const currentYear = new Date().getFullYear();
+	const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
+
+	const { error } = await client.emails.send({
+		from: fromEmail,
+		to: [to],
+		replyTo: replyToEmail,
+		subject: LOW_BALANCE_WARNING_SUBJECT,
+		html: `
+<!DOCTYPE html>
+<html lang="en">
+	<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#ffffff;">
+		<table role="presentation" style="width:100%;border-collapse:collapse;">
+			<tr>
+				<td align="center" style="padding:40px 20px;">
+					<table role="presentation" style="max-width:600px;width:100%;border-collapse:collapse;">
+						<tr>
+							<td style="background:#f59e0b;padding:32px 28px;border-radius:8px 8px 0 0;text-align:center;">
+								<h1 style="margin:0;color:#111827;font-size:28px;font-weight:700;">Low credit balance</h1>
+							</td>
+						</tr>
+						<tr>
+							<td style="background:#f8fafc;padding:32px 28px;border-radius:0 0 8px 8px;">
+								<p style="margin:0 0 16px;color:#111827;font-size:16px;line-height:1.6;">Your organization <strong>${organizationName}</strong> is running low on credits.</p>
+								<p style="margin:0 0 16px;color:#111827;font-size:16px;line-height:1.6;">Current remaining balance: <strong>$${totalAvailableCredits}</strong></p>
+								<p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6;">Add more credits now to avoid interruptions. KiwiLLM will hard stop hosted requests when the balance reaches $0.</p>
+								<p style="margin:0 0 28px;text-align:center;">
+									<a href="${billingUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;">Top up credits</a>
+								</p>
+								<p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;">© ${currentYear} ${brandName}. This is a transactional email.</p>
+							</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>`.trim(),
+	});
+
+	if (error) {
+		throw new Error(`Resend API error: ${error.message}`);
+	}
+
+	logger.info("Low balance warning email sent", {
+		organizationId,
+		to,
+		totalAvailableCredits,
+	});
+}
+
 export async function batchProcessLogs(): Promise<void> {
 	const lockAcquired = await acquireLock(CREDIT_PROCESSING_LOCK_KEY);
 	if (!lockAcquired) {
@@ -485,6 +636,13 @@ export async function batchProcessLogs(): Promise<void> {
 	}
 
 	try {
+		const lowBalanceWarningsToSend: Array<{
+			organizationId: string;
+			organizationName: string;
+			to: string;
+			totalAvailableCredits: string;
+		}> = [];
+
 		await db.transaction(async (tx) => {
 			// Get unprocessed logs with row-level locking to prevent concurrent processing
 			const rows = await tx
@@ -541,6 +699,11 @@ export async function batchProcessLogs(): Promise<void> {
 			const orgCosts = new Map<string, Decimal>();
 			const apiKeyCosts = new Map<string, Decimal>();
 			const logIds: string[] = [];
+			const usageDebitActions: Array<{
+				organizationId: string;
+				amount: string;
+				description: string;
+			}> = [];
 
 			for (const raw of unprocessedLogs.rows) {
 				const row = schema.parse(raw);
@@ -596,10 +759,13 @@ export async function batchProcessLogs(): Promise<void> {
 						// In credits mode, deduct the full cost
 						const currentOrgCost =
 							orgCosts.get(row.organization_id) ?? new Decimal(0);
-						orgCosts.set(
-							row.organization_id,
-							currentOrgCost.plus(new Decimal(row.cost)),
-						);
+						const usageCost = new Decimal(row.cost);
+						orgCosts.set(row.organization_id, currentOrgCost.plus(usageCost));
+						usageDebitActions.push({
+							organizationId: row.organization_id,
+							amount: usageCost.toString(),
+							description: `Usage debit for request ${row.request_id} (${row.used_model})`,
+						});
 					} else if (row.used_mode === "api-keys") {
 						// In API keys mode, only deduct storage cost (data retention billing)
 						if (row.data_storage_cost) {
@@ -611,6 +777,11 @@ export async function batchProcessLogs(): Promise<void> {
 									row.organization_id,
 									currentOrgCost.plus(storageCost),
 								);
+								usageDebitActions.push({
+									organizationId: row.organization_id,
+									amount: storageCost.toString(),
+									description: `Data retention debit for request ${row.request_id} (${row.used_model})`,
+								});
 							}
 						}
 					}
@@ -623,6 +794,17 @@ export async function batchProcessLogs(): Promise<void> {
 			// Also calculate referral earnings (1% of spent credits)
 			// Dev plan credits are deducted first, then regular credits
 			const referralEarnings = new Map<string, Decimal>();
+
+			if (usageDebitActions.length > 0) {
+				await tx.insert(tables.organizationAction).values(
+					usageDebitActions.map((action) => ({
+						organizationId: action.organizationId,
+						type: "debit" as const,
+						amount: action.amount,
+						description: action.description,
+					})),
+				);
+			}
 
 			for (const [orgId, totalCost] of orgCosts.entries()) {
 				if (totalCost.greaterThan(0)) {
@@ -643,12 +825,14 @@ export async function batchProcessLogs(): Promise<void> {
 						);
 						const devPlanRemaining =
 							devPlanCreditsLimit.minus(devPlanCreditsUsed);
+						let deductedFromDevPlan = new Decimal(0);
 
 						if (devPlanRemaining.greaterThan(0)) {
 							const deductFromDevPlan = Decimal.min(
 								remainingCost,
 								devPlanRemaining,
 							);
+							deductedFromDevPlan = deductFromDevPlan;
 							const deductNumber = deductFromDevPlan.toNumber();
 
 							await tx
@@ -664,21 +848,94 @@ export async function batchProcessLogs(): Promise<void> {
 
 							remainingCost = remainingCost.minus(deductFromDevPlan);
 						}
-					}
 
-					// Deduct any remaining cost from regular credits
-					if (remainingCost.greaterThan(0)) {
-						const costNumber = remainingCost.toNumber();
-						await tx
-							.update(organization)
-							.set({
-								credits: sql`${organization.credits} - ${costNumber}`,
-							})
-							.where(eq(organization.id, orgId));
-
-						logger.debug(
-							`Deducted ${costNumber} regular credits from organization ${orgId}`,
+						const regularCredits = new Decimal(org.credits || "0");
+						const deductFromRegular = Decimal.min(
+							remainingCost,
+							Decimal.max(regularCredits, 0),
 						);
+
+						if (deductFromRegular.greaterThan(0)) {
+							const costNumber = deductFromRegular.toNumber();
+							await tx
+								.update(organization)
+								.set({
+									credits: sql`${organization.credits} - ${costNumber}`,
+								})
+								.where(eq(organization.id, orgId));
+
+							logger.debug(
+								`Deducted ${costNumber} regular credits from organization ${orgId}`,
+							);
+						}
+
+						remainingCost = remainingCost.minus(deductFromRegular);
+
+						if (remainingCost.greaterThan(0)) {
+							logger.warn(
+								`Organization ${orgId} did not have enough credits to fully settle ${totalCost.toString()}; short by ${remainingCost.toString()}. Balance was clamped to zero.`,
+							);
+						}
+
+						const finalRegularCredits = Decimal.max(
+							regularCredits.minus(deductFromRegular),
+							0,
+						);
+						const finalDevPlanRemaining = Decimal.max(
+							devPlanRemaining.minus(deductedFromDevPlan),
+							0,
+						);
+
+						await updateLowBalanceWarningState({
+							tx,
+							orgId,
+							organizationName: org.name,
+							billingEmail: org.billingEmail,
+							totalAvailableCredits: finalRegularCredits.plus(
+								finalDevPlanRemaining,
+							),
+							warningsToSend: lowBalanceWarningsToSend,
+						});
+					} else {
+						const regularCredits = new Decimal(org?.credits || "0");
+						const deductFromRegular = Decimal.min(
+							remainingCost,
+							Decimal.max(regularCredits, 0),
+						);
+
+						if (deductFromRegular.greaterThan(0)) {
+							const costNumber = deductFromRegular.toNumber();
+							await tx
+								.update(organization)
+								.set({
+									credits: sql`${organization.credits} - ${costNumber}`,
+								})
+								.where(eq(organization.id, orgId));
+
+							logger.debug(
+								`Deducted ${costNumber} regular credits from organization ${orgId}`,
+							);
+						}
+
+						remainingCost = remainingCost.minus(deductFromRegular);
+
+						if (remainingCost.greaterThan(0)) {
+							logger.warn(
+								`Organization ${orgId} did not have enough credits to fully settle ${totalCost.toString()}; short by ${remainingCost.toString()}. Balance was clamped to zero.`,
+							);
+						}
+
+						await updateLowBalanceWarningState({
+							tx,
+							orgId,
+							organizationName: org?.name ?? orgId,
+							billingEmail: org?.billingEmail ?? "",
+							totalAvailableCredits: Decimal.max(
+								regularCredits.minus(deductFromRegular),
+								0,
+							),
+							warningsToSend: lowBalanceWarningsToSend,
+						});
 					}
 
 					// Check if this org was referred and calculate 1% referral earnings
@@ -714,6 +971,13 @@ export async function batchProcessLogs(): Promise<void> {
 						})
 						.where(eq(organization.id, referrerOrgId));
 
+					await tx.insert(tables.organizationAction).values({
+						organizationId: referrerOrgId,
+						type: "credit",
+						amount: earnings.toString(),
+						description: "Referral earnings credit",
+					});
+
 					logger.info(
 						`Added ${earningsNumber} referral credits to organization ${referrerOrgId}`,
 					);
@@ -745,6 +1009,17 @@ export async function batchProcessLogs(): Promise<void> {
 
 			logger.debug(`Marked ${logIds.length} logs as processed`);
 		});
+
+		for (const warning of lowBalanceWarningsToSend) {
+			try {
+				await sendLowBalanceWarningEmail(warning);
+			} catch (error) {
+				logger.error(
+					"Failed to send low balance warning email",
+					error instanceof Error ? error : new Error(String(error)),
+				);
+			}
+		}
 	} catch (error) {
 		logger.error(
 			"Error processing batch credit deductions",
