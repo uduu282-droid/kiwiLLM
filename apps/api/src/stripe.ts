@@ -582,6 +582,13 @@ async function recordCreditTopUp({
 		})
 		.returning();
 
+	await db.insert(tables.organizationAction).values({
+		organizationId,
+		type: "credit",
+		amount: finalCreditAmount.toString(),
+		description,
+	});
+
 	const lineItems = [
 		{
 			description: `Credit Top-up ($${creditAmount})`,
@@ -801,14 +808,23 @@ async function handlePaymentIntentSucceeded(
 			: "Credit top-up via Stripe";
 
 	if (transactionId) {
-		await db
-			.update(tables.organization)
-			.set({
-				credits: sql`${tables.organization.credits} + ${finalCreditAmount}`,
-				paymentFailureCount: 0,
-				lastPaymentFailureAt: null,
-			})
-			.where(eq(tables.organization.id, organizationId));
+		await db.transaction(async (tx) => {
+			await tx
+				.update(tables.organization)
+				.set({
+					credits: sql`${tables.organization.credits} + ${finalCreditAmount}`,
+					paymentFailureCount: 0,
+					lastPaymentFailureAt: null,
+				})
+				.where(eq(tables.organization.id, organizationId));
+
+			await tx.insert(tables.organizationAction).values({
+				organizationId,
+				type: "credit",
+				amount: finalCreditAmount.toString(),
+				description: transactionDescription,
+			});
+		});
 
 		const updatedTransaction = await db
 			.update(tables.transaction)
@@ -1168,26 +1184,37 @@ async function handleChargeRefunded(event: Stripe.ChargeRefundedEvent) {
 	}
 
 	// Create refund transaction
-	await db.insert(tables.transaction).values({
-		organizationId: originalTransaction.organizationId,
-		type: "credit_refund",
-		amount: refundAmountInDollars.toString(),
-		creditAmount: (-creditRefundAmount).toString(),
-		currency: originalTransaction.currency,
-		status: "completed",
-		stripePaymentIntentId: payment_intent as string,
-		relatedTransactionId: originalTransaction.id,
-		refundReason: latestRefund.reason ?? null,
-		description: `Credit refund: $${refundAmountInDollars.toFixed(2)} (${(refundRatio * 100).toFixed(1)}% of original purchase)`,
-	});
+	const refundDescription = `Credit refund: $${refundAmountInDollars.toFixed(2)} (${(refundRatio * 100).toFixed(1)}% of original purchase)`;
 
-	// Deduct credits from organization (allow negative)
-	await db
-		.update(tables.organization)
-		.set({
-			credits: sql`${tables.organization.credits} - ${creditRefundAmount}`,
-		})
-		.where(eq(tables.organization.id, originalTransaction.organizationId));
+	await db.transaction(async (tx) => {
+		await tx.insert(tables.transaction).values({
+			organizationId: originalTransaction.organizationId,
+			type: "credit_refund",
+			amount: refundAmountInDollars.toString(),
+			creditAmount: (-creditRefundAmount).toString(),
+			currency: originalTransaction.currency,
+			status: "completed",
+			stripePaymentIntentId: payment_intent as string,
+			relatedTransactionId: originalTransaction.id,
+			refundReason: latestRefund.reason ?? null,
+			description: refundDescription,
+		});
+
+		await tx.insert(tables.organizationAction).values({
+			organizationId: originalTransaction.organizationId,
+			type: "debit",
+			amount: creditRefundAmount.toString(),
+			description: refundDescription,
+		});
+
+		// Refunds may legitimately make balance negative if credits were already spent.
+		await tx
+			.update(tables.organization)
+			.set({
+				credits: sql`${tables.organization.credits} - ${creditRefundAmount}`,
+			})
+			.where(eq(tables.organization.id, originalTransaction.organizationId));
+	});
 
 	// Track in PostHog
 	posthog.groupIdentify({
