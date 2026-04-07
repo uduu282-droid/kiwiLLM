@@ -294,6 +294,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/rankings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    window?: "7d" | "30d" | "90d";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Public KiwiLLM model rankings. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * @default 7d
+                             * @enum {string}
+                             */
+                            window: "7d" | "30d" | "90d";
+                            generatedAt: string;
+                            totalRequests: number;
+                            totalTokens: number;
+                            totalModels: number;
+                            leaderboard: {
+                                modelId: string;
+                                providerId: string;
+                                requestCount: number;
+                                totalTokens: number;
+                                totalCost: number;
+                                changePercent: number | null;
+                                isNew: boolean;
+                            }[];
+                            chart: {
+                                weekStart: string;
+                                totalTokens: number;
+                                segments: {
+                                    modelId: string;
+                                    tokens: number;
+                                }[];
+                            }[];
+                            fastest: {
+                                modelId: string;
+                                providerId: string;
+                                requestCount: number;
+                                totalTokens: number;
+                                avgLatencyMs: number;
+                                throughputTokensPerSecond: number;
+                                pricePerMillion: number | null;
+                            }[];
+                            apps: {
+                                appName: string;
+                                subtitle: string | null;
+                                requestCount: number;
+                                totalTokens: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/user/me": {
         parameters: {
             query?: never;
@@ -321,6 +400,7 @@ export interface paths {
                                 id: string;
                                 email: string;
                                 name: string | null;
+                                image: string | null;
                                 onboardingCompleted: boolean;
                                 emailVerified: boolean;
                                 isAdmin: boolean;
@@ -410,6 +490,7 @@ export interface paths {
                                 id: string;
                                 email: string;
                                 name: string | null;
+                                image: string | null;
                                 onboardingCompleted: boolean;
                                 emailVerified: boolean;
                                 isAdmin: boolean;
@@ -597,6 +678,7 @@ export interface paths {
                                 id: string;
                                 email: string;
                                 name: string | null;
+                                image: string | null;
                                 onboardingCompleted: boolean;
                                 emailVerified: boolean;
                                 isAdmin: boolean;
@@ -1104,6 +1186,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/activity/free-request-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    organizationId: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Current rolling free request usage */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            minute: {
+                                used: number;
+                                remaining: number;
+                                limit: number;
+                            };
+                            day: {
+                                used: number;
+                                remaining: number;
+                                limit: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/metrics": {
         parameters: {
             query?: never;
@@ -1137,6 +1267,17 @@ export interface paths {
                             totalRevenue: number;
                             totalProcessed: number;
                             totalOrganizations: number;
+                            totalProjects: number;
+                            activeApiKeys: number;
+                            totalRequests: number;
+                            successfulRequests: number;
+                            failedRequests: number;
+                            successRate: number;
+                            totalTokens: number;
+                            averageLatencyMs: number;
+                            averageTimeToFirstTokenMs: number;
+                            topModel: string | null;
+                            topProvider: string | null;
                             totalToppedUp: number;
                             totalSpent: number;
                             unusedCredits: number;
@@ -2396,6 +2537,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        code?: string;
+                        description?: string;
+                        creditAmount: number;
+                        /** @default 1 */
+                        maxRedemptions?: number;
+                        expiresAt?: string | null;
+                        active?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description Coupon created successfully. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message: string;
+                            coupon: {
+                                id: string;
+                                code: string;
+                                description: string | null;
+                                creditAmount: string;
+                                maxRedemptions: number;
+                                redeemedCount: number;
+                                active: boolean;
+                                expiresAt: string | null;
+                                createdAt: string;
+                                updatedAt: string;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/users/{userId}": {
         parameters: {
             query?: never;
@@ -2898,6 +3100,78 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/keys/api/{id}/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description API key token revealed successfully. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            token: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message: string;
+                        };
+                    };
+                };
+                /** @description Forbidden. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message: string;
+                        };
+                    };
+                };
+                /** @description API key not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4363,6 +4637,11 @@ export interface paths {
                     content: {
                         "application/json": {
                             referredCount: number;
+                            pendingCount: number;
+                            rewardedCount: number;
+                            blockedCount: number;
+                            earnedCredits: string;
+                            rewardPerReferral: string;
                         };
                     };
                 };
@@ -4430,6 +4709,76 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/orgs/{id}/redeem-coupon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Coupon redeemed successfully. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message: string;
+                            credits: string;
+                            creditAmount: string;
+                            coupon: {
+                                id: string;
+                                code: string;
+                                description: string | null;
+                                creditAmount: string;
+                                maxRedemptions: number;
+                                redeemedCount: number;
+                                active: boolean;
+                                expiresAt: string | null;
+                                createdAt: string;
+                                updatedAt: string;
+                            };
+                        };
+                    };
+                };
+                /** @description Coupon is invalid, expired, or already redeemed. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -5536,8 +5885,17 @@ export interface paths {
                     content: {
                         "application/json": {
                             id: string;
+                            createdAt: string;
+                            updatedAt: string;
                             name: string;
+                            billingEmail: string;
                             isPersonal: boolean;
+                            /** @enum {string} */
+                            plan: "free" | "pro" | "enterprise";
+                            planExpiresAt: string | null;
+                            autoTopUpEnabled: boolean;
+                            autoTopUpThreshold: string | null;
+                            autoTopUpAmount: string | null;
                             /** @enum {string} */
                             devPlan: "none" | "lite" | "pro" | "max";
                             devPlanCreditsUsed: string;
@@ -5545,6 +5903,7 @@ export interface paths {
                             devPlanBillingCycleStart: string | null;
                             devPlanCancelled: boolean;
                             devPlanExpiresAt: string | null;
+                            devPlanAllowAllModels: boolean;
                             credits: string;
                         };
                     };

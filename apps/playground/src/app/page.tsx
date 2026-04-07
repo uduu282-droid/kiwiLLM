@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import ChatPageClient from "@/components/playground/chat-page-client";
 import { fetchModels, fetchProviders } from "@/lib/fetch-models";
+
 import type { Metadata } from "next";
 
 export async function generateMetadata({

@@ -1,6 +1,6 @@
 import { HTTPException } from "hono/http-exception";
 
-import { type BaseMessage } from "@llmgateway/models";
+import type { BaseMessage } from "@llmgateway/models";
 
 const PLATFORM_SYSTEM_PROMPT = [
 	"You are a helpful assistant operating on the KiwiLLM platform.",

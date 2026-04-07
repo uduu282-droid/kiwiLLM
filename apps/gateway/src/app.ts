@@ -18,8 +18,8 @@ import {
 import { logger } from "@llmgateway/logger";
 import { HealthChecker } from "@llmgateway/shared";
 
-import { audioRoute } from "./audio/route.js";
 import { anthropic } from "./anthropic/anthropic.js";
+import { audioRoute } from "./audio/route.js";
 import { chat } from "./chat/chat.js";
 import { imagesRoute } from "./images/route.js";
 import { mcpHandler, registerMcpOAuthRoutes } from "./mcp/mcp.js";

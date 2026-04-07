@@ -10,14 +10,10 @@ const standaloneNextRoot = resolve(standaloneRoot, ".next");
 
 if (existsSync(resolve(nextRoot, "static"))) {
 	mkdirSync(standaloneNextRoot, { recursive: true });
-	cpSync(
-		resolve(nextRoot, "static"),
-		resolve(standaloneNextRoot, "static"),
-		{
-			force: true,
-			recursive: true,
-		},
-	);
+	cpSync(resolve(nextRoot, "static"), resolve(standaloneNextRoot, "static"), {
+		force: true,
+		recursive: true,
+	});
 }
 
 if (existsSync(resolve(playgroundRoot, "public"))) {

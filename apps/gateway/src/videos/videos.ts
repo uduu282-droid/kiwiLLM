@@ -1,15 +1,24 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 
+import { createLogEntry } from "@/chat/tools/create-log-entry.js";
 import {
 	findApiKeyByToken,
 	findOrganizationById,
 	findProjectById,
 } from "@/lib/cached-queries.js";
+import { calculateCosts } from "@/lib/costs.js";
+import { insertLog } from "@/lib/logs.js";
+import { assertHostedCreditsAvailable } from "@/lib/model-access.js";
 
-import { getProviderEnvValue } from "@llmgateway/models";
-
+import { shortid } from "@llmgateway/db";
 import { logger } from "@llmgateway/logger";
+import {
+	getProviderEnvValue,
+	models,
+	type Provider,
+} from "@llmgateway/models";
+
 
 import type { ServerTypes } from "@/vars.js";
 import type { Context } from "hono";
@@ -134,20 +143,43 @@ async function validateApiAccess(c: Context) {
 			message: "Could not find organization",
 		});
 	}
+
+	return { apiKey, project, organization };
 }
 
 export const videos = new OpenAPIHono<ServerTypes>();
 
 videos.openapi(generationsRoute, async (c) => {
-	await validateApiAccess(c);
+	const { apiKey, project, organization } = await validateApiAccess(c);
 
 	const request = c.req.valid("json");
 	if (request.model !== "sora-video") {
 		throw new HTTPException(400, {
 			message:
-				"Only the sora-video model is currently supported for video generation.",
+			"Only the sora-video model is currently supported for video generation.",
 		});
 	}
+	const requestId = shortid();
+	const model = models.find((candidate) => candidate.id === request.model);
+	const providerId = "kiwillm-swift-sora-video" as Provider;
+
+	if (!model) {
+		throw new HTTPException(400, {
+			message: `Model ${request.model} is not configured.`,
+		});
+	}
+
+	await assertHostedCreditsAvailable({
+		organization,
+		model,
+		provider: providerId,
+		providerIsZeroCost: false,
+		promptTokens: 1,
+		completionTokens: 0,
+		fullOutput: {
+			prompt: request.prompt,
+		},
+	});
 
 	const baseUrl =
 		getProviderEnvValue(
@@ -189,6 +221,97 @@ videos.openapi(generationsRoute, async (c) => {
 		const parsed = JSON.parse(responseText) as z.infer<
 			typeof videoGenerationResponseSchema
 		>;
+
+		const baseLogEntry = createLogEntry(
+			requestId,
+			project,
+			apiKey,
+			undefined,
+			`${providerId}/${model.id}`,
+			model.id,
+			providerId,
+			request.model,
+			providerId,
+			[
+				{
+					role: "user",
+					content: request.prompt,
+				},
+			],
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			c.req.header("x-source") ?? undefined,
+			{},
+			false,
+			c.req.header("User-Agent") ?? undefined,
+			{
+				aspect_ratio: request.aspect_ratio,
+			},
+		);
+		const costs = await calculateCosts(
+			model.id,
+			providerId,
+			1,
+			0,
+			null,
+			{
+				prompt: request.prompt,
+				completion: parsed.url,
+			},
+			null,
+			0,
+			undefined,
+			0,
+			null,
+			project.organizationId,
+		);
+
+		await insertLog({
+			...baseLogEntry,
+			duration: 0,
+			timeToFirstToken: null,
+			timeToFirstReasoningToken: null,
+			responseSize: responseText.length,
+			content: parsed.url,
+			reasoningContent: null,
+			finishReason: "stop",
+			promptTokens: (costs.promptTokens ?? 1).toString(),
+			completionTokens: (costs.completionTokens ?? 0).toString(),
+			totalTokens: (
+				(costs.promptTokens ?? 1) + (costs.completionTokens ?? 0)
+			).toString(),
+			reasoningTokens: null,
+			cachedTokens: null,
+			hasError: false,
+			streamed: false,
+			canceled: false,
+			errorDetails: null,
+			inputCost: costs.inputCost,
+			outputCost: costs.outputCost,
+			cachedInputCost: costs.cachedInputCost,
+			requestCost: costs.requestCost,
+			webSearchCost: costs.webSearchCost,
+			imageInputTokens: null,
+			imageOutputTokens: null,
+			imageInputCost: costs.imageInputCost,
+			imageOutputCost: costs.imageOutputCost,
+			cost: costs.totalCost,
+			estimatedCost: true,
+			discount: costs.discount,
+			pricingTier: costs.pricingTier,
+			dataStorageCost: "0",
+			cached: false,
+		});
+
 		return c.json(parsed);
 	} catch (error) {
 		logger.error("Video generation response parse failed", {

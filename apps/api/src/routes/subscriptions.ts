@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 
+import { findPreferredBillingOrganization } from "@/lib/billing-organization.js";
 import { ensureStripeCustomer } from "@/stripe.js";
 
 import { logAuditEvent } from "@llmgateway/audit";
@@ -512,22 +513,15 @@ subscriptions.openapi(getSubscriptionStatus, async (c) => {
 		});
 	}
 
-	const userOrganization = await db.query.userOrganization.findFirst({
-		where: {
-			userId: user.id,
-		},
-		with: {
-			organization: true,
-		},
-	});
+	const billingContext = await findPreferredBillingOrganization(user.id);
 
-	if (!userOrganization || !userOrganization.organization) {
+	if (!billingContext) {
 		throw new HTTPException(404, {
 			message: "Organization not found",
 		});
 	}
 
-	const organization = userOrganization.organization;
+	const organization = billingContext.organization;
 
 	// Get billing cycle from Stripe subscription if available
 	let billingCycle: "monthly" | "yearly" | null = null;

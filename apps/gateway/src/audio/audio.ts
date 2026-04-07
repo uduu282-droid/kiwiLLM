@@ -1,12 +1,17 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 
+import { createLogEntry } from "@/chat/tools/create-log-entry.js";
 import {
 	findApiKeyByToken,
 	findOrganizationById,
 	findProjectById,
 } from "@/lib/cached-queries.js";
+import { calculateCosts } from "@/lib/costs.js";
+import { insertLog } from "@/lib/logs.js";
+import { assertHostedCreditsAvailable } from "@/lib/model-access.js";
 
+import { shortid } from "@llmgateway/db";
 import { logger } from "@llmgateway/logger";
 import {
 	getProviderEnvValue,
@@ -281,7 +286,7 @@ function buildUpstreamTranscriptionFormData(
 }
 
 async function proxyTranscriptionRequest(c: Context) {
-	await validateApiAccess(c);
+	const { apiKey, project, organization } = await validateApiAccess(c);
 
 	const contentType = c.req.header("Content-Type") ?? "";
 	if (!contentType.includes("multipart/form-data")) {
@@ -304,7 +309,29 @@ async function proxyTranscriptionRequest(c: Context) {
 			? requestedModelValue
 			: "whisper-large-v3-turbo";
 
-	const { provider } = resolveTranscriptionProviderMapping(requestedModel);
+	const { model, provider } = resolveTranscriptionProviderMapping(requestedModel);
+	const requestId = shortid();
+	const promptField = body.prompt;
+	const transcriptionPrompt = Array.isArray(promptField)
+		? promptField[0]
+		: promptField;
+	const promptText =
+		typeof transcriptionPrompt === "string" && transcriptionPrompt.length > 0
+			? transcriptionPrompt
+			: "[audio transcription]";
+
+	await assertHostedCreditsAvailable({
+		organization,
+		model,
+		provider: provider.providerId as Provider,
+		providerIsZeroCost: false,
+		promptTokens: 1,
+		completionTokens: 0,
+		fullOutput: {
+			prompt: promptText,
+		},
+	});
+
 	const endpoint = getAudioTranscriptionEndpoint(provider.providerId as Provider);
 	const upstreamBody = buildUpstreamTranscriptionFormData(
 		body,
@@ -341,8 +368,181 @@ async function proxyTranscriptionRequest(c: Context) {
 		const parsed = JSON.parse(responseText) as z.infer<
 			typeof transcriptionResponseSchema
 		>;
+
+		const baseLogEntry = createLogEntry(
+			requestId,
+			project,
+			apiKey,
+			undefined,
+			`${provider.providerId}/${model.id}`,
+			provider.modelName,
+			provider.providerId,
+			requestedModel,
+			provider.providerId,
+			[
+				{
+					role: "user",
+					content: promptText,
+				},
+			],
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			c.req.header("x-source") ?? undefined,
+			{},
+			false,
+			c.req.header("User-Agent") ?? undefined,
+		);
+		const costs = await calculateCosts(
+			model.id,
+			provider.providerId,
+			1,
+			0,
+			null,
+			{
+				prompt: promptText,
+				completion: parsed.text,
+			},
+			null,
+			0,
+			undefined,
+			0,
+			null,
+			project.organizationId,
+		);
+
+		await insertLog({
+			...baseLogEntry,
+			duration: 0,
+			timeToFirstToken: null,
+			timeToFirstReasoningToken: null,
+			responseSize: responseText.length,
+			content: parsed.text ?? null,
+			reasoningContent: null,
+			finishReason: "stop",
+			promptTokens: (costs.promptTokens ?? 1).toString(),
+			completionTokens: (costs.completionTokens ?? 0).toString(),
+			totalTokens: (
+				(costs.promptTokens ?? 1) + (costs.completionTokens ?? 0)
+			).toString(),
+			reasoningTokens: null,
+			cachedTokens: null,
+			hasError: false,
+			streamed: false,
+			canceled: false,
+			errorDetails: null,
+			inputCost: costs.inputCost,
+			outputCost: costs.outputCost,
+			cachedInputCost: costs.cachedInputCost,
+			requestCost: costs.requestCost,
+			webSearchCost: costs.webSearchCost,
+			imageInputTokens: null,
+			imageOutputTokens: null,
+			imageInputCost: costs.imageInputCost,
+			imageOutputCost: costs.imageOutputCost,
+			cost: costs.totalCost,
+			estimatedCost: true,
+			discount: costs.discount,
+			pricingTier: costs.pricingTier,
+			dataStorageCost: "0",
+			cached: false,
+		});
+
 		return c.json(parsed);
 	}
+
+	const baseLogEntry = createLogEntry(
+		requestId,
+		project,
+		apiKey,
+		undefined,
+		`${provider.providerId}/${model.id}`,
+		provider.modelName,
+		provider.providerId,
+		requestedModel,
+		provider.providerId,
+		[
+			{
+				role: "user",
+				content: promptText,
+			},
+		],
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		undefined,
+		c.req.header("x-source") ?? undefined,
+		{},
+		false,
+		c.req.header("User-Agent") ?? undefined,
+	);
+	const costs = await calculateCosts(
+		model.id,
+		provider.providerId,
+		1,
+		0,
+		null,
+		{
+			prompt: promptText,
+			completion: responseText,
+		},
+		null,
+		0,
+		undefined,
+		0,
+		null,
+		project.organizationId,
+	);
+
+	await insertLog({
+		...baseLogEntry,
+		duration: 0,
+		timeToFirstToken: null,
+		timeToFirstReasoningToken: null,
+		responseSize: responseText.length,
+		content: responseText,
+		reasoningContent: null,
+		finishReason: "stop",
+		promptTokens: (costs.promptTokens ?? 1).toString(),
+		completionTokens: (costs.completionTokens ?? 0).toString(),
+		totalTokens: ((costs.promptTokens ?? 1) + (costs.completionTokens ?? 0)).toString(),
+		reasoningTokens: null,
+		cachedTokens: null,
+		hasError: false,
+		streamed: false,
+		canceled: false,
+		errorDetails: null,
+		inputCost: costs.inputCost,
+		outputCost: costs.outputCost,
+		cachedInputCost: costs.cachedInputCost,
+		requestCost: costs.requestCost,
+		webSearchCost: costs.webSearchCost,
+		imageInputTokens: null,
+		imageOutputTokens: null,
+		imageInputCost: costs.imageInputCost,
+		imageOutputCost: costs.imageOutputCost,
+		cost: costs.totalCost,
+		estimatedCost: true,
+		discount: costs.discount,
+		pricingTier: costs.pricingTier,
+		dataStorageCost: "0",
+		cached: false,
+	});
 
 	return new Response(responseText, {
 		status: 200,

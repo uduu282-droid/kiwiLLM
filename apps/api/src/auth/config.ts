@@ -10,7 +10,7 @@ import { notifyUserSignup } from "@/utils/discord.js";
 import { validateEmail } from "@/utils/email-validation.js";
 import { sendTransactionalEmail } from "@/utils/email.js";
 
-import { db, eq, tables, shortid } from "@llmgateway/db";
+import { and, db, desc, eq, sql, tables, shortid } from "@llmgateway/db";
 import { logger } from "@llmgateway/logger";
 import { getResendClient } from "@llmgateway/shared/email";
 
@@ -48,6 +48,83 @@ function splitOrigins(value: string | undefined) {
 		.split(",")
 		.map((origin) => origin.trim())
 		.filter(Boolean);
+}
+
+function extractClientIp(headers: Headers | null | undefined): string | null {
+	if (!headers) {
+		return null;
+	}
+
+	const forwardedIp = headers.get("cf-connecting-ip");
+	if (forwardedIp) {
+		return forwardedIp.trim();
+	}
+
+	const xForwardedFor = headers.get("x-forwarded-for");
+	if (xForwardedFor) {
+		return xForwardedFor.split(",")[0]?.trim() ?? null;
+	}
+
+	return (
+		headers.get("x-real-ip")?.trim() ??
+		headers.get("x-client-ip")?.trim() ??
+		null
+	);
+}
+
+async function getOrganizationOwnerProfile(organizationId: string) {
+	const [ownerMembership] = await db
+		.select({
+			userId: tables.userOrganization.userId,
+		})
+		.from(tables.userOrganization)
+		.where(
+			and(
+				eq(tables.userOrganization.organizationId, organizationId),
+				eq(tables.userOrganization.role, "owner"),
+			),
+		)
+		.limit(1);
+
+	if (!ownerMembership) {
+		return null;
+	}
+
+	const [owner] = await db
+		.select({
+			id: tables.user.id,
+			email: tables.user.email,
+		})
+		.from(tables.user)
+		.where(eq(tables.user.id, ownerMembership.userId))
+		.limit(1);
+
+	if (!owner) {
+		return null;
+	}
+
+	const recentSessions = await db
+		.select({
+			ipAddress: tables.session.ipAddress,
+		})
+		.from(tables.session)
+		.where(eq(tables.session.userId, owner.id))
+		.orderBy(desc(tables.session.createdAt))
+		.limit(10);
+
+	const recentIpAddresses = Array.from(
+		new Set(
+			recentSessions
+				.map((session) => session.ipAddress?.trim())
+				.filter((ipAddress): ipAddress is string => Boolean(ipAddress)),
+		),
+	);
+
+	return {
+		userId: owner.id,
+		email: owner.email.trim().toLowerCase(),
+		recentIpAddresses,
+	};
 }
 
 export const allowedOrigins = Array.from(
@@ -632,20 +709,7 @@ The ${brandName} Team`.trim();
 						ctx.path.startsWith("/sign-up") &&
 						process.env.NODE_ENV !== "development"
 					) {
-						// Get IP address from various possible headers, prioritizing CF-Connecting-IP
-						let ipAddress = ctx.headers?.get("cf-connecting-ip");
-						if (!ipAddress) {
-							ipAddress = ctx.headers?.get("x-forwarded-for");
-							if (ipAddress) {
-								// x-forwarded-for can be a comma-separated list, take the first IP
-								ipAddress = ipAddress.split(",")[0]?.trim();
-							} else {
-								ipAddress =
-									ctx.headers?.get("x-real-ip") ??
-									ctx.headers?.get("x-client-ip") ??
-									"unknown";
-							}
-						}
+						const ipAddress = extractClientIp(ctx.headers) ?? "unknown";
 
 						// Check and record signup attempt with exponential backoff
 						const rateLimitResult =
@@ -803,6 +867,9 @@ The ${brandName} Team`.trim();
 						);
 						if (referralMatch) {
 							const referrerOrgId = decodeURIComponent(referralMatch[1]);
+							const signupIpAddress = extractClientIp(ctx.request?.headers);
+							const signupUserAgent =
+								ctx.request?.headers.get("user-agent") ?? null;
 							// Verify the referrer organization exists and is active
 							const referrerOrg = await tx.query.organization.findFirst({
 								where: {
@@ -811,16 +878,52 @@ The ${brandName} Team`.trim();
 								},
 							});
 
-							if (referrerOrg) {
+							if (referrerOrg && referrerOrg.id !== organization.id) {
+								const referrerOwner =
+									await getOrganizationOwnerProfile(referrerOrgId);
+								const referredOwnerEmail = newSession.user.email
+									.trim()
+									.toLowerCase();
+
+								let referralStatus: "pending" | "blocked" = "pending";
+								let blockReason: string | null = null;
+
+								if (referrerOwner?.email === referredOwnerEmail) {
+									referralStatus = "blocked";
+									blockReason = "same_owner_email";
+								} else if (
+									signupIpAddress &&
+									referrerOwner?.recentIpAddresses.includes(signupIpAddress)
+								) {
+									referralStatus = "blocked";
+									blockReason = "same_signup_ip";
+								}
+
 								// Create the referral record
-								await tx.insert(tables.referral).values({
-									referrerOrganizationId: referrerOrgId,
-									referredOrganizationId: organization.id,
-								});
+								await tx.execute(sql`
+									insert into referral (
+										referrer_organization_id,
+										referred_organization_id,
+										status,
+										signup_ip_address,
+										signup_user_agent,
+										block_reason
+									)
+									values (
+										${referrerOrgId},
+										${organization.id},
+										${referralStatus},
+										${signupIpAddress},
+										${signupUserAgent},
+										${blockReason}
+									)
+								`);
 
 								logger.info("Created referral record", {
 									referrerOrgId,
 									referredOrgId: organization.id,
+									status: referralStatus,
+									blockReason,
 								});
 							}
 						}

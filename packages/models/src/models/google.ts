@@ -487,8 +487,7 @@ export const googleModels = [
 	{
 		id: "gemini-3-pro",
 		name: "Gemini 3 Pro",
-		description:
-			"Gemini 3 Pro served through the KiwiLLM N33 worker.",
+		description: "Gemini 3 Pro served through the KiwiLLM N33 worker.",
 		family: "google",
 		releasedAt: new Date("2026-03-31"),
 		providers: [
@@ -841,8 +840,7 @@ export const googleModels = [
 	{
 		id: "gemini-3-flash",
 		name: "Gemini 3 Flash",
-		description:
-			"Gemini 3 Flash served through the KiwiLLM N33 worker.",
+		description: "Gemini 3 Flash served through the KiwiLLM N33 worker.",
 		family: "google",
 		releasedAt: new Date("2026-03-31"),
 		providers: [

@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import Stripe from "stripe";
 import { z } from "zod";
 
+import { findPreferredBillingOrganization } from "@/lib/billing-organization.js";
 import { ensureStripeCustomer } from "@/stripe.js";
 
 import { logAuditEvent } from "@llmgateway/audit";
@@ -77,22 +78,15 @@ payments.openapi(createPaymentIntent, async (c) => {
 
 	const { amount } = c.req.valid("json");
 
-	const userOrganization = await db.query.userOrganization.findFirst({
-		where: {
-			userId: user.id,
-		},
-		with: {
-			organization: true,
-		},
-	});
+	const billingContext = await findPreferredBillingOrganization(user.id);
 
-	if (!userOrganization || !userOrganization.organization) {
+	if (!billingContext) {
 		throw new HTTPException(404, {
 			message: "Organization not found",
 		});
 	}
 
-	const organizationId = userOrganization.organization.id;
+	const organizationId = billingContext.organization.id;
 
 	const stripeCustomerId = await ensureStripeCustomer(organizationId);
 
@@ -154,22 +148,15 @@ payments.openapi(createSetupIntent, async (c) => {
 		});
 	}
 
-	const userOrganization = await db.query.userOrganization.findFirst({
-		where: {
-			userId: user.id,
-		},
-		with: {
-			organization: true,
-		},
-	});
+	const billingContext = await findPreferredBillingOrganization(user.id);
 
-	if (!userOrganization || !userOrganization.organization) {
+	if (!billingContext) {
 		throw new HTTPException(404, {
 			message: "Organization not found",
 		});
 	}
 
-	const organizationId = userOrganization.organization.id;
+	const organizationId = billingContext.organization.id;
 
 	const setupIntent = await getStripe().setupIntents.create({
 		usage: "off_session",
@@ -221,22 +208,15 @@ payments.openapi(getPaymentMethods, async (c) => {
 		});
 	}
 
-	const userOrganization = await db.query.userOrganization.findFirst({
-		where: {
-			userId: user.id,
-		},
-		with: {
-			organization: true,
-		},
-	});
+	const billingContext = await findPreferredBillingOrganization(user.id);
 
-	if (!userOrganization || !userOrganization.organization) {
+	if (!billingContext) {
 		throw new HTTPException(404, {
 			message: "Organization not found",
 		});
 	}
 
-	const organizationId = userOrganization.organization.id;
+	const organizationId = billingContext.organization.id;
 
 	const paymentMethods = await db.query.paymentMethod.findMany({
 		where: {
@@ -311,22 +291,15 @@ payments.openapi(setDefaultPaymentMethod, async (c) => {
 
 	const { paymentMethodId } = c.req.valid("json");
 
-	const userOrganization = await db.query.userOrganization.findFirst({
-		where: {
-			userId: user.id,
-		},
-		with: {
-			organization: true,
-		},
-	});
+	const billingContext = await findPreferredBillingOrganization(user.id);
 
-	if (!userOrganization || !userOrganization.organization) {
+	if (!billingContext) {
 		throw new HTTPException(404, {
 			message: "Organization not found",
 		});
 	}
 
-	const organizationId = userOrganization.organization.id;
+	const organizationId = billingContext.organization.id;
 
 	const paymentMethod = await db.query.paymentMethod.findFirst({
 		where: {
@@ -401,22 +374,15 @@ payments.openapi(deletePaymentMethod, async (c) => {
 
 	const { id } = c.req.param();
 
-	const userOrganization = await db.query.userOrganization.findFirst({
-		where: {
-			userId: user.id,
-		},
-		with: {
-			organization: true,
-		},
-	});
+	const billingContext = await findPreferredBillingOrganization(user.id);
 
-	if (!userOrganization || !userOrganization.organization) {
+	if (!billingContext) {
 		throw new HTTPException(404, {
 			message: "Organization not found",
 		});
 	}
 
-	const organizationId = userOrganization.organization.id;
+	const organizationId = billingContext.organization.id;
 
 	const paymentMethod = await db.query.paymentMethod.findFirst({
 		where: {
@@ -535,26 +501,18 @@ payments.openapi(topUpWithSavedMethod, async (c) => {
 		});
 	}
 
-	const userOrganization = await db.query.userOrganization.findFirst({
-		where: {
-			userId: user.id,
-		},
-		with: {
-			organization: true,
-		},
-	});
+	const billingContext = await findPreferredBillingOrganization(user.id);
 
 	if (
-		!userOrganization ||
-		!userOrganization.organization ||
-		userOrganization.organization.id !== paymentMethod.organizationId
+		!billingContext ||
+		billingContext.organization.id !== paymentMethod.organizationId
 	) {
 		throw new HTTPException(403, {
 			message: "Unauthorized access to payment method",
 		});
 	}
 
-	const stripeCustomerId = userOrganization.organization.stripeCustomerId;
+	const stripeCustomerId = billingContext.organization.stripeCustomerId;
 
 	if (!stripeCustomerId) {
 		throw new HTTPException(400, {
@@ -578,7 +536,7 @@ payments.openapi(topUpWithSavedMethod, async (c) => {
 			confirm: true,
 			off_session: true,
 			metadata: {
-				organizationId: userOrganization.organization.id,
+				organizationId: billingContext.organization.id,
 				baseAmount: amount.toString(),
 				platformFee: feeBreakdown.platformFee.toString(),
 				userEmail: user.email,
@@ -623,7 +581,7 @@ payments.openapi(topUpWithSavedMethod, async (c) => {
 	}
 
 	await logAuditEvent({
-		organizationId: userOrganization.organization.id,
+		organizationId: billingContext.organization.id,
 		userId: user.id,
 		action: "payment.credit_topup",
 		resourceType: "payment",
@@ -685,22 +643,15 @@ payments.openapi(createCheckoutSession, async (c) => {
 
 	const { amount, returnUrl } = c.req.valid("json");
 
-	const userOrganization = await db.query.userOrganization.findFirst({
-		where: {
-			userId: user.id,
-		},
-		with: {
-			organization: true,
-		},
-	});
+	const billingContext = await findPreferredBillingOrganization(user.id);
 
-	if (!userOrganization || !userOrganization.organization) {
+	if (!billingContext) {
 		throw new HTTPException(404, {
 			message: "Organization not found",
 		});
 	}
 
-	const organizationId = userOrganization.organization.id;
+	const organizationId = billingContext.organization.id;
 	const stripeCustomerId = await ensureStripeCustomer(organizationId);
 
 	const feeBreakdown = calculateFees({ amount });
@@ -830,17 +781,9 @@ payments.openapi(calculateFeesRoute, async (c) => {
 
 	const { amount }: { amount: number } = c.req.valid("json");
 
-	const userOrganization = await db.query.userOrganization.findFirst({
-		where: {
-			userId: user.id,
-		},
-		with: {
-			organization: true,
-			user: true,
-		},
-	});
+	const billingContext = await findPreferredBillingOrganization(user.id);
 
-	if (!userOrganization || !userOrganization.organization) {
+	if (!billingContext) {
 		throw new HTTPException(404, {
 			message: "Organization not found",
 		});
@@ -865,13 +808,13 @@ payments.openapi(calculateFeesRoute, async (c) => {
 
 	if (bonusEnabled) {
 		// Check email verification
-		if (!userOrganization.user || !userOrganization.user.emailVerified) {
+		if (!user.emailVerified) {
 			bonusIneligibilityReason = "email_not_verified";
 		} else {
 			// Check if this is the first credit purchase
 			const previousPurchases = await db.query.transaction.findFirst({
 				where: {
-					organizationId: { eq: userOrganization.organization.id },
+					organizationId: { eq: billingContext.organization.id },
 					type: { eq: "credit_topup" },
 					status: { eq: "completed" },
 				},

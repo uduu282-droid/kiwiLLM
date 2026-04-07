@@ -171,7 +171,27 @@ function toOpenAICompatibleMessages(
 	return result;
 }
 
+function extractResponsesApiText(output: unknown): string {
+	if (!Array.isArray(output)) {
+		return "";
+	}
+
+	return output
+		.filter(
+			(item): item is { type?: unknown; content?: unknown } =>
+				typeof item === "object" && item !== null,
+		)
+		.filter((item) => item.type === "message")
+		.map((item) => normalizeMessageText(item.content))
+		.join("");
+}
+
 function extractAssistantTextFromResponse(data: Record<string, unknown>): string {
+	const responsesApiText = extractResponsesApiText(data.output);
+	if (responsesApiText) {
+		return responsesApiText;
+	}
+
 	const choices = data.choices;
 	if (!Array.isArray(choices) || choices.length === 0) {
 		return "";

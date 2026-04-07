@@ -1,3 +1,5 @@
+import { rewardQualifiedReferral } from "@/lib/referrals.js";
+
 import { publishToQueue, LOG_QUEUE } from "@llmgateway/cache";
 import {
 	db,
@@ -7,6 +9,7 @@ import {
 } from "@llmgateway/db";
 import { recordChatCompletionMetrics } from "@llmgateway/instrumentation";
 import { logger } from "@llmgateway/logger";
+
 
 import type { InferInsertModel } from "@llmgateway/db";
 
@@ -275,6 +278,17 @@ export async function insertLog(logData: LogInsertData): Promise<unknown> {
 			"Failed to persist log directly",
 			error instanceof Error ? error : new Error(String(error)),
 		);
+	}
+
+	if (!logData.hasError && !logData.canceled) {
+		try {
+			await rewardQualifiedReferral(logData.organizationId, logData.requestId);
+		} catch (error) {
+			logger.error(
+				"Failed to process referral reward",
+				error instanceof Error ? error : new Error(String(error)),
+			);
+		}
 	}
 
 	await publishToQueue(LOG_QUEUE, logData);

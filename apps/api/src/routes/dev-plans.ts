@@ -128,14 +128,23 @@ const getPersonalOrg = createRoute({
 				"application/json": {
 					schema: z.object({
 						id: z.string(),
+						createdAt: z.string(),
+						updatedAt: z.string(),
 						name: z.string(),
+						billingEmail: z.string(),
 						isPersonal: z.boolean(),
+						plan: z.enum(["free", "pro", "enterprise"]),
+						planExpiresAt: z.string().nullable(),
+						autoTopUpEnabled: z.boolean(),
+						autoTopUpThreshold: z.string().nullable(),
+						autoTopUpAmount: z.string().nullable(),
 						devPlan: z.enum(["none", "lite", "pro", "max"]),
 						devPlanCreditsUsed: z.string(),
 						devPlanCreditsLimit: z.string(),
 						devPlanBillingCycleStart: z.string().nullable(),
 						devPlanCancelled: z.boolean(),
 						devPlanExpiresAt: z.string().nullable(),
+						devPlanAllowAllModels: z.boolean(),
 						credits: z.string(),
 					}),
 				},
@@ -158,8 +167,16 @@ devPlans.openapi(getPersonalOrg, async (c) => {
 
 	return c.json({
 		id: org.id,
+		createdAt: org.createdAt.toISOString(),
+		updatedAt: org.updatedAt.toISOString(),
 		name: org.name,
+		billingEmail: org.billingEmail,
 		isPersonal: org.isPersonal,
+		plan: org.plan,
+		planExpiresAt: org.planExpiresAt?.toISOString() ?? null,
+		autoTopUpEnabled: org.autoTopUpEnabled,
+		autoTopUpThreshold: org.autoTopUpThreshold,
+		autoTopUpAmount: org.autoTopUpAmount,
 		devPlan: org.devPlan,
 		devPlanCreditsUsed: org.devPlanCreditsUsed,
 		devPlanCreditsLimit: org.devPlanCreditsLimit,
@@ -167,6 +184,7 @@ devPlans.openapi(getPersonalOrg, async (c) => {
 			org.devPlanBillingCycleStart?.toISOString() ?? null,
 		devPlanCancelled: org.devPlanCancelled,
 		devPlanExpiresAt: org.devPlanExpiresAt?.toISOString() ?? null,
+		devPlanAllowAllModels: org.devPlanAllowAllModels,
 		credits: org.credits,
 	});
 });

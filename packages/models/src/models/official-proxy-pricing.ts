@@ -543,7 +543,7 @@ function getFallbackProxyPricing(
 	const size = extractModelSize(values);
 
 	if (values.includes("sora-video")) {
-		return createRequestPricing(0.25);
+		return createRequestPricing(1);
 	}
 
 	if (values.includes("flux-1-schnell")) {
@@ -627,10 +627,7 @@ function getFallbackProxyPricing(
 		values.includes("codestral") ||
 		values.includes("mathstral")
 	) {
-		if (
-			values.includes("large") ||
-			(size !== undefined && size >= 100)
-		) {
+		if (values.includes("large") || (size !== undefined && size >= 100)) {
 			return createTextPricing(0.6, 1.8);
 		}
 

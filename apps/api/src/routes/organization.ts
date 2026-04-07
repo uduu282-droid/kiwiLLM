@@ -5,17 +5,7 @@ import { z } from "zod";
 import { userHasOrganizationAccess } from "@/utils/authorization.js";
 
 import { logAuditEvent } from "@llmgateway/audit";
-import {
-	and,
-	db,
-	desc,
-	eq,
-	gte,
-	isNull,
-	or,
-	sql,
-	tables,
-} from "@llmgateway/db";
+import { and, db, desc, eq, gte, isNull, or, sql, tables } from "@llmgateway/db";
 
 import type { ServerTypes } from "@/vars.js";
 
@@ -728,6 +718,11 @@ const getReferralStats = createRoute({
 				"application/json": {
 					schema: z.object({
 						referredCount: z.number(),
+						pendingCount: z.number(),
+						rewardedCount: z.number(),
+						blockedCount: z.number(),
+						earnedCredits: z.string(),
+						rewardPerReferral: z.string(),
 					}),
 				},
 			},
@@ -753,16 +748,42 @@ organization.openapi(getReferralStats, async (c) => {
 		});
 	}
 
-	const referrals = await db.query.referral.findMany({
+	const referrals = await db
+		.select({
+			id: tables.referral.id,
+			status: sql<"pending" | "rewarded" | "blocked">`status`,
+		})
+		.from(tables.referral)
+		.where(eq(tables.referral.referrerOrganizationId, id));
+
+	const org = await db.query.organization.findFirst({
 		where: {
-			referrerOrganizationId: {
+			id: {
 				eq: id,
 			},
 		},
+		columns: {
+			referralEarnings: true,
+		},
 	});
+
+	const pendingCount = referrals.filter(
+		(referral) => referral.status === "pending",
+	).length;
+	const rewardedCount = referrals.filter(
+		(referral) => referral.status === "rewarded",
+	).length;
+	const blockedCount = referrals.filter(
+		(referral) => referral.status === "blocked",
+	).length;
 
 	return c.json({
 		referredCount: referrals.length,
+		pendingCount,
+		rewardedCount,
+		blockedCount,
+		earnedCredits: org?.referralEarnings ?? "0",
+		rewardPerReferral: "5",
 	});
 });
 

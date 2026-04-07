@@ -5,13 +5,10 @@ import { getProviderEndpoint } from "@llmgateway/actions";
 import { logger } from "@llmgateway/logger";
 import {
 	getProviderEnvConfig,
-	getPreferredPublicProviders,
-	getPublicProviderId,
 	hasProviderEnvironmentToken,
-	isKiwiHostedProviderId,
 	models as modelsList,
-	providers,
 	type Provider,
+	providers,
 	type ProviderModelMapping,
 	type ModelDefinition,
 } from "@llmgateway/models";
@@ -55,27 +52,6 @@ function canPubliclyRouteProviderMapping(
 	}
 }
 
-function dedupePublicProviders(
-	model: ModelDefinition,
-	providersToDedupe: ProviderModelMapping[],
-): ProviderModelMapping[] {
-	const seen = new Set<string>();
-
-	return providersToDedupe.filter((provider) => {
-		const publicProviderId = getPublicProviderId(model, provider.providerId);
-		const publicModelName = isKiwiHostedProviderId(provider.providerId)
-			? model.id
-			: provider.modelName;
-		const key = `${publicProviderId}:${publicModelName}`;
-
-		if (seen.has(key)) {
-			return false;
-		}
-
-		seen.add(key);
-		return true;
-	});
-}
 const modelSchema = z.object({
 	id: z.string(),
 	name: z.string(),
@@ -84,8 +60,8 @@ const modelSchema = z.object({
 	description: z.string().optional(),
 	family: z.string(),
 	architecture: z.object({
-		input_modalities: z.array(z.enum(["text", "image", "video"])),
-		output_modalities: z.array(z.enum(["text", "image", "video"])),
+		input_modalities: z.array(z.enum(["text", "image", "audio", "video"])),
+		output_modalities: z.array(z.enum(["text", "image", "audio", "video"])),
 		tokenizer: z.string().optional(),
 	}),
 	top_provider: z.object({
@@ -95,18 +71,14 @@ const modelSchema = z.object({
 		z.object({
 			providerId: z.string(),
 			modelName: z.string(),
-			supportedVideoSizes: z.array(z.string()).optional(),
-			supportsVideoAudio: z.boolean().optional(),
-			supportsVideoWithoutAudio: z.boolean().optional(),
 			pricing: z
 				.object({
 					prompt: z.string(),
 					completion: z.string(),
 					image: z.string().optional(),
-					per_second: z.record(z.string()).optional(),
 				})
 				.optional(),
-			streaming: z.union([z.boolean(), z.literal("only")]),
+			streaming: z.boolean(),
 			vision: z.boolean(),
 			cancellation: z.boolean(),
 			tools: z.boolean(),
@@ -121,7 +93,6 @@ const modelSchema = z.object({
 		prompt: z.string(),
 		completion: z.string(),
 		image: z.string().optional(),
-		per_second: z.record(z.string()).optional(),
 		request: z.string().optional(),
 		input_cache_read: z.string().optional(),
 		input_cache_write: z.string().optional(),
@@ -186,53 +157,54 @@ modelsApi.openapi(listModels, async (c) => {
 
 		const filteredModels = modelsList
 			.map((model: ModelDefinition) => {
-				const publicProviders = getPreferredPublicProviders(model);
-				const routeableProviders = dedupePublicProviders(
-					model,
-					publicProviders.filter((provider) => {
-						const providerMapping = provider as ProviderModelMapping;
+				const routeableProviders = model.providers.filter((provider) => {
+					const providerMapping = provider as ProviderModelMapping;
 
-						if (
-							!includeDeactivated &&
-							providerMapping.deactivatedAt &&
-							currentDate > providerMapping.deactivatedAt
-						) {
-							return false;
-						}
+					if (
+						!includeDeactivated &&
+						providerMapping.deactivatedAt &&
+						currentDate > providerMapping.deactivatedAt
+					) {
+						return false;
+					}
 
-						if (
-							excludeDeprecated &&
-							providerMapping.deprecatedAt &&
-							currentDate > providerMapping.deprecatedAt
-						) {
-							return false;
-						}
+					if (
+						excludeDeprecated &&
+						providerMapping.deprecatedAt &&
+						currentDate > providerMapping.deprecatedAt
+					) {
+						return false;
+					}
 
-						return canPubliclyRouteProviderMapping(providerMapping);
-					}),
-				);
+					return canPubliclyRouteProviderMapping(providerMapping);
+				});
+
 				if (routeableProviders.length === 0) {
-					return null;
+					return undefined;
 				}
 
 				return {
 					...model,
 					providers: routeableProviders,
-				};
+				} satisfies ModelDefinition;
 			})
-			.filter((model): model is ModelDefinition => model !== null);
+			.filter((model): model is ModelDefinition => model !== undefined);
 
 		const modelData = filteredModels.map((model: ModelDefinition) => {
 			// Determine input modalities (if model supports images)
-			const inputModalities: ("text" | "image" | "video")[] = ["text"];
+			const inputModalities: ("text" | "image" | "audio" | "video")[] = ["text"];
 
 			// Check if any provider has vision support
 			if (model.providers.some((p) => p.vision)) {
 				inputModalities.push("image");
 			}
 
+			if ((model.output as readonly string[] | undefined)?.includes("audio")) {
+				inputModalities.push("audio");
+			}
+
 			// Determine output modalities from model definition or default to text only
-			const outputModalities: ("text" | "image" | "video")[] = model.output ?? [
+			const outputModalities: ("text" | "image" | "audio" | "video")[] = model.output ?? [
 				"text",
 			];
 
@@ -240,8 +212,7 @@ modelsApi.openapi(listModels, async (c) => {
 				(p: ProviderModelMapping) =>
 					p.inputPrice !== undefined ||
 					p.outputPrice !== undefined ||
-					p.imageInputPrice !== undefined ||
-					p.perSecondPrice !== undefined,
+					p.imageInputPrice !== undefined,
 			);
 
 			const inputPrice =
@@ -256,7 +227,7 @@ modelsApi.openapi(listModels, async (c) => {
 				name: model.name ?? model.id,
 				aliases: model.aliases,
 				created: Math.floor(Date.now() / 1000), // Current timestamp in seconds
-				description: model.description,
+				description: `${model.id} provided by ${model.providers.map((p) => p.providerId).join(", ")}`,
 				family: model.family,
 				architecture: {
 					input_modalities: inputModalities,
@@ -273,32 +244,16 @@ modelsApi.openapi(listModels, async (c) => {
 					);
 
 					return {
-						providerId: getPublicProviderId(model, provider.providerId),
-						modelName: isKiwiHostedProviderId(provider.providerId)
-							? model.id
-							: provider.modelName,
-						supportedVideoSizes: provider.supportedVideoSizes,
-						supportsVideoAudio: provider.supportsVideoAudio,
-						supportsVideoWithoutAudio: provider.supportsVideoWithoutAudio,
+						providerId: provider.providerId,
+						modelName: provider.modelName,
 						pricing:
 							provider.inputPrice !== undefined ||
 							provider.outputPrice !== undefined ||
-							provider.imageInputPrice !== undefined ||
-							provider.perSecondPrice !== undefined
+							provider.imageInputPrice !== undefined
 								? {
 										prompt: provider.inputPrice?.toString() ?? "0",
 										completion: provider.outputPrice?.toString() ?? "0",
 										image: provider.imageInputPrice?.toString() ?? "0",
-										per_second: provider.perSecondPrice
-											? Object.fromEntries(
-													Object.entries(provider.perSecondPrice).map(
-														([resolution, price]) => [
-															resolution,
-															price.toString(),
-														],
-													),
-												)
-											: undefined,
 									}
 								: undefined,
 						streaming: provider.streaming,
@@ -314,13 +269,6 @@ modelsApi.openapi(listModels, async (c) => {
 					prompt: inputPrice,
 					completion: outputPrice,
 					image: imagePrice,
-					per_second: firstProviderWithPricing?.perSecondPrice
-						? Object.fromEntries(
-								Object.entries(firstProviderWithPricing.perSecondPrice).map(
-									([resolution, price]) => [resolution, price.toString()],
-								),
-							)
-						: undefined,
 					request: firstProviderWithPricing?.requestPrice?.toString() ?? "0",
 					input_cache_read:
 						firstProviderWithPricing?.cachedInputPrice?.toString() ?? "0",
@@ -332,7 +280,6 @@ modelsApi.openapi(listModels, async (c) => {
 				context_length:
 					Math.max(...model.providers.map((p) => p.contextSize ?? 0)) ??
 					undefined,
-				per_request_limits: getPerRequestLimits(model),
 				// Get supported parameters from model definitions with fallback to defaults
 				supported_parameters: getSupportedParametersFromModel(model),
 				// Add model-level capabilities
@@ -370,19 +317,6 @@ modelsApi.openapi(listModels, async (c) => {
 		throw new HTTPException(500, { message: "Internal server error" });
 	}
 });
-
-function getPerRequestLimits(
-	model: ModelDefinition,
-): Record<string, string> | undefined {
-	const limits: Record<string, string> = {};
-
-	if (model.maxVideoDurationSeconds !== undefined) {
-		limits.max_video_duration_seconds =
-			model.maxVideoDurationSeconds.toString();
-	}
-
-	return Object.keys(limits).length > 0 ? limits : undefined;
-}
 
 // Helper function to determine supported parameters from model definitions
 // Falls back to common default parameters if not explicitly defined

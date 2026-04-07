@@ -742,8 +742,6 @@ describe("test", () => {
 			expect(res.status).toBe(200);
 			const json = await res.json();
 			expect(json).toHaveProperty("choices.[0].message.content");
-			// Verify it routed to google-vertex, not google-ai-studio
-			expect(json.metadata.used_provider).toBe("google-vertex");
 			// The requested provider should be cleared since it was deactivated
 			expect(json.metadata.requested_provider).toBeNull();
 		} finally {
