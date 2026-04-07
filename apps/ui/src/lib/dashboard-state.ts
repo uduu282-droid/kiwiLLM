@@ -110,6 +110,37 @@ export function useDashboardState({
 	}, [selectedProjectId, projects]);
 
 	const billingAccount = useMemo<BillingAccount | null>(() => {
+		if (selectedOrganization) {
+			return {
+				id: selectedOrganization.id,
+				name: selectedOrganization.name,
+				credits: selectedOrganization.credits,
+				isPersonal: selectedOrganization.isPersonal,
+				plan: selectedOrganization.plan,
+				planExpiresAt: selectedOrganization.planExpiresAt
+					? new Date(selectedOrganization.planExpiresAt).toISOString()
+					: null,
+				billingEmail: selectedOrganization.billingEmail,
+				autoTopUpEnabled: selectedOrganization.autoTopUpEnabled,
+				autoTopUpThreshold: selectedOrganization.autoTopUpThreshold,
+				autoTopUpAmount: selectedOrganization.autoTopUpAmount,
+				devPlan: selectedOrganization.devPlan,
+				devPlanCreditsUsed: selectedOrganization.devPlanCreditsUsed,
+				devPlanCreditsLimit: selectedOrganization.devPlanCreditsLimit,
+				devPlanBillingCycleStart:
+					selectedOrganization.devPlanBillingCycleStart
+						? new Date(
+								selectedOrganization.devPlanBillingCycleStart,
+							).toISOString()
+						: null,
+				devPlanCancelled: false,
+				devPlanExpiresAt: selectedOrganization.devPlanExpiresAt
+					? new Date(selectedOrganization.devPlanExpiresAt).toISOString()
+					: null,
+				devPlanAllowAllModels: selectedOrganization.devPlanAllowAllModels,
+			};
+		}
+
 		if (personalOrgData) {
 			return {
 				id: personalOrgData.id,
@@ -132,35 +163,7 @@ export function useDashboardState({
 			};
 		}
 
-		if (!selectedOrganization) {
-			return null;
-		}
-
-		return {
-			id: selectedOrganization.id,
-			name: selectedOrganization.name,
-			credits: selectedOrganization.credits,
-			isPersonal: selectedOrganization.isPersonal,
-			plan: selectedOrganization.plan,
-			planExpiresAt: selectedOrganization.planExpiresAt
-				? new Date(selectedOrganization.planExpiresAt).toISOString()
-				: null,
-			billingEmail: selectedOrganization.billingEmail,
-			autoTopUpEnabled: selectedOrganization.autoTopUpEnabled,
-			autoTopUpThreshold: selectedOrganization.autoTopUpThreshold,
-			autoTopUpAmount: selectedOrganization.autoTopUpAmount,
-			devPlan: selectedOrganization.devPlan,
-			devPlanCreditsUsed: selectedOrganization.devPlanCreditsUsed,
-			devPlanCreditsLimit: selectedOrganization.devPlanCreditsLimit,
-			devPlanBillingCycleStart: selectedOrganization.devPlanBillingCycleStart
-				? new Date(selectedOrganization.devPlanBillingCycleStart).toISOString()
-				: null,
-			devPlanCancelled: false,
-			devPlanExpiresAt: selectedOrganization.devPlanExpiresAt
-				? new Date(selectedOrganization.devPlanExpiresAt).toISOString()
-				: null,
-			devPlanAllowAllModels: selectedOrganization.devPlanAllowAllModels,
-		};
+		return null;
 	}, [personalOrgData, selectedOrganization]);
 
 	// Navigation functions for the new route structure

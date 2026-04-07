@@ -126,7 +126,7 @@ export function OrganizationCreditsCard({
 				<div className="flex items-start justify-between gap-4">
 					<div className="space-y-1">
 						<p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-							Account Credits
+							{organization?.isPersonal ? "Personal Credits" : "Organization Credits"}
 						</p>
 						<div className="flex items-baseline gap-2">
 							<CountUp
