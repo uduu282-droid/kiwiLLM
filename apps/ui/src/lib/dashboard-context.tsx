@@ -2,12 +2,13 @@
 
 import { createContext, use, type ReactNode } from "react";
 
-import type { Organization, Project } from "@/lib/types";
+import type { BillingAccount, Organization, Project } from "@/lib/types";
 
 interface DashboardContextType {
 	organizations: Organization[];
 	projects: Project[];
 	selectedOrganization: Organization | null;
+	billingAccount: BillingAccount | null;
 	selectedProject: Project | null;
 	handleOrganizationSelect: (org: Organization | null) => void;
 	handleProjectSelect: (project: Project | null) => void;
