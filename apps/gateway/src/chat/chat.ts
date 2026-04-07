@@ -18,6 +18,7 @@ import { isCodingModel } from "@/lib/coding-models.js";
 import { calculateCosts, shouldBillCancelledRequests } from "@/lib/costs.js";
 import { throwIamException, validateModelAccess } from "@/lib/iam.js";
 import { calculateDataStorageCost, insertLog } from "@/lib/logs.js";
+import { assertHostedCreditsAvailable } from "@/lib/model-access.js";
 import {
 	createCombinedSignal,
 	createStreamingCombinedSignal,
@@ -1952,9 +1953,38 @@ chat.openapi(completions, async (c) => {
 		});
 	}
 
+	if (
+		(!providerKey || !providerKey.token) &&
+		!free_models_only &&
+		!isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition) &&
+		!selectedProviderIsZeroCost
+	) {
+		await assertHostedCreditsAvailable({
+			organization,
+			model: (finalModelInfo ?? modelInfo) as ModelDefinition,
+			provider: usedProvider,
+			providerIsZeroCost: selectedProviderIsZeroCost,
+			promptTokens: estimatedPromptTokens,
+			completionTokens: estimatedCompletionTokens,
+			reasoningTokens: estimatedReasoningTokens,
+			inputImageCount,
+			imageSize: image_config?.image_size,
+			webSearchCount: estimatedWebSearchCount,
+			fullOutput: {
+				prompt: promptPreview,
+			},
+		});
+	}
+
+	const shouldApplyFreeUserUsageLimit =
+		(!providerKey || !providerKey.token) &&
+		isFreeTierOrganization &&
+		(isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition) ||
+			selectedProviderIsZeroCost);
+
 	// Apply free-tier protections when requests use Kiwi-managed provider tokens.
 	if (!providerKey || !providerKey.token) {
-		if (isFreeTierOrganization) {
+		if (shouldApplyFreeUserUsageLimit) {
 			try {
 				await validateFreeUserUsage(c, project.organizationId, {
 					skipEmailVerification: onboarding,

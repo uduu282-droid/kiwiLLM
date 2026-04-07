@@ -137,12 +137,14 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 			{
 				params: {
 					query: {
-						...(selectedProject?.id ? { projectId: selectedProject.id } : {}),
+						...(selectedOrganization?.id
+							? { organizationId: selectedOrganization.id }
+							: {}),
 					},
 				},
 			},
 			{
-				enabled: !!selectedProject?.id,
+				enabled: !!selectedOrganization?.id,
 				staleTime: 30 * 1000,
 				refetchOnWindowFocus: false,
 				refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
@@ -379,8 +381,9 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 									</div>
 									<p className="text-xs text-zinc-500">
 										The {requestLimits.rpd} RPD cap is a rolling 24-hour limit.
-										This card shows your actual last-24-hours usage, independent
-										of the analytics date range below.
+										This card shows your actual last-24-hours free-tier usage.
+										Paid credit-backed requests do not count against this
+										bucket.
 									</p>
 								</div>
 							</CardContent>

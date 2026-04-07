@@ -50,6 +50,7 @@ interface ModelBreakdownRow {
 async function getAccessibleProjectIds(
 	userId: string,
 	projectId?: string,
+	organizationId?: string,
 ): Promise<string[]> {
 	const organizationIds = await getUserOrganizationIds(userId);
 
@@ -57,10 +58,16 @@ async function getAccessibleProjectIds(
 		return [];
 	}
 
+	if (organizationId && !organizationIds.includes(organizationId)) {
+		throw new HTTPException(403, {
+			message: "You don't have access to this organization",
+		});
+	}
+
 	const projects = await db.query.project.findMany({
 		where: {
 			organizationId: {
-				in: organizationIds,
+				in: organizationId ? [organizationId] : organizationIds,
 			},
 			status: {
 				ne: "deleted",
@@ -337,6 +344,8 @@ async function queryRolling24hRequestCount(
 	const conditions = [
 		inArray(log.projectId, projectIds),
 		gte(log.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
+		eq(log.usedMode, "credits"),
+		eq(log.requestCost, 0),
 	];
 
 	if (apiKeyId) {
@@ -481,6 +490,7 @@ const getRequestLimits = createRoute({
 	path: "/request-limits",
 	request: {
 		query: z.object({
+			organizationId: z.string().optional(),
 			projectId: z.string().optional(),
 			apiKeyId: z.string().optional(),
 		}),
@@ -506,8 +516,12 @@ activity.openapi(getRequestLimits, async (c) => {
 		});
 	}
 
-	const { projectId, apiKeyId } = c.req.valid("query");
-	const projectIds = await getAccessibleProjectIds(user.id, projectId);
+	const { organizationId, projectId, apiKeyId } = c.req.valid("query");
+	const projectIds = await getAccessibleProjectIds(
+		user.id,
+		projectId,
+		organizationId,
+	);
 
 	if (!projectIds.length) {
 		return c.json({

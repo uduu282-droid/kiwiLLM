@@ -5,6 +5,7 @@ import { useMemo, useCallback } from "react";
 
 import { useUser } from "@/hooks/useUser";
 import { useApi } from "@/lib/fetch-client";
+import { LIVE_DASHBOARD_REFRESH_MS } from "@/lib/live-refresh";
 
 import type { Organization, Project } from "@/lib/types";
 
@@ -36,8 +37,10 @@ export function useDashboardState({
 			initialData: initialOrganizationsData as
 				| { organizations: Organization[] }
 				| undefined,
-			staleTime: 5 * 60 * 1000, // 5 minutes
+			staleTime: LIVE_DASHBOARD_REFRESH_MS,
 			refetchOnWindowFocus: false,
+			refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+			refetchIntervalInBackground: true,
 		},
 	);
 	const organizations = useMemo(
@@ -67,8 +70,10 @@ export function useDashboardState({
 		{
 			enabled: !!selectedOrganization?.id,
 			initialData: initialProjectsData as { projects: Project[] } | undefined,
-			staleTime: 5 * 60 * 1000, // 5 minutes
+			staleTime: LIVE_DASHBOARD_REFRESH_MS,
 			refetchOnWindowFocus: false,
+			refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+			refetchIntervalInBackground: true,
 		},
 	);
 
