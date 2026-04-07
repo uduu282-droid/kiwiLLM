@@ -15,9 +15,19 @@ export interface CostData {
 
 function buildPublicResponseModel(
 	requestedModel: string,
-	requestedProvider: string | null,
+	_requestedProvider: string | null,
 ) {
-	return requestedProvider ? `${requestedProvider}/${requestedModel}` : requestedModel;
+	return requestedModel;
+}
+
+function sanitizeRequestedProvider(
+	requestedProvider: string | null,
+): string | null {
+	if (!requestedProvider || requestedProvider.startsWith("kiwillm-")) {
+		return null;
+	}
+
+	return requestedProvider;
 }
 
 function buildPublicMetadata(
@@ -26,7 +36,7 @@ function buildPublicMetadata(
 ) {
 	return {
 		requested_model: requestedModel,
-		requested_provider: requestedProvider,
+		requested_provider: sanitizeRequestedProvider(requestedProvider),
 	};
 }
 
@@ -97,7 +107,7 @@ export function transformResponseToOpenai(
 	costs: CostData | null = null,
 	showUpgradeMessage = false,
 	annotations: Annotation[] | null = null,
-	routing: RoutingAttempt[] | null = null,
+	_routing: RoutingAttempt[] | null = null,
 ) {
 	let transformedResponse = json;
 

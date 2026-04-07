@@ -176,6 +176,75 @@ function jsonResponse(
 	});
 }
 
+function sanitizeRequestedProviderForPublicResponse(
+	requestedProvider: string | null | undefined,
+): string | null {
+	if (!requestedProvider || requestedProvider.startsWith("kiwillm-")) {
+		return null;
+	}
+
+	return requestedProvider;
+}
+
+function buildPublicResponseModelName(requestedModel: string): string {
+	return requestedModel;
+}
+
+function buildPublicErrorDetails(
+	requestedModel: string,
+	requestedProvider: string | null | undefined,
+	extra?: Record<string, unknown>,
+) {
+	return {
+		requestedModel,
+		requestedProvider:
+			sanitizeRequestedProviderForPublicResponse(requestedProvider),
+		...(extra ?? {}),
+	};
+}
+
+function sanitizeProviderErrorPayload(payload: unknown): unknown {
+	if (!payload || typeof payload !== "object") {
+		return payload;
+	}
+
+	const response = payload as Record<string, unknown>;
+	const error =
+		response.error && typeof response.error === "object"
+			? { ...(response.error as Record<string, unknown>) }
+			: null;
+
+	if (!error) {
+		return payload;
+	}
+
+	delete error.usedProvider;
+	delete error.usedModel;
+	delete error.underlying_used_model;
+	delete error.underlyingUsedModel;
+	delete error.used_provider;
+	delete error.used_model;
+
+	if (
+		typeof error.requestedProvider === "string" &&
+		error.requestedProvider.startsWith("kiwillm-")
+	) {
+		error.requestedProvider = null;
+	}
+
+	if (
+		typeof error.requested_provider === "string" &&
+		error.requested_provider.startsWith("kiwillm-")
+	) {
+		error.requested_provider = null;
+	}
+
+	return {
+		...response,
+		error,
+	};
+}
+
 const completions = createRoute({
 	operationId: "v1_chat_completions",
 	summary: "Chat Completions",
@@ -990,7 +1059,7 @@ chat.openapi(completions, async (c) => {
 					// Find the cheapest among the suitable providers for this model
 					for (const provider of suitableProviders) {
 						const totalPrice =
-							((provider.inputPrice || 0) + (provider.outputPrice || 0)) / 2;
+							((provider.inputPrice ?? 0) + (provider.outputPrice ?? 0)) / 2;
 
 						if (totalPrice < lowestPrice) {
 							lowestPrice = totalPrice;
@@ -1812,16 +1881,6 @@ chat.openapi(completions, async (c) => {
 	);
 	const resolvedModelDefinition = (finalModelInfo ??
 		modelInfo) as ModelDefinition;
-	const promptPreview = messages
-		.map((message) => messageContentToString(message.content))
-		.join("\n");
-	const estimatedPromptTokens =
-		estimateTokens(usedProvider, messages, null, null, null)
-			.calculatedPromptTokens ?? null;
-	const estimatedCompletionTokens = max_tokens ?? 1024;
-	const estimatedReasoningTokens = reasoning_max_tokens ?? null;
-	const estimatedWebSearchCount = webSearchTool ? 1 : null;
-
 	if (
 		project.mode === "credits" &&
 		(usedProvider === "custom" || usedProvider === "llmgateway")
@@ -4248,9 +4307,7 @@ chat.openapi(completions, async (c) => {
 								const transformedData = transformStreamingToOpenai(
 									usedProvider,
 									usedModel,
-									requestedProvider
-										? `${requestedProvider}/${initialRequestedModel}`
-										: initialRequestedModel,
+									buildPublicResponseModelName(initialRequestedModel),
 									data,
 									messages,
 									serverToolUseIndices,
@@ -5754,10 +5811,10 @@ chat.openapi(completions, async (c) => {
 						type: isTimeoutFetchError ? "upstream_timeout" : "upstream_error",
 						param: null,
 						code: isTimeoutFetchError ? "timeout" : "fetch_failed",
-						requestedProvider,
-						usedProvider,
-						requestedModel: initialRequestedModel,
-						usedModel,
+						...buildPublicErrorDetails(
+							initialRequestedModel,
+							requestedProvider,
+						),
 					},
 				},
 				isTimeoutFetchError ? 504 : 502,
@@ -6179,7 +6236,7 @@ chat.openapi(completions, async (c) => {
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion",
 					created: Math.floor(Date.now() / 1000),
-					model: `${usedProvider}/${baseModelName}`,
+					model: buildPublicResponseModelName(initialRequestedModel),
 					choices: [
 						{
 							index: 0,
@@ -6197,7 +6254,8 @@ chat.openapi(completions, async (c) => {
 					},
 					metadata: {
 						requested_model: initialRequestedModel,
-						requested_provider: requestedProvider,
+						requested_provider:
+							sanitizeRequestedProviderForPublicResponse(requestedProvider),
 					},
 				});
 			}
@@ -6206,7 +6264,10 @@ chat.openapi(completions, async (c) => {
 			if (finishReason === "client_error") {
 				try {
 					const originalError = JSON.parse(errorResponseText);
-					return jsonResponse(originalError, res.status);
+					return jsonResponse(
+						sanitizeProviderErrorPayload(originalError),
+						res.status,
+					);
 				} catch {
 					// If we can't parse the original error, fall back to our format
 				}
@@ -6220,10 +6281,10 @@ chat.openapi(completions, async (c) => {
 						type: finishReason,
 						param: null,
 						code: finishReason,
-						requestedProvider,
-						usedProvider,
-						requestedModel: initialRequestedModel,
-						usedModel,
+						...buildPublicErrorDetails(
+							initialRequestedModel,
+							requestedProvider,
+						),
 						responseText: errorResponseText,
 					},
 				},
