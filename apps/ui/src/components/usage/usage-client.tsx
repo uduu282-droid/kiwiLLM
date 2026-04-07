@@ -98,7 +98,23 @@ function formatCompactUsd(value: number) {
 	if (value === 0) {
 		return "$0.00";
 	}
+	if (value < 0.0001) {
+		return "<$0.0001";
+	}
 	if (value < 0.01) {
+		return `$${value.toFixed(4)}`;
+	}
+	return `$${value.toFixed(2)}`;
+}
+
+function formatExactUsd(value: number) {
+	if (value === 0) {
+		return "$0.0000";
+	}
+	if (value < 0.0001) {
+		return "<$0.0001";
+	}
+	if (value < 1) {
 		return `$${value.toFixed(4)}`;
 	}
 	return `$${value.toFixed(2)}`;
@@ -528,7 +544,7 @@ export function UsageClient({
 					<MetricCard
 						title="Total Cost"
 						value={formatCompactUsd(totalCost)}
-						subtitle="Estimated spend across requests"
+						subtitle={`Estimated spend across requests. Exact: ${formatExactUsd(totalCost)}`}
 						icon={CircleDollarSign}
 						accentClassName="text-amber-300"
 					/>
@@ -544,6 +560,22 @@ export function UsageClient({
 						accentClassName="text-fuchsia-300"
 					/>
 				</div>
+
+				<Card className="rounded-[24px] border border-amber-500/15 bg-amber-500/[0.04] shadow-[0_0_0_1px_rgba(251,191,36,0.04)]">
+					<CardContent className="p-4 text-sm text-zinc-300">
+						<div className="flex flex-col gap-1">
+							<p className="font-medium text-amber-200">
+								Spend and wallet details
+							</p>
+							<p className="text-zinc-400">
+								Paid credit-backed requests settle asynchronously through the
+								worker and usually appear in spend totals within a few seconds.
+								Very small paid requests can also look close to zero unless shown
+								with extra precision.
+							</p>
+						</div>
+					</CardContent>
+				</Card>
 
 				<div className="grid gap-6 xl:grid-cols-[1.65fr_0.95fr]">
 					<Card className="rounded-[32px] border-white/10 bg-black/30 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">

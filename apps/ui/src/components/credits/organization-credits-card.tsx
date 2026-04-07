@@ -45,8 +45,18 @@ export function OrganizationCreditsCard({
 
 	const helperText = useMemo(() => {
 		return currentCredits > 0
-			? "When your daily free limit runs out, KiwiLLM will automatically start using your credits."
-			: "Redeemed credits will be used automatically after your daily free limit is exhausted.";
+			? "Used for pay-as-you-go and other hosted credit-backed requests. Recent paid requests can take a few seconds to settle."
+			: "Redeemed credits are used for hosted paid requests once your account needs credit-backed routing.";
+	}, [currentCredits]);
+
+	const detailedBalance = useMemo(() => {
+		if (currentCredits >= 100) {
+			return currentCredits.toFixed(2);
+		}
+		if (currentCredits >= 1) {
+			return currentCredits.toFixed(4);
+		}
+		return currentCredits.toFixed(6);
 	}, [currentCredits]);
 
 	const applyCreditsToCache = (nextCredits: string) => {
@@ -151,6 +161,9 @@ export function OrganizationCreditsCard({
 							) : null}
 						</div>
 						<p className="text-xs text-zinc-500">Available balance</p>
+						<p className="text-[11px] text-zinc-600">
+							Exact live balance: ${detailedBalance}
+						</p>
 					</div>
 					<div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/30 bg-sky-500/10 text-sky-400">
 						<CreditCard className="h-4 w-4" />
