@@ -116,6 +116,22 @@ const logSchema = z.object({
 	retriedByLogId: z.string().nullable().optional(),
 });
 
+const publicRequestedModelSql = sql<string>`
+	CASE
+		WHEN ${tables.log.requestedModel} IS NOT NULL THEN ${tables.log.requestedModel}
+		WHEN ${tables.log.usedProvider} LIKE 'kiwillm-%' THEN NULLIF(SPLIT_PART(${tables.log.usedModel}, '/', 2), '')
+		ELSE ${tables.log.usedModel}
+	END
+`;
+
+const publicRequestedProviderSql = sql<string>`
+	CASE
+		WHEN ${tables.log.requestedProvider} IS NOT NULL THEN ${tables.log.requestedProvider}
+		WHEN ${tables.log.usedProvider} LIKE 'kiwillm-%' THEN NULL
+		ELSE ${tables.log.usedProvider}
+	END
+`;
+
 function sanitizeLogForUser(log: typeof tables.log.$inferSelect) {
 	return {
 		...log,
@@ -459,14 +475,12 @@ logs.openapi(get, async (c) => {
 
 	// Add model filter - match the model name part after the slash
 	if (model) {
-		whereConditions.push(
-			sql`SPLIT_PART(${tables.log.usedModel}, '/', 2) = ${model}`,
-		);
+		whereConditions.push(sql`${publicRequestedModelSql} = ${model}`);
 	}
 
 	// Add provider filter
 	if (provider) {
-		whereConditions.push(eq(tables.log.usedProvider, provider));
+		whereConditions.push(sql`${publicRequestedProviderSql} = ${provider}`);
 	}
 
 	// Add finish reason filter
@@ -705,8 +719,8 @@ logs.openapi(uniqueModelsGet, async (c) => {
 
 	let dbQuery = db
 		.selectDistinct({
-			requestedModel: tables.log.requestedModel,
-			requestedProvider: tables.log.requestedProvider,
+			requestedModel: publicRequestedModelSql.as("requestedModel"),
+			requestedProvider: publicRequestedProviderSql.as("requestedProvider"),
 			usedModel: tables.log.usedModel,
 			usedProvider: tables.log.usedProvider,
 		})
@@ -725,7 +739,7 @@ logs.openapi(uniqueModelsGet, async (c) => {
 
 	for (const row of uniqueRequestedModels) {
 		const publicModel = row.requestedModel || row.usedModel;
-		const publicProvider = row.requestedProvider || row.usedProvider;
+		const publicProvider = row.requestedProvider || "";
 
 		if (publicProvider && !providerNames.includes(publicProvider)) {
 			providerNames.push(publicProvider);

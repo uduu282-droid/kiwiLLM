@@ -659,7 +659,7 @@ export function transformResponseToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion",
 					created: json.created ?? Math.floor(Date.now() / 1000),
-					model: `${usedProvider}/${baseModelName}`,
+					model: buildPublicResponseModel(requestedModel, requestedProvider),
 					choices: [
 						{
 							index: 0,

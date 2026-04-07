@@ -58,6 +58,22 @@ interface ModelBreakdownRow {
 	cost: number;
 }
 
+const publicRequestedModelSql = sql<string>`
+	CASE
+		WHEN ${log.requestedModel} IS NOT NULL THEN ${log.requestedModel}
+		WHEN ${log.usedProvider} LIKE 'kiwillm-%' THEN NULLIF(SPLIT_PART(${log.usedModel}, '/', 2), '')
+		ELSE ${log.usedModel}
+	END
+`;
+
+const publicRequestedProviderSql = sql<string>`
+	CASE
+		WHEN ${log.requestedProvider} IS NOT NULL THEN ${log.requestedProvider}
+		WHEN ${log.usedProvider} LIKE 'kiwillm-%' THEN NULL
+		ELSE ${log.usedProvider}
+	END
+`;
+
 function createEmptyActivityRow(date: string): ActivityRow {
 	return {
 		date,
@@ -278,12 +294,8 @@ async function queryLiveActivityRows(
 		db
 			.select({
 				date: sql<string>`DATE(${log.createdAt})`.as("date"),
-				requestedModel: sql<string>`COALESCE(${log.requestedModel}, ${log.usedModel})`.as(
-					"requestedModel",
-				),
-				requestedProvider: sql<string>`COALESCE(${log.requestedProvider}, ${log.usedProvider})`.as(
-					"requestedProvider",
-				),
+				requestedModel: publicRequestedModelSql.as("requestedModel"),
+				requestedProvider: publicRequestedProviderSql.as("requestedProvider"),
 				requestCount: sql<number>`count(*)::int`.as("requestCount"),
 				inputTokens:
 					sql<number>`COALESCE(SUM(CAST(${log.promptTokens} AS NUMERIC)), 0)`.as(
@@ -308,10 +320,7 @@ async function queryLiveActivityRows(
 				log.usedModel,
 				log.usedProvider,
 			)
-			.orderBy(
-				sql`DATE(${log.createdAt}) ASC`,
-				sql`COALESCE(${log.requestedModel}, ${log.usedModel})`,
-			),
+			.orderBy(sql`DATE(${log.createdAt}) ASC`, publicRequestedModelSql),
 	]);
 
 	return { rows, modelRows };

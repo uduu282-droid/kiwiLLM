@@ -4248,6 +4248,9 @@ chat.openapi(completions, async (c) => {
 								const transformedData = transformStreamingToOpenai(
 									usedProvider,
 									usedModel,
+									requestedProvider
+										? `${requestedProvider}/${initialRequestedModel}`
+										: initialRequestedModel,
 									data,
 									messages,
 									serverToolUseIndices,

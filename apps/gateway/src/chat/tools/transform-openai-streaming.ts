@@ -41,7 +41,12 @@ function normalizeUsage(usage: any): any {
 /**
  * Helper function to transform standard OpenAI streaming format
  */
-export function transformOpenaiStreaming(data: any, usedModel: string): any {
+export function transformOpenaiStreaming(
+	data: any,
+	usedModel: string,
+	publicModel?: string,
+): any {
+	const responseModel = publicModel ?? usedModel;
 	const normalizeChoiceIndex = (index: unknown): number => {
 		return typeof index === "number" && Number.isFinite(index) && index >= 0
 			? index
@@ -138,7 +143,7 @@ export function transformOpenaiStreaming(data: any, usedModel: string): any {
 			id: data.id ?? `chatcmpl-${Date.now()}`,
 			object: "chat.completion.chunk",
 			created: data.created ?? Math.floor(Date.now() / 1000),
-			model: data.model ?? usedModel,
+			model: data.model ?? responseModel,
 			choices: [
 				{
 					index: 0,
@@ -154,6 +159,7 @@ export function transformOpenaiStreaming(data: any, usedModel: string): any {
 	return {
 		...data,
 		object: "chat.completion.chunk",
+		model: data.model ?? responseModel,
 		choices: transformedChoices,
 		usage: normalizeUsage(data.usage),
 	};
