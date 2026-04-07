@@ -68,6 +68,7 @@ import {
 } from "@llmgateway/models";
 
 import { completionsRequestSchema } from "./schemas/completions.js";
+import { applyPlatformSecurity } from "./tools/apply-platform-security.js";
 import { convertImagesToBase64 } from "./tools/convert-images-to-base64.js";
 import { countInputImages } from "./tools/count-input-images.js";
 import { createLogEntry } from "./tools/create-log-entry.js";
@@ -641,6 +642,12 @@ chat.openapi(completions, async (c) => {
 			}
 		}
 	}
+
+	({ messages } = {
+		messages: applyPlatformSecurity(
+			messages as Parameters<typeof applyPlatformSecurity>[0],
+		).messages as typeof messages,
+	});
 
 	// Validate coding model restriction for dev plan personal orgs
 	// This check must happen BEFORE capability checks to give the right error message
