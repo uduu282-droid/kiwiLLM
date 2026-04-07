@@ -28,11 +28,15 @@ export default function AuthCallbackPage() {
 
 		void (async () => {
 			let exchangedSession: SupabaseSession | null = null;
+			const auth = authClient.auth;
 
 			try {
+				if (!auth) {
+					throw new Error("Authentication is not configured.");
+				}
+
 				if (code && !authClient.currentSession) {
-					const { data, error } =
-						await authClient.auth.auth.exchangeCodeForSession(code);
+					const { data, error } = await auth.auth.exchangeCodeForSession(code);
 
 					if (error) {
 						throw error;
@@ -44,7 +48,7 @@ export default function AuthCallbackPage() {
 				const session =
 					exchangedSession ??
 					authClient.currentSession ??
-					(await authClient.auth.auth.getSession()).data.session;
+					(await auth.auth.getSession()).data.session;
 
 				if (!session?.user) {
 					throw new Error(
@@ -60,6 +64,12 @@ export default function AuthCallbackPage() {
 				let recoveredSession = exchangedSession;
 				const retryDelaysMs = [0, 250, 500, 1000, 2000];
 
+				if (!auth) {
+					hasHandledCallbackRef.current = true;
+					window.location.replace(resumeAuthUrl);
+					return;
+				}
+
 				for (const retryDelayMs of retryDelaysMs) {
 					if (recoveredSession?.user) {
 						break;
@@ -69,8 +79,7 @@ export default function AuthCallbackPage() {
 						await sleep(retryDelayMs);
 					}
 
-					recoveredSession = (await authClient.auth.auth.getSession()).data
-						.session;
+					recoveredSession = (await auth.auth.getSession()).data.session;
 				}
 
 				hasHandledCallbackRef.current = true;

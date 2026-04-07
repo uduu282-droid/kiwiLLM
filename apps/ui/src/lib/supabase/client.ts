@@ -8,9 +8,7 @@ let supabaseClientInstance: SupabaseClient | null = null;
 
 export function getSupabaseBrowserClient(config: AppConfig) {
 	if (!config.supabaseUrl || !config.supabaseAnonKey) {
-		throw new Error(
-			"Supabase is not configured. Missing NEXT_PUBLIC_SUPABASE_URL or publishable key.",
-		);
+		return null;
 	}
 
 	if (supabaseClientInstance) {

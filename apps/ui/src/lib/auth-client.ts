@@ -76,6 +76,12 @@ function getErrorMessage(error: unknown) {
 	return "Authentication failed";
 }
 
+function getAuthUnavailableError() {
+	return {
+		message: "Authentication is not configured.",
+	};
+}
+
 export function useAuthClient() {
 	const {
 		auth,
@@ -168,6 +174,10 @@ export function useAuth() {
 					},
 				): Promise<AuthResult> => {
 					try {
+						if (!authClient.auth) {
+							return { error: getAuthUnavailableError() };
+						}
+
 						const { data, error } =
 							await authClient.auth.auth.signInWithPassword({
 								email: input.email,
@@ -192,6 +202,10 @@ export function useAuth() {
 					callbackURL?: string;
 				}): Promise<SocialAuthResult> => {
 					try {
+						if (!authClient.auth) {
+							return { error: getAuthUnavailableError() };
+						}
+
 						const { data, error } = await authClient.auth.auth.signInWithOAuth({
 							provider: input.provider,
 							options: {
@@ -225,6 +239,10 @@ export function useAuth() {
 					},
 				): Promise<AuthResult> => {
 					try {
+						if (!authClient.auth) {
+							return { error: getAuthUnavailableError() };
+						}
+
 						const { data, error } = await authClient.auth.auth.signUp({
 							email: input.email,
 							password: input.password,
@@ -266,7 +284,9 @@ export function useAuth() {
 					onSuccess?: () => void;
 				};
 			}) => {
-				await authClient.auth.auth.signOut();
+				if (authClient.auth) {
+					await authClient.auth.auth.signOut();
+				}
 				await authClient.clearServerSession();
 				options?.fetchOptions?.onSuccess?.();
 				return { data: true };

@@ -3428,9 +3428,7 @@ admin.openapi(createCouponRoute, async (c) => {
 		`KIWI-${randomBytes(4).toString("hex").toUpperCase()}`;
 	const now = new Date();
 	const couponIdentifier = `coupon:${generatedCode}`;
-<<<<<<< HEAD
-	const effectiveExpiresAt =
-		expiresAt ?? new Date("2099-12-31T23:59:59.000Z");
+	const effectiveExpiresAt = expiresAt ?? new Date("2099-12-31T23:59:59.000Z");
 
 	try {
 		const [existingCoupon] = await db

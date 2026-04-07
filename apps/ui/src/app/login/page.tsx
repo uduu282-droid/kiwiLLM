@@ -4,9 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Github, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -42,7 +41,6 @@ const formSchema = z.object({
 
 export default function Login() {
 	const queryClient = useQueryClient();
-	const router = useRouter();
 	const posthog = usePostHog();
 	const [loadingState, setLoadingState] = useState<
 		null | "email" | "github" | "google"
@@ -82,6 +80,21 @@ export default function Login() {
 				? "Redirecting to GitHub and preparing your dashboard..."
 				: "Signing you in and preparing your dashboard...";
 
+	const updateResumeAuthState = useCallback(
+		(value: { shouldResumeAuth: boolean; resumeAuthTarget: string }) => {
+			setResumeAuthState(value);
+		},
+		[],
+	);
+
+	const updateRecoveringSession = useCallback((value: boolean) => {
+		setIsRecoveringSession(value);
+	}, []);
+
+	const updateResumeAuthTimedOut = useCallback((value: boolean) => {
+		setResumeAuthTimedOut(value);
+	}, []);
+
 	const signInWithSocial = async (provider: "github" | "google") => {
 		setLoadingState(provider);
 		try {
@@ -113,11 +126,11 @@ export default function Login() {
 
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
-		setResumeAuthState({
+		updateResumeAuthState({
 			shouldResumeAuth: params.get("resumeAuth") === "true",
 			resumeAuthTarget: params.get("next") ?? "/dashboard",
 		});
-	}, []);
+	}, [updateResumeAuthState]);
 
 	useEffect(() => {
 		if (!authClient.currentSession?.access_token || user || isUserLoading) {
@@ -125,7 +138,7 @@ export default function Login() {
 		}
 
 		let isCancelled = false;
-		setIsRecoveringSession(true);
+		updateRecoveringSession(true);
 
 		void authClient
 			.syncServerSession(authClient.currentSession)
@@ -149,7 +162,7 @@ export default function Login() {
 			})
 			.finally(() => {
 				if (!isCancelled) {
-					setIsRecoveringSession(false);
+					updateRecoveringSession(false);
 				}
 			});
 
@@ -163,10 +176,18 @@ export default function Login() {
 		queryClient,
 		resumeAuthTarget,
 		shouldResumeAuth,
+		updateRecoveringSession,
 		user,
 	]);
 
 	useEffect(() => {
+		if (!authClient.auth) {
+			if (shouldResumeAuth) {
+				updateResumeAuthTimedOut(true);
+			}
+			return;
+		}
+
 		if (!shouldResumeAuth || authClient.currentSession || user) {
 			return;
 		}
@@ -174,10 +195,17 @@ export default function Login() {
 		let isCancelled = false;
 		const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000];
 
-		setIsRecoveringSession(true);
-		setResumeAuthTimedOut(false);
+		updateRecoveringSession(true);
+		updateResumeAuthTimedOut(false);
 
 		void (async () => {
+			const auth = authClient.auth;
+
+			if (!auth) {
+				updateResumeAuthTimedOut(true);
+				return;
+			}
+
 			for (const retryDelayMs of retryDelaysMs) {
 				if (isCancelled) {
 					return;
@@ -189,7 +217,7 @@ export default function Login() {
 
 				const {
 					data: { session },
-				} = await authClient.auth.auth.getSession();
+				} = await auth.auth.getSession();
 
 				if (!session?.access_token) {
 					continue;
@@ -204,18 +232,18 @@ export default function Login() {
 			}
 
 			if (!isCancelled) {
-				setResumeAuthTimedOut(true);
+				updateResumeAuthTimedOut(true);
 			}
 		})()
 			.catch((error: unknown) => {
 				console.error("Failed to resume auth from login page", error);
 				if (!isCancelled) {
-					setResumeAuthTimedOut(true);
+					updateResumeAuthTimedOut(true);
 				}
 			})
 			.finally(() => {
 				if (!isCancelled) {
-					setIsRecoveringSession(false);
+					updateRecoveringSession(false);
 				}
 			});
 
@@ -224,10 +252,13 @@ export default function Login() {
 		};
 	}, [
 		authClient,
+		authClient.auth,
 		authClient.currentSession,
 		queryClient,
 		resumeAuthTarget,
 		shouldResumeAuth,
+		updateRecoveringSession,
+		updateResumeAuthTimedOut,
 		user,
 	]);
 

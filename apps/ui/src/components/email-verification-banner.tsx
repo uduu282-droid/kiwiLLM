@@ -20,6 +20,10 @@ export function EmailVerificationBanner() {
 		setIsResending(true);
 
 		try {
+			if (!authClient.auth) {
+				throw new Error("Authentication is not configured.");
+			}
+
 			if (!authClient.currentUser?.email) {
 				throw new Error("You must be signed in to resend verification email.");
 			}

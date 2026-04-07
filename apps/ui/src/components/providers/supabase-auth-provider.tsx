@@ -22,7 +22,7 @@ import type {
 } from "@supabase/supabase-js";
 
 interface SupabaseAuthContextValue {
-	auth: SupabaseClient;
+	auth: SupabaseClient | null;
 	currentUser: SupabaseUser | null;
 	currentSession: SupabaseSession | null;
 	isReady: boolean;
@@ -55,6 +55,12 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 	const inFlightSyncRef = useRef<Promise<void> | null>(null);
 	const inFlightSyncTokenRef = useRef<string | null>(null);
 
+	const resetAuthState = useCallback(() => {
+		setCurrentSession(null);
+		setCurrentUser(null);
+		setIsReady(true);
+	}, []);
+
 	const clearServerSession = useCallback(async () => {
 		lastSyncedTokenRef.current = null;
 		inFlightSyncRef.current = null;
@@ -67,6 +73,10 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
 	const syncServerSession = useCallback(
 		async (sessionOverride?: SupabaseSession | null) => {
+			if (!auth) {
+				return;
+			}
+
 			const nextSession =
 				sessionOverride ?? (await auth.auth.getSession()).data.session;
 
@@ -87,17 +97,20 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 			}
 
 			const syncPromise = (async () => {
-				const response = await safeFetch(`${config.apiUrl}/auth/supabase/session`, {
-					method: "POST",
-					credentials: "include",
-					headers: {
-						"Content-Type": "application/json",
+				const response = await safeFetch(
+					`${config.apiUrl}/auth/supabase/session`,
+					{
+						method: "POST",
+						credentials: "include",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify({
+							accessToken: nextSession.access_token,
+							refreshToken: nextSession.refresh_token,
+						}),
 					},
-					body: JSON.stringify({
-						accessToken: nextSession.access_token,
-						refreshToken: nextSession.refresh_token,
-					}),
-				});
+				);
 
 				if (!response?.ok) {
 					throw new Error("Failed to create Supabase session");
@@ -122,6 +135,11 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 	);
 
 	useEffect(() => {
+		if (!auth) {
+			resetAuthState();
+			return;
+		}
+
 		let isMounted = true;
 
 		void auth.auth
@@ -183,7 +201,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 			isMounted = false;
 			subscription.unsubscribe();
 		};
-	}, [auth, clearServerSession, syncServerSession]);
+	}, [auth, clearServerSession, resetAuthState, syncServerSession]);
 
 	const value = useMemo<SupabaseAuthContextValue>(
 		() => ({
