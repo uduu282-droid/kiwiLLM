@@ -12,10 +12,10 @@ import { useToast } from "@/lib/components/use-toast";
 import { useApi } from "@/lib/fetch-client";
 import { cn } from "@/lib/utils";
 
-import type { Organization } from "@/lib/types";
+import type { BillingAccount, Organization } from "@/lib/types";
 
 interface OrganizationCreditsCardProps {
-	organization: Organization | null;
+	organization: BillingAccount | null;
 }
 
 export function OrganizationCreditsCard({
@@ -26,9 +26,7 @@ export function OrganizationCreditsCard({
 	const { toast } = useToast();
 	const [isRedeemOpen, setIsRedeemOpen] = useState(false);
 	const [couponCode, setCouponCode] = useState("");
-	const [highlightIncrease, setHighlightIncrease] = useState<number | null>(
-		null,
-	);
+	const [highlightIncrease, setHighlightIncrease] = useState<number | null>(null);
 	const currentCredits = Number(organization?.credits ?? 0);
 	const [countFrom, setCountFrom] = useState(currentCredits);
 	const [countTo, setCountTo] = useState(currentCredits);
@@ -128,7 +126,7 @@ export function OrganizationCreditsCard({
 				<div className="flex items-start justify-between gap-4">
 					<div className="space-y-1">
 						<p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-							Organization Credits
+							Account Credits
 						</p>
 						<div className="flex items-baseline gap-2">
 							<CountUp
