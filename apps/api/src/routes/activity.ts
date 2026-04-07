@@ -47,6 +47,43 @@ interface ModelBreakdownRow {
 	cost: number;
 }
 
+async function getAccessibleProjectIds(
+	userId: string,
+	projectId?: string,
+): Promise<string[]> {
+	const organizationIds = await getUserOrganizationIds(userId);
+
+	if (!organizationIds.length) {
+		return [];
+	}
+
+	const projects = await db.query.project.findMany({
+		where: {
+			organizationId: {
+				in: organizationIds,
+			},
+			status: {
+				ne: "deleted",
+			},
+			...(projectId ? { id: projectId } : {}),
+		},
+	});
+
+	if (!projects.length) {
+		return [];
+	}
+
+	const projectIds = projects.map((project) => project.id);
+
+	if (projectId && !projectIds.includes(projectId)) {
+		throw new HTTPException(403, {
+			message: "You don't have access to this project",
+		});
+	}
+
+	return projectIds;
+}
+
 function createEmptyActivityRow(date: string): ActivityRow {
 	return {
 		date,
@@ -118,8 +155,8 @@ function mergeActivityRows(
 		const dateMap =
 			modelBreakdownByDate.get(row.date) ??
 			new Map<string, z.infer<typeof modelUsageSchema>>();
-		const modelId = row.usedModel || "unknown";
-		const providerId = row.usedProvider || "unknown";
+		const modelId = row.usedModel ?? "unknown";
+		const providerId = row.usedProvider ?? "unknown";
 		const key = `${providerId}:${modelId}`;
 		const existing = dateMap.get(key) ?? {
 			id: modelId,
@@ -293,6 +330,29 @@ async function queryLiveActivityRows(
 	return { rows, modelRows };
 }
 
+async function queryRolling24hRequestCount(
+	projectIds: string[],
+	apiKeyId?: string,
+) {
+	const conditions = [
+		inArray(log.projectId, projectIds),
+		gte(log.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
+	];
+
+	if (apiKeyId) {
+		conditions.push(eq(log.apiKeyId, apiKeyId));
+	}
+
+	const [result] = await db
+		.select({
+			requestCount: sql<number>`count(*)::int`.as("requestCount"),
+		})
+		.from(log)
+		.where(and(...conditions));
+
+	return Number(result?.requestCount ?? 0);
+}
+
 // Define the response schema for model-specific usage
 const modelUsageSchema = z.object({
 	id: z.string(),
@@ -391,39 +451,11 @@ activity.openapi(getActivity, async (c) => {
 		startDate.setDate(startDate.getDate() - effectiveDays);
 	}
 
-	// Get all organizations the user is a member of
-	const organizationIds = await getUserOrganizationIds(user.id);
+	const projectIds = await getAccessibleProjectIds(user.id, projectId);
 
-	if (!organizationIds.length) {
+	if (!projectIds.length) {
 		return c.json({
 			activity: [],
-		});
-	}
-
-	// Get all projects associated with the user's organizations
-	const projects = await db.query.project.findMany({
-		where: {
-			organizationId: {
-				in: organizationIds,
-			},
-			status: {
-				ne: "deleted",
-			},
-			...(projectId ? { id: projectId } : {}),
-		},
-	});
-
-	if (!projects.length) {
-		return c.json({
-			activity: [],
-		});
-	}
-
-	const projectIds = projects.map((project) => project.id);
-
-	if (projectId && !projectIds.includes(projectId)) {
-		throw new HTTPException(403, {
-			message: "You don't have access to this project",
 		});
 	}
 
@@ -436,5 +468,61 @@ activity.openapi(getActivity, async (c) => {
 
 	return c.json({
 		activity: mergeActivityRows(liveActivity.rows, liveActivity.modelRows),
+	});
+});
+
+const requestLimitsSchema = z.object({
+	rolling24hRequestCount: z.number(),
+	windowHours: z.literal(24),
+});
+
+const getRequestLimits = createRoute({
+	method: "get",
+	path: "/request-limits",
+	request: {
+		query: z.object({
+			projectId: z.string().optional(),
+			apiKeyId: z.string().optional(),
+		}),
+	},
+	responses: {
+		200: {
+			content: {
+				"application/json": {
+					schema: requestLimitsSchema,
+				},
+			},
+			description: "Rolling request-limit usage data",
+		},
+	},
+});
+
+activity.openapi(getRequestLimits, async (c) => {
+	const user = c.get("user");
+
+	if (!user) {
+		throw new HTTPException(401, {
+			message: "Unauthorized",
+		});
+	}
+
+	const { projectId, apiKeyId } = c.req.valid("query");
+	const projectIds = await getAccessibleProjectIds(user.id, projectId);
+
+	if (!projectIds.length) {
+		return c.json({
+			rolling24hRequestCount: 0,
+			windowHours: 24 as const,
+		});
+	}
+
+	const rolling24hRequestCount = await queryRolling24hRequestCount(
+		projectIds,
+		apiKeyId,
+	);
+
+	return c.json({
+		rolling24hRequestCount,
+		windowHours: 24 as const,
 	});
 });

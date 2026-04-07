@@ -130,6 +130,26 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 		},
 	);
 
+	const { data: requestLimitData, isLoading: isRequestLimitLoading } =
+		api.useQuery(
+			"get",
+			"/activity/request-limits",
+			{
+				params: {
+					query: {
+						...(selectedProject?.id ? { projectId: selectedProject.id } : {}),
+					},
+				},
+			},
+			{
+				enabled: !!selectedProject?.id,
+				staleTime: 30 * 1000,
+				refetchOnWindowFocus: false,
+				refetchInterval: LIVE_DASHBOARD_REFRESH_MS,
+				refetchIntervalInBackground: true,
+			},
+		);
+
 	const planLimits = apiKeysData?.planLimits;
 
 	// Function to update URL with new metric parameter
@@ -203,7 +223,12 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 			: { label: "Free limits", rpm: 10, rpd: 200 };
 	const requestUsagePercent =
 		requestLimits.rpd > 0
-			? Math.min(100, (totalRequests / requestLimits.rpd) * 100)
+			? Math.min(
+					100,
+					((requestLimitData?.rolling24hRequestCount ?? 0) /
+						requestLimits.rpd) *
+						100,
+				)
 			: 0;
 
 	const isInitialLoading = !selectedOrganization;
@@ -328,9 +353,11 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 									<div className="flex items-center justify-between text-sm">
 										<span className="text-zinc-400">{requestLimits.label}</span>
 										<span className="font-medium text-white">
-											{isLoading
+											{isRequestLimitLoading
 												? "Loading..."
-												: `${totalRequests.toLocaleString()} used in selected range`}
+												: `${(
+														requestLimitData?.rolling24hRequestCount ?? 0
+													).toLocaleString()} used in last 24 hours`}
 										</span>
 									</div>
 									<div className="h-2 overflow-hidden rounded-full bg-white/5">
@@ -340,20 +367,20 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 										/>
 									</div>
 									<div className="flex items-center justify-between text-xs text-zinc-500">
-										<span>
-											{format(from, "MMM d")} - {format(to, "MMM d")}
-										</span>
+										<span>Current rolling window</span>
 										<span>
 											{Math.max(
-												requestLimits.rpd - totalRequests,
+												requestLimits.rpd -
+													(requestLimitData?.rolling24hRequestCount ?? 0),
 												0,
 											).toLocaleString()}{" "}
-											remaining if this range were compared to the daily cap
+											remaining in the last 24 hours
 										</span>
 									</div>
 									<p className="text-xs text-zinc-500">
 										The {requestLimits.rpd} RPD cap is a rolling 24-hour limit.
-										This bar shows usage for the currently selected date range.
+										This card shows your actual last-24-hours usage, independent
+										of the analytics date range below.
 									</p>
 								</div>
 							</CardContent>
