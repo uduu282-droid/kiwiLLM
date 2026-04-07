@@ -353,9 +353,8 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 		return allLogs.filter((log) => {
 			const haystack = [
 				log.requestId,
-				log.usedModel,
-				log.usedProvider,
 				log.requestedModel,
+				log.requestedProvider,
 				log.unifiedFinishReason,
 				log.source,
 			]
@@ -579,7 +578,7 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 													</div>
 													<div className="min-w-0">
 														<p className="truncate font-medium text-white">
-															{log.usedModel ?? "---"}
+															{log.requestedModel ?? "---"}
 														</p>
 														<p className="mt-1 truncate text-xs text-zinc-500">
 															{log.requestId}
@@ -588,7 +587,9 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 													<div className="min-w-0">
 														<div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-sky-500/10 px-3 py-1 text-xs text-sky-200">
 															<Server className="h-3 w-3" />
-															<span className="truncate">{log.usedProvider ?? "---"}</span>
+															<span className="truncate">
+																{log.requestedProvider ?? "---"}
+															</span>
 														</div>
 													</div>
 													<div>
@@ -657,13 +658,9 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 																	<span className="break-all text-zinc-200">
 																		{log.requestedModel}
 																	</span>
-																	<span className="text-zinc-500">Used</span>
-																	<span className="break-all text-zinc-200">
-																		{log.usedModel}
-																	</span>
 																	<span className="text-zinc-500">Provider</span>
 																	<span className="break-all text-zinc-200">
-																		{log.usedProvider}
+																		{log.requestedProvider ?? "---"}
 																	</span>
 																	<span className="text-zinc-500">Source</span>
 																	<span className="break-all text-zinc-200">

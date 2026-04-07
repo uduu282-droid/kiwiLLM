@@ -184,7 +184,7 @@ export function LogCard({
 					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-1 text-sm text-muted-foreground">
 						<div className="flex items-center gap-1">
 							<Package className="h-3.5 w-3.5 shrink-0" />
-							<span className="truncate">{log.usedModel}</span>
+							<span className="truncate">{log.requestedModel}</span>
 						</div>
 						<div className="flex items-center gap-1">
 							<Zap className="h-3.5 w-3.5 shrink-0" />
@@ -302,142 +302,9 @@ export function LogCard({
 								<div className="font-mono text-xs break-all">
 									{log.requestedModel}
 								</div>
-								<div className="text-muted-foreground">Used Model</div>
-								<div className="font-mono text-xs break-all">
-									{log.usedModel}
-								</div>
-								{log.usedModelMapping && (
-									<>
-										<div className="text-muted-foreground">
-											Used Model Provider Mapping
-										</div>
-										<div>{log.usedModelMapping}</div>
-									</>
-								)}
 								<div className="text-muted-foreground">Provider</div>
-								<div>{log.usedProvider}</div>
+								<div>{log.requestedProvider ?? "-"}</div>
 							</div>
-							{log.routingMetadata && (
-								<div className="mt-3">
-									<h5 className="text-xs font-medium text-muted-foreground mb-2">
-										Routing Info
-									</h5>
-									<div className="rounded-md border border-dashed p-2 text-xs space-y-1.5 bg-muted/30">
-										{log.routingMetadata.selectionReason && (
-											<div className="flex justify-between">
-												<span className="text-muted-foreground">Selection</span>
-												<span className="font-mono">
-													{log.routingMetadata.selectionReason}
-												</span>
-											</div>
-										)}
-										{log.routingMetadata.availableProviders &&
-											log.routingMetadata.availableProviders.length > 0 && (
-												<div className="flex justify-between">
-													<span className="text-muted-foreground">
-														Available
-													</span>
-													<span className="font-mono">
-														{log.routingMetadata.availableProviders.join(", ")}
-													</span>
-												</div>
-											)}
-										{log.routingMetadata.providerScores &&
-											log.routingMetadata.providerScores.length > 0 && (
-												<div className="pt-1 border-t border-dashed">
-													<div className="text-muted-foreground mb-1">
-														Scores
-													</div>
-													<div className="space-y-1">
-														{log.routingMetadata.providerScores.map((score) => (
-															<div
-																key={score.providerId}
-																className="flex justify-between items-center"
-															>
-																<span className="font-mono flex items-center gap-1.5">
-																	{score.providerId}
-																	{score.failed && (
-																		<span className="inline-flex items-center gap-0.5 text-red-500">
-																			<AlertCircle className="h-3 w-3" />
-																			<span>
-																				{score.status_code}
-																				{score.error_type && (
-																					<span className="ml-0.5 text-red-400">
-																						{score.error_type}
-																					</span>
-																				)}
-																			</span>
-																		</span>
-																	)}
-																</span>
-																<span className="text-muted-foreground">
-																	{score.score.toFixed(2)}
-																	{score.uptime !== undefined && (
-																		<span className="ml-2">
-																			↑{score.uptime?.toFixed(0)}%
-																		</span>
-																	)}
-																	{score.throughput !== undefined && (
-																		<span className="ml-2">
-																			{score.throughput?.toFixed(0)}t/s
-																		</span>
-																	)}
-																	{score.latency !== undefined && (
-																		<span className="ml-2">
-																			{score.latency?.toFixed(0)}ms
-																		</span>
-																	)}
-																	{score.price !== undefined && (
-																		<span className="ml-2">
-																			${score.price.toFixed(6)}
-																		</span>
-																	)}
-																	{score.priority !== undefined &&
-																		score.priority !== 1 && (
-																			<span className="ml-2">
-																				p:{score.priority}
-																			</span>
-																		)}
-																</span>
-															</div>
-														))}
-													</div>
-												</div>
-											)}
-										{log.routingMetadata.routing &&
-											log.routingMetadata.routing.length > 0 && (
-												<div className="pt-1 border-t border-dashed">
-													<div className="text-muted-foreground mb-1">
-														Request Attempts
-													</div>
-													<div className="space-y-1">
-														{log.routingMetadata.routing.map((attempt, i) => (
-															<div
-																key={`${attempt.provider}-${i}`}
-																className={`flex justify-between items-center ${attempt.succeeded ? "text-green-600" : "text-red-500"}`}
-															>
-																<span className="font-mono flex items-center gap-1">
-																	{attempt.succeeded ? (
-																		<CheckCircle2 className="h-3 w-3" />
-																	) : (
-																		<AlertCircle className="h-3 w-3" />
-																	)}
-																	{attempt.provider}/{attempt.model}
-																</span>
-																<span>
-																	{attempt.status_code}{" "}
-																	{attempt.succeeded
-																		? "ok"
-																		: attempt.error_type}
-																</span>
-															</div>
-														))}
-													</div>
-												</div>
-											)}
-									</div>
-								</div>
-							)}
 						</div>
 						<div className="space-y-2">
 							<h4 className="text-sm font-medium">Response Metrics</h4>

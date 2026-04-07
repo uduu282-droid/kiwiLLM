@@ -139,6 +139,7 @@ const bareModelProviderAliases: Record<string, string> = {
 	"gpt-4o-mini": "kiwillm-claude-talkai/gpt-4o-mini",
 	"gemini-2.5-pro": "kiwillm-chatai-proxy/gemini-2.5-pro",
 	"gpt-oss-120b": "kiwillm-freecfmodels/gpt-oss-120b",
+	"kimi-k2.5": "kiwillm-kimi/kimi-k2.5",
 };
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
@@ -257,19 +258,6 @@ const completions = createRoute({
 						metadata: z.object({
 							requested_model: z.string(),
 							requested_provider: z.string().nullable(),
-							used_model: z.string(),
-							used_provider: z.string(),
-							underlying_used_model: z.string(),
-							routing: z
-								.array(
-									z.object({
-										provider: z.string(),
-										model: z.string(),
-										status_code: z.number(),
-										error_type: z.string(),
-									}),
-								)
-								.optional(),
 						}),
 					}),
 				},
@@ -1002,7 +990,7 @@ chat.openapi(completions, async (c) => {
 					// Find the cheapest among the suitable providers for this model
 					for (const provider of suitableProviders) {
 						const totalPrice =
-							((provider.inputPrice ?? 0) + (provider.outputPrice ?? 0)) / 2;
+							((provider.inputPrice || 0) + (provider.outputPrice || 0)) / 2;
 
 						if (totalPrice < lowestPrice) {
 							lowestPrice = totalPrice;
@@ -1554,76 +1542,83 @@ chat.openapi(completions, async (c) => {
 			let routeableModelProviders = availableModelProviders;
 
 			if (routeableModelProviders.length === 0) {
-				routeableModelProviders = iamFilteredModelProviders.filter((provider) => {
-					if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
-						return false;
-					}
-					// If web search tool is requested, only include providers that support it
-					if (webSearchTool) {
-						if ((provider as ProviderModelMapping).webSearch !== true) {
+				routeableModelProviders = iamFilteredModelProviders.filter(
+					(provider) => {
+						if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
 							return false;
 						}
-					}
-					// If JSON output is requested, only include providers that support it
-					if (
-						response_format?.type === "json_object" ||
-						response_format?.type === "json_schema"
-					) {
-						if ((provider as ProviderModelMapping).jsonOutput !== true) {
-							return false;
+						// If web search tool is requested, only include providers that support it
+						if (webSearchTool) {
+							if ((provider as ProviderModelMapping).webSearch !== true) {
+								return false;
+							}
 						}
-					}
-					// If JSON schema output is requested, also include providers that support it
-					if (response_format?.type === "json_schema") {
-						if ((provider as ProviderModelMapping).jsonOutputSchema !== true) {
-							return false;
-						}
-					}
-					// If images are present in messages, only include providers that support vision
-					if (hasImages && (provider as ProviderModelMapping).vision !== true) {
-						return false;
-					}
-					// If reasoning_effort is specified, only include providers with reasoning support
-					if (reasoning_effort !== undefined) {
-						if ((provider as ProviderModelMapping).reasoning !== true) {
-							return false;
-						}
-					}
-					// If reasoning_effort is NOT specified, prefer non-reasoning providers
-					// by excluding reasoning providers when a non-reasoning alternative exists for same provider
-					if (reasoning_effort === undefined) {
-						const hasNonReasoningAlternative = modelInfo.providers.some(
-							(p) =>
-								p.providerId === provider.providerId &&
-								(p as ProviderModelMapping).reasoning !== true,
-						);
+						// If JSON output is requested, only include providers that support it
 						if (
-							hasNonReasoningAlternative &&
-							(provider as ProviderModelMapping).reasoning === true
+							response_format?.type === "json_object" ||
+							response_format?.type === "json_schema"
+						) {
+							if ((provider as ProviderModelMapping).jsonOutput !== true) {
+								return false;
+							}
+						}
+						// If JSON schema output is requested, also include providers that support it
+						if (response_format?.type === "json_schema") {
+							if (
+								(provider as ProviderModelMapping).jsonOutputSchema !== true
+							) {
+								return false;
+							}
+						}
+						// If images are present in messages, only include providers that support vision
+						if (
+							hasImages &&
+							(provider as ProviderModelMapping).vision !== true
 						) {
 							return false;
 						}
-					}
+						// If reasoning_effort is specified, only include providers with reasoning support
+						if (reasoning_effort !== undefined) {
+							if ((provider as ProviderModelMapping).reasoning !== true) {
+								return false;
+							}
+						}
+						// If reasoning_effort is NOT specified, prefer non-reasoning providers
+						// by excluding reasoning providers when a non-reasoning alternative exists for same provider
+						if (reasoning_effort === undefined) {
+							const hasNonReasoningAlternative = modelInfo.providers.some(
+								(p) =>
+									p.providerId === provider.providerId &&
+									(p as ProviderModelMapping).reasoning !== true,
+							);
+							if (
+								hasNonReasoningAlternative &&
+								(provider as ProviderModelMapping).reasoning === true
+							) {
+								return false;
+							}
+						}
 
-					try {
-						return Boolean(
-							getProviderEndpoint(
-								provider.providerId,
-								undefined,
-								provider.modelName,
-								undefined,
-								stream,
-								(provider as ProviderModelMapping).reasoning === true,
-								hasExistingToolCalls,
-								undefined,
-								0,
-								(provider as ProviderModelMapping).imageGenerations === true,
-							),
-						);
-					} catch {
-						return false;
-					}
-				});
+						try {
+							return Boolean(
+								getProviderEndpoint(
+									provider.providerId,
+									undefined,
+									provider.modelName,
+									undefined,
+									stream,
+									(provider as ProviderModelMapping).reasoning === true,
+									hasExistingToolCalls,
+									undefined,
+									0,
+									(provider as ProviderModelMapping).imageGenerations === true,
+								),
+							);
+						} catch {
+							return false;
+						}
+					},
+				);
 			}
 
 			if (routeableModelProviders.length === 0) {
@@ -1664,8 +1659,8 @@ chat.openapi(completions, async (c) => {
 						...(noFallback ? { noFallback: true } : {}),
 					};
 				} else {
-					usedProvider = routeableModelProviders[0].providerId;
-					usedModel = routeableModelProviders[0].modelName;
+					usedProvider = availableModelProviders[0].providerId;
+					usedModel = availableModelProviders[0].modelName;
 				}
 			} else {
 				usedProvider = routeableModelProviders[0].providerId;
@@ -1815,6 +1810,17 @@ chat.openapi(completions, async (c) => {
 	const selectedProviderIsZeroCost = isProviderMappingTrulyFree(
 		billingProviderMapping as ProviderModelMapping | undefined,
 	);
+	const resolvedModelDefinition = (finalModelInfo ??
+		modelInfo) as ModelDefinition;
+	const promptPreview = messages
+		.map((message) => messageContentToString(message.content))
+		.join("\n");
+	const estimatedPromptTokens =
+		estimateTokens(usedProvider, messages, null, null, null)
+			.calculatedPromptTokens ?? null;
+	const estimatedCompletionTokens = max_tokens ?? 1024;
+	const estimatedReasoningTokens = reasoning_max_tokens ?? null;
+	const estimatedWebSearchCount = webSearchTool ? 1 : null;
 
 	if (
 		project.mode === "credits" &&
@@ -1862,17 +1868,9 @@ chat.openapi(completions, async (c) => {
 			totalAvailableCredits <= 0 &&
 			!isFreeTierOrganization &&
 			!free_models_only &&
-			!((finalModelInfo ?? modelInfo) as ModelDefinition).free &&
+			!resolvedModelDefinition.free &&
 			!selectedProviderIsZeroCost
 		) {
-			if (organization.devPlan !== "none" && devPlanCreditsRemaining <= 0) {
-				const renewalDate = organization.devPlanExpiresAt
-					? new Date(organization.devPlanExpiresAt).toLocaleDateString()
-					: "your next billing date";
-				throw new HTTPException(402, {
-					message: `Dev Plan credit limit reached. Upgrade your plan or wait for renewal on ${renewalDate}.`,
-				});
-			}
 			throw new HTTPException(402, {
 				message:
 					"Low credit balance. This hosted request requires credits. Add more credits and try again.",
@@ -1918,7 +1916,7 @@ chat.openapi(completions, async (c) => {
 				totalAvailableCredits <= 0 &&
 				!isFreeTierOrganization &&
 				!free_models_only &&
-				!isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition) &&
+				!isModelTrulyFree(resolvedModelDefinition) &&
 				!selectedProviderIsZeroCost
 			) {
 				if (organization.devPlan !== "none" && devPlanCreditsRemaining <= 0) {
@@ -1956,8 +1954,7 @@ chat.openapi(completions, async (c) => {
 	const shouldApplyFreeUserUsageLimit =
 		(!providerKey || !providerKey.token) &&
 		isFreeTierOrganization &&
-		(isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition) ||
-			selectedProviderIsZeroCost);
+		(isModelTrulyFree(resolvedModelDefinition) || selectedProviderIsZeroCost);
 
 	// Apply free-tier protections only to truly free requests.
 	if (!providerKey || !providerKey.token) {
@@ -3506,9 +3503,6 @@ chat.openapi(completions, async (c) => {
 								metadata: {
 									requested_model: initialRequestedModel,
 									requested_provider: requestedProvider,
-									used_model: baseModelName,
-									used_provider: usedProvider,
-									underlying_used_model: usedModel,
 								},
 							};
 
@@ -5124,10 +5118,6 @@ chat.openapi(completions, async (c) => {
 									metadata: {
 										requested_model: initialRequestedModel,
 										requested_provider: requestedProvider ?? null,
-										used_model: baseModelName,
-										used_provider: usedProvider,
-										underlying_used_model: usedModel,
-										routing: routingAttempts,
 									},
 								};
 								await writeSSEAndCache({
@@ -6205,9 +6195,6 @@ chat.openapi(completions, async (c) => {
 					metadata: {
 						requested_model: initialRequestedModel,
 						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
 					},
 				});
 			}

@@ -116,6 +116,16 @@ const logSchema = z.object({
 	retriedByLogId: z.string().nullable().optional(),
 });
 
+function sanitizeLogForUser(log: typeof tables.log.$inferSelect) {
+	return {
+		...log,
+		usedModel: log.requestedModel,
+		usedProvider: log.requestedProvider ?? "",
+		usedModelMapping: null,
+		routingMetadata: null,
+	};
+}
+
 // GET /logs/:id - Fetch a single log by ID
 const getById = createRoute({
 	method: "get",
@@ -166,7 +176,7 @@ logs.openapi(getById, async (c) => {
 		});
 	}
 
-	return c.json({ log });
+	return c.json({ log: sanitizeLogForUser(log) });
 });
 
 const querySchema = z.object({
@@ -576,7 +586,7 @@ logs.openapi(get, async (c) => {
 	}
 
 	return c.json({
-		logs: paginatedLogs,
+		logs: paginatedLogs.map(sanitizeLogForUser),
 		pagination: {
 			nextCursor,
 			hasMore,
@@ -694,7 +704,12 @@ logs.openapi(uniqueModelsGet, async (c) => {
 		whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
 	let dbQuery = db
-		.selectDistinct({ usedModel: tables.log.usedModel })
+		.selectDistinct({
+			requestedModel: tables.log.requestedModel,
+			requestedProvider: tables.log.requestedProvider,
+			usedModel: tables.log.usedModel,
+			usedProvider: tables.log.usedProvider,
+		})
 		.from(tables.log);
 
 	if (finalWhereClause) {
@@ -702,28 +717,21 @@ logs.openapi(uniqueModelsGet, async (c) => {
 		dbQuery = dbQuery.where(finalWhereClause);
 	}
 
-	const uniqueUsedModels = await dbQuery;
+	const uniqueRequestedModels = await dbQuery;
 
 	// Extract model names and provider names from usedModel field
 	const modelNames: string[] = [];
 	const providerNames: string[] = [];
 
-	for (const row of uniqueUsedModels) {
-		const usedModel = row.usedModel;
-		const slashIndex = usedModel.indexOf("/");
-		if (slashIndex !== -1) {
-			const provider = usedModel.substring(0, slashIndex);
-			const model = usedModel.substring(slashIndex + 1);
-			if (!providerNames.includes(provider)) {
-				providerNames.push(provider);
-			}
-			if (!modelNames.includes(model)) {
-				modelNames.push(model);
-			}
-		} else {
-			if (!modelNames.includes(usedModel)) {
-				modelNames.push(usedModel);
-			}
+	for (const row of uniqueRequestedModels) {
+		const publicModel = row.requestedModel || row.usedModel;
+		const publicProvider = row.requestedProvider || row.usedProvider;
+
+		if (publicProvider && !providerNames.includes(publicProvider)) {
+			providerNames.push(publicProvider);
+		}
+		if (publicModel && !modelNames.includes(publicModel)) {
+			modelNames.push(publicModel);
 		}
 	}
 

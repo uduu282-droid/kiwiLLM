@@ -10,6 +10,17 @@ import type { ServerTypes } from "@/vars.js";
 
 export const activity = new OpenAPIHono<ServerTypes>();
 
+const FREE_USER_REQUEST_LIMITS = {
+	PER_MINUTE: {
+		limit: 10,
+		windowMs: 60 * 1000,
+	},
+	PER_DAY: {
+		limit: 200,
+		windowMs: 86_400 * 1000,
+	},
+} as const;
+
 interface ActivityRow {
 	date: string;
 	requestCount: number;
@@ -38,57 +49,13 @@ interface ActivityRow {
 
 interface ModelBreakdownRow {
 	date: string;
-	usedModel: string | null;
-	usedProvider: string | null;
+	requestedModel: string | null;
+	requestedProvider: string | null;
 	requestCount: number;
 	inputTokens: number;
 	outputTokens: number;
 	totalTokens: number;
 	cost: number;
-}
-
-async function getAccessibleProjectIds(
-	userId: string,
-	projectId?: string,
-	organizationId?: string,
-): Promise<string[]> {
-	const organizationIds = await getUserOrganizationIds(userId);
-
-	if (!organizationIds.length) {
-		return [];
-	}
-
-	if (organizationId && !organizationIds.includes(organizationId)) {
-		throw new HTTPException(403, {
-			message: "You don't have access to this organization",
-		});
-	}
-
-	const projects = await db.query.project.findMany({
-		where: {
-			organizationId: {
-				in: organizationId ? [organizationId] : organizationIds,
-			},
-			status: {
-				ne: "deleted",
-			},
-			...(projectId ? { id: projectId } : {}),
-		},
-	});
-
-	if (!projects.length) {
-		return [];
-	}
-
-	const projectIds = projects.map((project) => project.id);
-
-	if (projectId && !projectIds.includes(projectId)) {
-		throw new HTTPException(403, {
-			message: "You don't have access to this project",
-		});
-	}
-
-	return projectIds;
 }
 
 function createEmptyActivityRow(date: string): ActivityRow {
@@ -162,8 +129,8 @@ function mergeActivityRows(
 		const dateMap =
 			modelBreakdownByDate.get(row.date) ??
 			new Map<string, z.infer<typeof modelUsageSchema>>();
-		const modelId = row.usedModel ?? "unknown";
-		const providerId = row.usedProvider ?? "unknown";
+		const modelId = row.requestedModel || "unknown";
+		const providerId = row.requestedProvider || "";
 		const key = `${providerId}:${modelId}`;
 		const existing = dateMap.get(key) ?? {
 			id: modelId,
@@ -311,8 +278,12 @@ async function queryLiveActivityRows(
 		db
 			.select({
 				date: sql<string>`DATE(${log.createdAt})`.as("date"),
-				usedModel: log.usedModel,
-				usedProvider: log.usedProvider,
+				requestedModel: sql<string>`COALESCE(${log.requestedModel}, ${log.usedModel})`.as(
+					"requestedModel",
+				),
+				requestedProvider: sql<string>`COALESCE(${log.requestedProvider}, ${log.usedProvider})`.as(
+					"requestedProvider",
+				),
 				requestCount: sql<number>`count(*)::int`.as("requestCount"),
 				inputTokens:
 					sql<number>`COALESCE(SUM(CAST(${log.promptTokens} AS NUMERIC)), 0)`.as(
@@ -330,36 +301,20 @@ async function queryLiveActivityRows(
 			})
 			.from(log)
 			.where(whereClause)
-			.groupBy(sql`DATE(${log.createdAt})`, log.usedModel, log.usedProvider)
-			.orderBy(sql`DATE(${log.createdAt}) ASC`, log.usedModel),
+			.groupBy(
+				sql`DATE(${log.createdAt})`,
+				log.requestedModel,
+				log.requestedProvider,
+				log.usedModel,
+				log.usedProvider,
+			)
+			.orderBy(
+				sql`DATE(${log.createdAt}) ASC`,
+				sql`COALESCE(${log.requestedModel}, ${log.usedModel})`,
+			),
 	]);
 
 	return { rows, modelRows };
-}
-
-async function queryRolling24hRequestCount(
-	projectIds: string[],
-	apiKeyId?: string,
-) {
-	const conditions = [
-		inArray(log.projectId, projectIds),
-		gte(log.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
-		eq(log.usedMode, "credits"),
-		eq(log.requestCost, 0),
-	];
-
-	if (apiKeyId) {
-		conditions.push(eq(log.apiKeyId, apiKeyId));
-	}
-
-	const [result] = await db
-		.select({
-			requestCount: sql<number>`count(*)::int`.as("requestCount"),
-		})
-		.from(log)
-		.where(and(...conditions));
-
-	return Number(result?.requestCount ?? 0);
 }
 
 // Define the response schema for model-specific usage
@@ -401,6 +356,19 @@ const dailyActivitySchema = z.object({
 	creditsDataStorageCost: z.number(),
 	apiKeysDataStorageCost: z.number(),
 	modelBreakdown: z.array(modelUsageSchema),
+});
+
+const freeRequestLimitSchema = z.object({
+	minute: z.object({
+		used: z.number(),
+		remaining: z.number(),
+		limit: z.number(),
+	}),
+	day: z.object({
+		used: z.number(),
+		remaining: z.number(),
+		limit: z.number(),
+	}),
 });
 
 // Define the route for getting activity data
@@ -460,11 +428,39 @@ activity.openapi(getActivity, async (c) => {
 		startDate.setDate(startDate.getDate() - effectiveDays);
 	}
 
-	const projectIds = await getAccessibleProjectIds(user.id, projectId);
+	// Get all organizations the user is a member of
+	const organizationIds = await getUserOrganizationIds(user.id);
 
-	if (!projectIds.length) {
+	if (!organizationIds.length) {
 		return c.json({
 			activity: [],
+		});
+	}
+
+	// Get all projects associated with the user's organizations
+	const projects = await db.query.project.findMany({
+		where: {
+			organizationId: {
+				in: organizationIds,
+			},
+			status: {
+				ne: "deleted",
+			},
+			...(projectId ? { id: projectId } : {}),
+		},
+	});
+
+	if (!projects.length) {
+		return c.json({
+			activity: [],
+		});
+	}
+
+	const projectIds = projects.map((project) => project.id);
+
+	if (projectId && !projectIds.includes(projectId)) {
+		throw new HTTPException(403, {
+			message: "You don't have access to this project",
 		});
 	}
 
@@ -480,34 +476,27 @@ activity.openapi(getActivity, async (c) => {
 	});
 });
 
-const requestLimitsSchema = z.object({
-	rolling24hRequestCount: z.number(),
-	windowHours: z.literal(24),
-});
-
-const getRequestLimits = createRoute({
+const getFreeRequestLimit = createRoute({
 	method: "get",
-	path: "/request-limits",
+	path: "/free-request-limit",
 	request: {
 		query: z.object({
-			organizationId: z.string().optional(),
-			projectId: z.string().optional(),
-			apiKeyId: z.string().optional(),
+			organizationId: z.string(),
 		}),
 	},
 	responses: {
 		200: {
 			content: {
 				"application/json": {
-					schema: requestLimitsSchema,
+					schema: freeRequestLimitSchema,
 				},
 			},
-			description: "Rolling request-limit usage data",
+			description: "Current rolling free request usage",
 		},
 	},
 });
 
-activity.openapi(getRequestLimits, async (c) => {
+activity.openapi(getFreeRequestLimit, async (c) => {
 	const user = c.get("user");
 
 	if (!user) {
@@ -516,27 +505,66 @@ activity.openapi(getRequestLimits, async (c) => {
 		});
 	}
 
-	const { organizationId, projectId, apiKeyId } = c.req.valid("query");
-	const projectIds = await getAccessibleProjectIds(
-		user.id,
-		projectId,
-		organizationId,
-	);
+	const { organizationId } = c.req.valid("query");
+	const organizationIds = await getUserOrganizationIds(user.id);
 
-	if (!projectIds.length) {
-		return c.json({
-			rolling24hRequestCount: 0,
-			windowHours: 24 as const,
+	if (!organizationIds.includes(organizationId)) {
+		throw new HTTPException(403, {
+			message: "You don't have access to this organization",
 		});
 	}
 
-	const rolling24hRequestCount = await queryRolling24hRequestCount(
-		projectIds,
-		apiKeyId,
+	const now = Date.now();
+	const minuteWindowStart = new Date(
+		now - FREE_USER_REQUEST_LIMITS.PER_MINUTE.windowMs,
 	);
+	const dayWindowStart = new Date(now - FREE_USER_REQUEST_LIMITS.PER_DAY.windowMs);
+
+	const [minuteRows, dayRows] = await Promise.all([
+		db
+			.select({
+				count: sql<number>`count(*)::int`.as("count"),
+			})
+			.from(log)
+			.where(
+				and(
+					eq(log.organizationId, organizationId),
+					eq(log.usedMode, "credits"),
+					eq(log.requestCost, 0),
+					gte(log.createdAt, minuteWindowStart),
+				),
+			),
+		db
+			.select({
+				count: sql<number>`count(*)::int`.as("count"),
+			})
+			.from(log)
+			.where(
+				and(
+					eq(log.organizationId, organizationId),
+					eq(log.usedMode, "credits"),
+					eq(log.requestCost, 0),
+					gte(log.createdAt, dayWindowStart),
+				),
+			),
+	]);
+
+	const minuteUsed = minuteRows[0]?.count ?? 0;
+	const dayUsed = dayRows[0]?.count ?? 0;
 
 	return c.json({
-		rolling24hRequestCount,
-		windowHours: 24 as const,
+		minute: {
+			used: minuteUsed,
+			remaining: Math.max(
+				0,
+				FREE_USER_REQUEST_LIMITS.PER_MINUTE.limit - minuteUsed,
+			),
+			limit: FREE_USER_REQUEST_LIMITS.PER_MINUTE.limit,
+		},
+		day: {
+			used: dayUsed,
+			remaining: Math.max(0, FREE_USER_REQUEST_LIMITS.PER_DAY.limit - dayUsed),
+			limit: FREE_USER_REQUEST_LIMITS.PER_DAY.limit,
+		},
 	});
 });

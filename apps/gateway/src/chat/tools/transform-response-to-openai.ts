@@ -13,6 +13,23 @@ export interface CostData {
 	totalCost: number | null;
 }
 
+function buildPublicResponseModel(
+	requestedModel: string,
+	requestedProvider: string | null,
+) {
+	return requestedProvider ? `${requestedProvider}/${requestedModel}` : requestedModel;
+}
+
+function buildPublicMetadata(
+	requestedModel: string,
+	requestedProvider: string | null,
+) {
+	return {
+		requested_model: requestedModel,
+		requested_provider: requestedProvider,
+	};
+}
+
 /**
  * Helper function to build usage object with optional cost fields
  */
@@ -92,7 +109,7 @@ export function transformResponseToOpenai(
 				id: `chatcmpl-${Date.now()}`,
 				object: "chat.completion",
 				created: Math.floor(Date.now() / 1000),
-				model: `${usedProvider}/${baseModelName}`,
+				model: buildPublicResponseModel(requestedModel, requestedProvider),
 				choices: [
 					{
 						index: 0,
@@ -139,14 +156,7 @@ export function transformResponseToOpenai(
 					costs,
 					showUpgradeMessage,
 				),
-				metadata: {
-					requested_model: requestedModel,
-					requested_provider: requestedProvider,
-					used_model: baseModelName,
-					used_provider: usedProvider,
-					underlying_used_model: usedModel,
-					...(routing && { routing }),
-				},
+				metadata: buildPublicMetadata(requestedModel, requestedProvider),
 			};
 			break;
 		}
@@ -155,7 +165,7 @@ export function transformResponseToOpenai(
 				id: `chatcmpl-${Date.now()}`,
 				object: "chat.completion",
 				created: Math.floor(Date.now() / 1000),
-				model: `${usedProvider}/${baseModelName}`,
+				model: buildPublicResponseModel(requestedModel, requestedProvider),
 				choices: [
 					{
 						index: 0,
@@ -187,14 +197,7 @@ export function transformResponseToOpenai(
 					costs,
 					showUpgradeMessage,
 				),
-				metadata: {
-					requested_model: requestedModel,
-					requested_provider: requestedProvider,
-					used_model: baseModelName,
-					used_provider: usedProvider,
-					underlying_used_model: usedModel,
-					...(routing && { routing }),
-				},
+				metadata: buildPublicMetadata(requestedModel, requestedProvider),
 			};
 			break;
 		}
@@ -206,7 +209,7 @@ export function transformResponseToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion",
 					created: Math.floor(Date.now() / 1000),
-					model: `${usedProvider}/${baseModelName}`,
+					model: buildPublicResponseModel(requestedModel, requestedProvider),
 					choices: [
 						{
 							index: 0,
@@ -229,14 +232,7 @@ export function transformResponseToOpenai(
 						costs,
 						showUpgradeMessage,
 					),
-					metadata: {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					},
+					metadata: buildPublicMetadata(requestedModel, requestedProvider),
 				};
 			} else {
 				// Ensure reasoning field is present if we have reasoning content
@@ -258,15 +254,14 @@ export function transformResponseToOpenai(
 					transformedResponse.choices[0].finish_reason = finishReason;
 				}
 				// Add metadata and usage with costs to existing response
-				transformedResponse.model = `${usedProvider}/${baseModelName}`;
-				transformedResponse.metadata = {
-					requested_model: requestedModel,
-					requested_provider: requestedProvider,
-					used_model: baseModelName,
-					used_provider: usedProvider,
-					underlying_used_model: usedModel,
-					...(routing && { routing }),
-				};
+				transformedResponse.model = buildPublicResponseModel(
+					requestedModel,
+					requestedProvider,
+				);
+				transformedResponse.metadata = buildPublicMetadata(
+					requestedModel,
+					requestedProvider,
+				);
 				if (transformedResponse.usage) {
 					if (costs !== null) {
 						transformedResponse.usage = {
@@ -295,7 +290,7 @@ export function transformResponseToOpenai(
 				id: `chatcmpl-${Date.now()}`,
 				object: "chat.completion",
 				created: Math.floor(Date.now() / 1000),
-				model: `${usedProvider}/${baseModelName}`,
+				model: buildPublicResponseModel(requestedModel, requestedProvider),
 				choices: [
 					{
 						index: 0,
@@ -320,14 +315,7 @@ export function transformResponseToOpenai(
 					costs,
 					showUpgradeMessage,
 				),
-				metadata: {
-					requested_model: requestedModel,
-					requested_provider: requestedProvider,
-					used_model: baseModelName,
-					used_provider: usedProvider,
-					underlying_used_model: usedModel,
-					...(routing && { routing }),
-				},
+				metadata: buildPublicMetadata(requestedModel, requestedProvider),
 			};
 			break;
 		}
@@ -339,7 +327,7 @@ export function transformResponseToOpenai(
 					id: json.request_id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion",
 					created: Math.floor(Date.now() / 1000),
-					model: `${usedProvider}/${baseModelName}`,
+					model: buildPublicResponseModel(requestedModel, requestedProvider),
 					choices: [
 						{
 							index: 0,
@@ -360,14 +348,7 @@ export function transformResponseToOpenai(
 						costs,
 						showUpgradeMessage,
 					),
-					metadata: {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					},
+					metadata: buildPublicMetadata(requestedModel, requestedProvider),
 				};
 			} else {
 				// Standard Alibaba chat completions format (OpenAI-compatible)
@@ -385,15 +366,14 @@ export function transformResponseToOpenai(
 					if (transformedResponse.choices?.[0] && finishReason !== null) {
 						transformedResponse.choices[0].finish_reason = finishReason;
 					}
-					transformedResponse.model = `${usedProvider}/${baseModelName}`;
-					transformedResponse.metadata = {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					};
+					transformedResponse.model = buildPublicResponseModel(
+						requestedModel,
+						requestedProvider,
+					);
+					transformedResponse.metadata = buildPublicMetadata(
+						requestedModel,
+						requestedProvider,
+					);
 					if (transformedResponse.usage) {
 						if (costs !== null) {
 							transformedResponse.usage = {
@@ -429,7 +409,7 @@ export function transformResponseToOpenai(
 					id: json.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion",
 					created: json.created_at ?? Math.floor(Date.now() / 1000),
-					model: `${usedProvider}/${baseModelName}`,
+					model: buildPublicResponseModel(requestedModel, requestedProvider),
 					choices: [
 						{
 							index: 0,
@@ -454,14 +434,7 @@ export function transformResponseToOpenai(
 						costs,
 						showUpgradeMessage,
 					),
-					metadata: {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					},
+					metadata: buildPublicMetadata(requestedModel, requestedProvider),
 				};
 			} else {
 				// For standard chat completions format, update model field and add metadata
@@ -488,15 +461,14 @@ export function transformResponseToOpenai(
 						transformedResponse.choices[0].finish_reason = finishReason;
 					}
 
-					transformedResponse.model = `${usedProvider}/${baseModelName}`;
-					transformedResponse.metadata = {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					};
+					transformedResponse.model = buildPublicResponseModel(
+						requestedModel,
+						requestedProvider,
+					);
+					transformedResponse.metadata = buildPublicMetadata(
+						requestedModel,
+						requestedProvider,
+					);
 					if (transformedResponse.usage) {
 						if (costs !== null) {
 							transformedResponse.usage = {
@@ -529,7 +501,7 @@ export function transformResponseToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion",
 					created: json.created ?? Math.floor(Date.now() / 1000),
-					model: `${usedProvider}/${baseModelName}`,
+					model: buildPublicResponseModel(requestedModel, requestedProvider),
 					choices: [
 						{
 							index: 0,
@@ -550,14 +522,7 @@ export function transformResponseToOpenai(
 						costs,
 						showUpgradeMessage,
 					),
-					metadata: {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					},
+					metadata: buildPublicMetadata(requestedModel, requestedProvider),
 				};
 			} else {
 				// Standard ByteDance chat completions format (OpenAI-compatible)
@@ -575,15 +540,14 @@ export function transformResponseToOpenai(
 					if (transformedResponse.choices?.[0] && finishReason !== null) {
 						transformedResponse.choices[0].finish_reason = finishReason;
 					}
-					transformedResponse.model = `${usedProvider}/${baseModelName}`;
-					transformedResponse.metadata = {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					};
+					transformedResponse.model = buildPublicResponseModel(
+						requestedModel,
+						requestedProvider,
+					);
+					transformedResponse.metadata = buildPublicMetadata(
+						requestedModel,
+						requestedProvider,
+					);
 					if (transformedResponse.usage) {
 						if (costs !== null) {
 							transformedResponse.usage = {
@@ -616,7 +580,7 @@ export function transformResponseToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion",
 					created: json.created ?? Math.floor(Date.now() / 1000),
-					model: `${usedProvider}/${baseModelName}`,
+					model: buildPublicResponseModel(requestedModel, requestedProvider),
 					choices: [
 						{
 							index: 0,
@@ -637,14 +601,7 @@ export function transformResponseToOpenai(
 						costs,
 						showUpgradeMessage,
 					),
-					metadata: {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					},
+					metadata: buildPublicMetadata(requestedModel, requestedProvider),
 				};
 			} else {
 				// Standard xAI chat completions format (OpenAI-compatible)
@@ -662,15 +619,14 @@ export function transformResponseToOpenai(
 					if (transformedResponse.choices?.[0] && finishReason !== null) {
 						transformedResponse.choices[0].finish_reason = finishReason;
 					}
-					transformedResponse.model = `${usedProvider}/${baseModelName}`;
-					transformedResponse.metadata = {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					};
+					transformedResponse.model = buildPublicResponseModel(
+						requestedModel,
+						requestedProvider,
+					);
+					transformedResponse.metadata = buildPublicMetadata(
+						requestedModel,
+						requestedProvider,
+					);
 					if (transformedResponse.usage) {
 						if (costs !== null) {
 							transformedResponse.usage = {
@@ -724,14 +680,7 @@ export function transformResponseToOpenai(
 						costs,
 						showUpgradeMessage,
 					),
-					metadata: {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					},
+					metadata: buildPublicMetadata(requestedModel, requestedProvider),
 				};
 			} else {
 				// Standard ZAI chat completions format (OpenAI-compatible)
@@ -749,15 +698,14 @@ export function transformResponseToOpenai(
 					if (transformedResponse.choices?.[0] && finishReason !== null) {
 						transformedResponse.choices[0].finish_reason = finishReason;
 					}
-					transformedResponse.model = `${usedProvider}/${baseModelName}`;
-					transformedResponse.metadata = {
-						requested_model: requestedModel,
-						requested_provider: requestedProvider,
-						used_model: baseModelName,
-						used_provider: usedProvider,
-						underlying_used_model: usedModel,
-						...(routing && { routing }),
-					};
+					transformedResponse.model = buildPublicResponseModel(
+						requestedModel,
+						requestedProvider,
+					);
+					transformedResponse.metadata = buildPublicMetadata(
+						requestedModel,
+						requestedProvider,
+					);
 					if (transformedResponse.usage) {
 						if (costs !== null) {
 							transformedResponse.usage = {
@@ -802,15 +750,14 @@ export function transformResponseToOpenai(
 						message.annotations = annotations;
 					}
 				}
-				transformedResponse.model = `${usedProvider}/${baseModelName}`;
-				transformedResponse.metadata = {
-					requested_model: requestedModel,
-					requested_provider: requestedProvider,
-					used_model: baseModelName,
-					used_provider: usedProvider,
-					underlying_used_model: usedModel,
-					...(routing && { routing }),
-				};
+				transformedResponse.model = buildPublicResponseModel(
+					requestedModel,
+					requestedProvider,
+				);
+				transformedResponse.metadata = buildPublicMetadata(
+					requestedModel,
+					requestedProvider,
+				);
 				if (transformedResponse.usage) {
 					if (costs !== null) {
 						transformedResponse.usage = {
