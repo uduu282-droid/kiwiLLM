@@ -12,11 +12,13 @@ import type { Provider } from "@llmgateway/models";
 export function transformStreamingToOpenai(
 	usedProvider: Provider,
 	usedModel: string,
+	publicModel: string,
 	data: any,
 	messages: any[],
 	serverToolUseIndices?: Set<number>,
 ): any {
 	let transformedData = data;
+	const responseModel = publicModel;
 
 	switch (usedProvider) {
 		case "anthropic": {
@@ -25,7 +27,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -47,7 +49,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -74,7 +76,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -94,7 +96,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -131,7 +133,7 @@ export function transformStreamingToOpenai(
 						id: data.id ?? `chatcmpl-${Date.now()}`,
 						object: "chat.completion.chunk",
 						created: data.created ?? Math.floor(Date.now() / 1000),
-						model: data.model ?? usedModel,
+						model: responseModel,
 						choices: [
 							{
 								index: 0,
@@ -148,7 +150,7 @@ export function transformStreamingToOpenai(
 						id: data.id ?? `chatcmpl-${Date.now()}`,
 						object: "chat.completion.chunk",
 						created: data.created ?? Math.floor(Date.now() / 1000),
-						model: data.model ?? usedModel,
+						model: responseModel,
 						choices: [
 							{
 								index: 0,
@@ -191,7 +193,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -210,7 +212,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -235,7 +237,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -259,7 +261,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -284,7 +286,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -601,7 +603,7 @@ export function transformStreamingToOpenai(
 					id: data.responseId ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: data.modelVersion ?? usedModel,
+					model: responseModel,
 					choices,
 					usage: buildUsage(data.usageMetadata, messages),
 				};
@@ -649,7 +651,7 @@ export function transformStreamingToOpenai(
 					id: data.responseId ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: data.modelVersion ?? usedModel,
+					model: responseModel,
 					choices: finishChoices,
 					usage: buildUsage(data.usageMetadata, messages),
 				};
@@ -669,7 +671,7 @@ export function transformStreamingToOpenai(
 					id: data.responseId ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: data.modelVersion ?? usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: firstCandidate?.index ?? 0,
@@ -706,7 +708,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? usedModel,
+							model: data.response?.model ?? responseModel,
 							choices: [
 								{
 									index: 0,
@@ -728,7 +730,7 @@ export function transformStreamingToOpenai(
 								object: "chat.completion.chunk",
 								created:
 									data.response?.created_at ?? Math.floor(Date.now() / 1000),
-								model: data.response?.model ?? usedModel,
+								model: data.response?.model ?? responseModel,
 								choices: [
 									{
 										index: 0,
@@ -757,7 +759,7 @@ export function transformStreamingToOpenai(
 								object: "chat.completion.chunk",
 								created:
 									data.response?.created_at ?? Math.floor(Date.now() / 1000),
-								model: data.response?.model ?? usedModel,
+								model: data.response?.model ?? responseModel,
 								choices: [
 									{
 										index: 0,
@@ -779,7 +781,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? usedModel,
+							model: data.response?.model ?? responseModel,
 							choices: [
 								{
 									index: 0,
@@ -798,7 +800,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? usedModel,
+							model: data.response?.model ?? responseModel,
 							choices: [
 								{
 									index: 0,
@@ -821,7 +823,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? usedModel,
+							model: data.response?.model ?? responseModel,
 							choices: [
 								{
 									index: 0,
@@ -843,7 +845,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? usedModel,
+							model: data.response?.model ?? responseModel,
 							choices: [
 								{
 									index: 0,
@@ -873,7 +875,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? usedModel,
+							model: data.response?.model ?? responseModel,
 							choices: [
 								{
 									index: 0,
@@ -895,7 +897,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? usedModel,
+							model: data.response?.model ?? responseModel,
 							choices: [
 								{
 									index: 0,
@@ -936,7 +938,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? usedModel,
+							model: data.response?.model ?? responseModel,
 							choices: [
 								{
 									index: 0,
@@ -978,7 +980,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? usedModel,
+							model: data.response?.model ?? responseModel,
 							choices: [
 								{
 									index: 0,
@@ -1003,7 +1005,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? usedModel,
+							model: data.response?.model ?? responseModel,
 							choices: [
 								{
 									index: 0,
@@ -1028,7 +1030,11 @@ export function transformStreamingToOpenai(
 					fullData: JSON.stringify(data),
 				});
 
-				transformedData = transformOpenaiStreaming(data, usedModel);
+				transformedData = transformOpenaiStreaming(
+					data,
+					usedModel,
+					responseModel,
+				);
 			}
 			break;
 		}
@@ -1041,7 +1047,7 @@ export function transformStreamingToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -1060,7 +1066,7 @@ export function transformStreamingToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -1095,7 +1101,7 @@ export function transformStreamingToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -1119,7 +1125,7 @@ export function transformStreamingToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -1145,7 +1151,7 @@ export function transformStreamingToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -1159,7 +1165,7 @@ export function transformStreamingToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: usedModel,
+					model: responseModel,
 					choices: [
 						{
 							index: 0,
@@ -1205,7 +1211,11 @@ export function transformStreamingToOpenai(
 		case "minimax":
 		case "llmgateway": {
 			// Transform standard OpenAI streaming format with finish reason mapping
-			transformedData = transformOpenaiStreaming(data, usedModel);
+			transformedData = transformOpenaiStreaming(
+				data,
+				usedModel,
+				responseModel,
+			);
 
 			// Map non-standard finish reasons to OpenAI-compatible values
 			if (transformedData?.choices?.[0]?.finish_reason === "end_turn") {
@@ -1224,7 +1234,11 @@ export function transformStreamingToOpenai(
 				model: usedModel,
 				dataKeys: Object.keys(data),
 			});
-			transformedData = transformOpenaiStreaming(data, usedModel);
+			transformedData = transformOpenaiStreaming(
+				data,
+				usedModel,
+				responseModel,
+			);
 			break;
 		}
 	}
