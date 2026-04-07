@@ -1,6 +1,7 @@
 import { HTTPException } from "hono/http-exception";
 
 import {
+	getPreferredPublicProviders,
 	type Model,
 	type ModelDefinition,
 	models,
@@ -50,8 +51,21 @@ export function resolveModelInfo(
 			],
 		};
 	} else {
+		// Strip :region suffix for model lookup (e.g., "deepseek-v3.2:cn-beijing" → "deepseek-v3.2")
+		const baseRequestedModel = requestedModel.includes(":")
+			? requestedModel.split(":")[0]
+			: requestedModel;
+
 		// First try to find by model ID
-		let foundModel = models.find((m) => m.id === requestedModel);
+		// When a specific provider is requested, prefer the definition that includes that provider
+		let foundModel = requestedProvider
+			? models.find(
+					(m) =>
+						m.id === baseRequestedModel &&
+						m.providers.some((p) => p.providerId === requestedProvider),
+				)
+			: undefined;
+		foundModel ??= models.find((m) => m.id === baseRequestedModel);
 
 		// If not found, search by provider model name
 		// If a specific provider is requested, match both modelName and providerId
@@ -60,13 +74,18 @@ export function resolveModelInfo(
 				foundModel = models.find((m) =>
 					m.providers.find(
 						(p) =>
-							p.modelName === requestedModel &&
+							(p.modelName === requestedModel ||
+								p.modelName === baseRequestedModel) &&
 							p.providerId === requestedProvider,
 					),
 				);
 			} else {
 				foundModel = models.find((m) =>
-					m.providers.find((p) => p.modelName === requestedModel),
+					m.providers.find(
+						(p) =>
+							p.modelName === requestedModel ||
+							p.modelName === baseRequestedModel,
+					),
 				);
 			}
 		}
@@ -81,11 +100,16 @@ export function resolveModelInfo(
 	}
 
 	// Save original providers list (including deactivated) for routing metadata display
-	const allModelProviders = modelInfo.providers;
+	const allModelProviders =
+		requestedProvider &&
+		requestedProvider !== "llmgateway" &&
+		requestedProvider !== "custom"
+			? modelInfo.providers
+			: getPreferredPublicProviders(modelInfo);
 
 	// Filter out deactivated provider mappings
 	const now = new Date();
-	const activeProviders = modelInfo.providers.filter(
+	const activeProviders = allModelProviders.filter(
 		(provider) =>
 			!(
 				(provider as ProviderModelMapping).deactivatedAt &&

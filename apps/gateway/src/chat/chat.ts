@@ -3,8 +3,16 @@ import { encode } from "gpt-tokenizer";
 import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
 
+import { extractFirstSseEventData } from "@/chat/tools/extract-first-sse-event-data.js";
 import { validateSource } from "@/chat/tools/validate-source.js";
-import { reportKeyError, reportKeySuccess } from "@/lib/api-key-health.js";
+import { getApiKeyFingerprint } from "@/lib/api-key-fingerprint.js";
+import {
+	reportKeyError,
+	reportKeySuccess,
+	reportTrackedKeyError,
+	reportTrackedKeySuccess,
+} from "@/lib/api-key-health.js";
+import { assertApiKeyWithinUsageLimits } from "@/lib/api-key-usage-limits.js";
 import {
 	findApiKeyByToken,
 	findProjectById,
@@ -17,7 +25,20 @@ import {
 import { isCodingModel } from "@/lib/coding-models.js";
 import { calculateCosts, shouldBillCancelledRequests } from "@/lib/costs.js";
 import { throwIamException, validateModelAccess } from "@/lib/iam.js";
-import { calculateDataStorageCost, insertLog } from "@/lib/logs.js";
+import {
+	calculateDataStorageCost,
+	getUnifiedFinishReason,
+	isContentFilterFinishReason,
+	insertLog as _insertLog,
+} from "@/lib/logs.js";
+import {
+	checkProviderRateLimit,
+	filterRateLimitedProviders,
+	getExceededProviderRateLimitLabels,
+	peekProviderRateLimit,
+	providerRateLimitWindows,
+} from "@/lib/provider-rate-limit.js";
+import { getResponsesContext } from "@/lib/responses-context.js";
 import {
 	createCombinedSignal,
 	createStreamingCombinedSignal,
@@ -28,6 +49,7 @@ import {
 	getCheapestFromAvailableProviders,
 	getProviderEndpoint,
 	getProviderHeaders,
+	getProviderSelectionPrice,
 	prepareRequestBody,
 	type RoutingMetadata,
 } from "@llmgateway/actions";
@@ -43,8 +65,11 @@ import {
 	getProviderMetricsForCombinations,
 	type InferSelectModel,
 	isCachingEnabled,
+	metricsKey,
+	type LogInsertData,
 	shortid,
 	type tables,
+	type ProviderMetrics,
 } from "@llmgateway/db";
 import {
 	applyRedactions,
@@ -58,17 +83,28 @@ import {
 	getModelStreamingSupport,
 	hasMaxTokens,
 	hasProviderEnvironmentToken,
+	hasRegionSpecificEnvKey,
 	type ModelDefinition,
 	models,
 	type Provider,
+	type ProviderDefinition,
 	type ProviderModelMapping,
 	type ProviderRequestBody,
 	providers,
 	type WebSearchTool,
+	expandAllProviderRegions,
+	getProviderDefinition,
+	getRegionSpecificEnvValue,
+	stripRegionFromModelName,
 } from "@llmgateway/models";
 
 import { completionsRequestSchema } from "./schemas/completions.js";
-import { applyPlatformSecurity } from "./tools/apply-platform-security.js";
+import {
+	checkContentFilter,
+	getContentFilterMethod,
+	getContentFilterMode,
+	shouldApplyContentFilterToModel,
+} from "./tools/check-content-filter.js";
 import { convertImagesToBase64 } from "./tools/convert-images-to-base64.js";
 import { countInputImages } from "./tools/count-input-images.js";
 import { createLogEntry } from "./tools/create-log-entry.js";
@@ -86,22 +122,32 @@ import { extractTokenUsage } from "./tools/extract-token-usage.js";
 import { extractToolCalls } from "./tools/extract-tool-calls.js";
 import { getFinishReasonFromError } from "./tools/get-finish-reason-from-error.js";
 import { getProviderEnv } from "./tools/get-provider-env.js";
+import { hasMeaningfulAssistantOutput } from "./tools/has-meaningful-assistant-output.js";
 import { healJsonResponse } from "./tools/heal-json-response.js";
-import {
-	isModelTrulyFree,
-	isProviderMappingTrulyFree,
-} from "./tools/is-model-truly-free.js";
+import { isModelTrulyFree } from "./tools/is-model-truly-free.js";
 import { messagesContainImages } from "./tools/messages-contain-images.js";
 import { mightBeCompleteJson } from "./tools/might-be-complete-json.js";
+import { normalizeStreamingError } from "./tools/normalize-streaming-error.js";
+import { checkOpenAIContentFilter } from "./tools/openai-content-filter.js";
 import { convertAwsEventStreamToSSE } from "./tools/parse-aws-eventstream.js";
 import { parseModelInput } from "./tools/parse-model-input.js";
 import { parseProviderResponse } from "./tools/parse-provider-response.js";
+import {
+	flushTaggedStreamingRemainder,
+	splitTaggedStreamingContentChunk,
+	splitReasoningFromTaggedContent,
+} from "./tools/reasoning-details.js";
 import { resolveModelInfo } from "./tools/resolve-model-info.js";
-import { resolveProviderContext } from "./tools/resolve-provider-context.js";
+import {
+	formatUsedModelForDisplay,
+	resolveProviderContext,
+} from "./tools/resolve-provider-context.js";
 import {
 	type RoutingAttempt,
 	getErrorType,
+	isRetryableErrorType,
 	MAX_RETRIES,
+	providerRetryKey,
 	selectNextProvider,
 	shouldRetryRequest,
 } from "./tools/retry-with-fallback.js";
@@ -109,24 +155,612 @@ import {
 	encodeChatMessages,
 	messageContentToString,
 } from "./tools/tokenizer.js";
-import { transformResponseToOpenai } from "./tools/transform-response-to-openai.js";
-import { transformStreamingToOpenai } from "./tools/transform-streaming-to-openai.js";
 import {
-	validateFreeModelUsage,
-	validateFreeUserUsage,
-} from "./tools/validate-free-model-usage.js";
+	stripRequestScopedMetadataFromOpenAiResponse,
+	transformResponseToOpenai,
+	withCurrentRequestMetadataOnOpenAiResponse,
+} from "./tools/transform-response-to-openai.js";
+import { transformStreamingToOpenai } from "./tools/transform-streaming-to-openai.js";
+import { validateFreeModelUsage } from "./tools/validate-free-model-usage.js";
 import { validateModelCapabilities } from "./tools/validate-model-capabilities.js";
 
 import type { OriginalRequestParams } from "./tools/resolve-provider-context.js";
 import type { ServerTypes } from "@/vars.js";
 
+/**
+ * Filter expanded region entries to only those with available API keys.
+ * - Non-regional mappings (no region) pass through unchanged.
+ * - The default region for a provider always passes (uses the base env key).
+ * - Non-default regions only pass if a region-specific env key exists
+ *   (e.g. LLM_ALIBABA_API_KEY__US_VIRGINIA).
+ */
+function filterRegionsByAvailableKeys(
+	expandedProviders: ProviderModelMapping[],
+): ProviderModelMapping[] {
+	return expandedProviders.filter((mapping) => {
+		if (!mapping.region) {
+			return true;
+		}
+		const providerDef = providers.find((p) => p.id === mapping.providerId) as
+			| ProviderDefinition
+			| undefined;
+		if (!providerDef?.regionConfig) {
+			return true;
+		}
+		if (mapping.region === providerDef.regionConfig.defaultRegion) {
+			return true;
+		}
+		return hasRegionSpecificEnvKey(
+			mapping.providerId as Provider,
+			mapping.region,
+		);
+	});
+}
+
+function preferConcreteRegionalMappings(
+	providers: ProviderModelMapping[],
+): ProviderModelMapping[] {
+	const providersWithRegions = new Set(
+		providers
+			.filter((mapping) => mapping.region)
+			.map((mapping) => mapping.providerId),
+	);
+
+	return providers.filter(
+		(mapping) =>
+			!providersWithRegions.has(mapping.providerId) || Boolean(mapping.region),
+	);
+}
+
+function collapseProvidersToBestRegionPerProvider(
+	candidates: ProviderModelMapping[],
+	model: ModelDefinition & {
+		id: string;
+		output?: string[];
+	},
+	options: {
+		metricsMap: Map<string, ProviderMetrics>;
+		isStreaming: boolean;
+	},
+): ProviderModelMapping[] {
+	const providersById = new Map<string, ProviderModelMapping[]>();
+
+	for (const candidate of candidates) {
+		const providerCandidates = providersById.get(candidate.providerId) ?? [];
+		providerCandidates.push(candidate);
+		providersById.set(candidate.providerId, providerCandidates);
+	}
+
+	return Array.from(providersById.values()).map((providerCandidates) => {
+		if (providerCandidates.length === 1) {
+			return providerCandidates[0];
+		}
+
+		const bestCandidate = getCheapestFromAvailableProviders(
+			providerCandidates,
+			model,
+			options,
+		);
+
+		return bestCandidate?.provider ?? providerCandidates[0];
+	});
+}
+
+function resolveRegionFromProviderKey(
+	key: InferSelectModel<typeof tables.providerKey>,
+): string | undefined {
+	const providerDef = providers.find((p) => p.id === key.provider) as
+		| ProviderDefinition
+		| undefined;
+	if (!providerDef?.regionConfig) {
+		return undefined;
+	}
+	const regionKey = providerDef.regionConfig.optionsKey;
+	const explicitRegion = key.options
+		? (key.options as Record<string, string | undefined>)[regionKey]
+		: undefined;
+	return explicitRegion ?? providerDef.regionConfig.defaultRegion;
+}
+
+function resolveExplicitRegionFromProviderKey(
+	key: InferSelectModel<typeof tables.providerKey>,
+): string | undefined {
+	const providerDef = providers.find((p) => p.id === key.provider) as
+		| ProviderDefinition
+		| undefined;
+	if (!providerDef?.regionConfig) {
+		return undefined;
+	}
+	const regionKey = providerDef.regionConfig.optionsKey;
+	return key.options
+		? (key.options as Record<string, string | undefined>)[regionKey]
+		: undefined;
+}
+
+function filterEligibleModelProviders(
+	availableModelProviders: ProviderModelMapping[],
+	options: {
+		allProviderVariants: ProviderModelMapping[];
+		availableProviders?: string[];
+		providerLockedRegions?: Map<string, string>;
+		webSearchTool?: WebSearchTool;
+		responseFormatType?: string;
+		hasImages: boolean;
+		maxTokens?: number;
+		reasoningEffort?: string;
+	},
+): ProviderModelMapping[] {
+	return availableModelProviders.filter((provider) => {
+		if (
+			options.availableProviders &&
+			!options.availableProviders.includes(provider.providerId)
+		) {
+			return false;
+		}
+
+		const lockedRegion = options.providerLockedRegions?.get(
+			provider.providerId,
+		);
+		if (lockedRegion && provider.region && provider.region !== lockedRegion) {
+			return false;
+		}
+
+		if (options.webSearchTool && provider.webSearch !== true) {
+			return false;
+		}
+
+		if (
+			options.responseFormatType === "json_object" ||
+			options.responseFormatType === "json_schema"
+		) {
+			if (provider.jsonOutput !== true) {
+				return false;
+			}
+		}
+
+		if (
+			options.responseFormatType === "json_schema" &&
+			provider.jsonOutputSchema !== true
+		) {
+			return false;
+		}
+
+		if (options.hasImages && provider.vision !== true) {
+			return false;
+		}
+
+		if (
+			options.maxTokens !== undefined &&
+			provider.maxOutput !== undefined &&
+			options.maxTokens > provider.maxOutput
+		) {
+			return false;
+		}
+
+		if (options.reasoningEffort !== undefined) {
+			return provider.reasoning === true;
+		}
+
+		const hasNonReasoningAlternative = options.allProviderVariants.some(
+			(p) => p.providerId === provider.providerId && p.reasoning !== true,
+		);
+
+		if (hasNonReasoningAlternative && provider.reasoning === true) {
+			return false;
+		}
+
+		return true;
+	});
+}
+
+interface ContentFilterRoutingDecision {
+	candidates: ProviderModelMapping[];
+	excludedProviders: ProviderModelMapping[];
+	rerouted: boolean;
+}
+
+function isContentFilterProvider(providerId: string): boolean {
+	return getProviderDefinition(providerId)?.contentFilter === true;
+}
+
+function getContentFilterRoutingDecision(
+	availableModelProviders: ProviderModelMapping[],
+	contentFilterMatched: boolean,
+): ContentFilterRoutingDecision {
+	if (!contentFilterMatched) {
+		return {
+			candidates: availableModelProviders,
+			excludedProviders: [],
+			rerouted: false,
+		};
+	}
+
+	const preferredProviders = availableModelProviders.filter(
+		(provider) => !isContentFilterProvider(provider.providerId),
+	);
+
+	if (preferredProviders.length === 0) {
+		return {
+			candidates: availableModelProviders,
+			excludedProviders: [],
+			rerouted: false,
+		};
+	}
+
+	const excludedProviders = availableModelProviders.filter((provider) =>
+		isContentFilterProvider(provider.providerId),
+	);
+
+	if (excludedProviders.length === 0) {
+		return {
+			candidates: availableModelProviders,
+			excludedProviders: [],
+			rerouted: false,
+		};
+	}
+
+	return {
+		candidates: preferredProviders,
+		excludedProviders,
+		rerouted: true,
+	};
+}
+
+function addContentFilterRoutingMetadata(
+	routingMetadata: RoutingMetadata,
+	contentFilterMatched: boolean,
+	excludedProviders: ProviderModelMapping[],
+	modelId: string | undefined,
+	metricsMap: Map<string, ProviderMetrics>,
+): RoutingMetadata {
+	if (!contentFilterMatched) {
+		return routingMetadata;
+	}
+
+	const contentFilterExcludedProviders = [
+		...new Set(excludedProviders.map((provider) => provider.providerId)),
+	];
+
+	const providerScores =
+		excludedProviders.length === 0 || !modelId
+			? routingMetadata.providerScores
+			: [
+					...excludedProviders.map((provider) => {
+						const metrics = metricsMap.get(
+							metricsKey(modelId, provider.providerId, provider.region),
+						);
+
+						return {
+							providerId: provider.providerId,
+							region: provider.region,
+							score: -1,
+							uptime: metrics?.uptime ?? 0,
+							latency: metrics?.averageLatency ?? 0,
+							throughput: metrics?.throughput ?? 0,
+							price: getProviderSelectionPrice(provider),
+							contentFilterProvider: true,
+							excludedByContentFilter: true,
+						};
+					}),
+					...routingMetadata.providerScores,
+				];
+
+	return {
+		...routingMetadata,
+		contentFilterMatched: true,
+		contentFilterRerouted: contentFilterExcludedProviders.length > 0,
+		contentFilterExcludedProviders:
+			contentFilterExcludedProviders.length > 0
+				? contentFilterExcludedProviders
+				: undefined,
+		providerScores,
+	};
+}
+
+function withUsedApiKeyHash(
+	routingMetadata: RoutingMetadata | undefined,
+	usedApiKeyHash: string | undefined,
+): RoutingMetadata | undefined {
+	if (!routingMetadata || !usedApiKeyHash) {
+		return routingMetadata;
+	}
+
+	if (routingMetadata.usedApiKeyHash === usedApiKeyHash) {
+		return routingMetadata;
+	}
+
+	return {
+		...routingMetadata,
+		usedApiKeyHash,
+	};
+}
+
+function buildRoutingAttempt(
+	provider: string,
+	model: string,
+	statusCode: number,
+	errorType: string,
+	succeeded: boolean,
+	options?: {
+		region?: string;
+		apiKeyHash?: string;
+		logId?: string;
+	},
+): RoutingAttempt {
+	return {
+		provider,
+		model,
+		...(options?.region && { region: options.region }),
+		status_code: statusCode,
+		error_type: errorType,
+		succeeded,
+		...(options?.apiKeyHash && { apiKeyHash: options.apiKeyHash }),
+		...(options?.logId && { logId: options.logId }),
+	};
+}
+
+function usesGoogleQueryToken(provider: string): boolean {
+	return (
+		provider === "google-ai-studio" ||
+		provider === "glacier" ||
+		provider === "google-vertex" ||
+		provider === "quartz"
+	);
+}
+
+function isGoogleCompatibleProvider(provider: string): boolean {
+	return usesGoogleQueryToken(provider) || provider === "obsidian";
+}
+
 // Pre-compiled regex pattern to avoid recompilation per request
 const SSE_FIELD_PATTERN = /^[a-zA-Z_-]+:\s*/;
+const IMMEDIATE_STREAM_ERROR_PEEK_LIMIT = 64 * 1024;
+
+function inferStreamingErrorStatusCode(
+	openAiCompatibleStreamError: Record<string, unknown>,
+	errorResponseText: string,
+): number {
+	if (typeof openAiCompatibleStreamError.status_code === "number") {
+		return openAiCompatibleStreamError.status_code;
+	}
+	if (typeof openAiCompatibleStreamError.status === "number") {
+		return openAiCompatibleStreamError.status;
+	}
+
+	const errorType =
+		typeof openAiCompatibleStreamError.type === "string"
+			? openAiCompatibleStreamError.type.toLowerCase()
+			: "";
+	const errorCode =
+		typeof openAiCompatibleStreamError.code === "string"
+			? openAiCompatibleStreamError.code.toLowerCase()
+			: "";
+	const errorMessage =
+		typeof openAiCompatibleStreamError.message === "string"
+			? openAiCompatibleStreamError.message.toLowerCase()
+			: "";
+	const errorText = errorResponseText.toLowerCase();
+
+	if (
+		errorType === "authentication_error" ||
+		errorCode === "invalid_api_key" ||
+		errorMessage.includes("invalid api key") ||
+		errorMessage.includes("incorrect api key")
+	) {
+		return 401;
+	}
+	if (errorType === "permission_error" || errorCode === "forbidden") {
+		return 403;
+	}
+	if (
+		errorType === "rate_limit_error" ||
+		errorCode === "rate_limit_exceeded" ||
+		errorMessage.includes("rate limit") ||
+		errorText.includes("rate limit")
+	) {
+		return 429;
+	}
+	if (
+		errorCode === "model_not_found" ||
+		errorMessage.includes("does not exist") ||
+		errorMessage.includes("not found") ||
+		errorText.includes("model_not_found")
+	) {
+		return 404;
+	}
+	if (
+		errorType === "content_filter" ||
+		errorCode === "content_filter" ||
+		errorText.includes("responsibleaipolicyviolation") ||
+		errorText.includes("sensitivecontentdetected") ||
+		errorType === "data_inspection_failed" ||
+		errorCode === "data_inspection_failed" ||
+		errorText.includes("input data may contain inappropriate content") ||
+		errorText.includes("content violates usage guidelines")
+	) {
+		return 400;
+	}
+	if (
+		errorType === "invalid_request_error" ||
+		errorType === "invalid_argument"
+	) {
+		return 400;
+	}
+
+	return 500;
+}
+
+async function inspectImmediateStreamingProviderError(
+	response: Response,
+	provider: Provider,
+): Promise<
+	| {
+			response: Response;
+			immediateError: null;
+	  }
+	| {
+			response: Response;
+			immediateError: {
+				errorCode: string;
+				errorMessage: string;
+				errorResponseText: string;
+				errorType: string;
+				inferredStatusCode: number;
+				statusText: string;
+			};
+	  }
+> {
+	if (!response.body || provider === "aws-bedrock") {
+		return {
+			response,
+			immediateError: null,
+		};
+	}
+
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+	const replayChunks: Uint8Array[] = [];
+	let peekBuffer = "";
+
+	try {
+		while (peekBuffer.length < IMMEDIATE_STREAM_ERROR_PEEK_LIMIT) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+
+			replayChunks.push(value);
+			peekBuffer += decoder.decode(value, { stream: true });
+
+			const firstEventData = extractFirstSseEventData(peekBuffer);
+			if (!firstEventData) {
+				continue;
+			}
+
+			let parsedEvent: unknown;
+			try {
+				parsedEvent = JSON.parse(firstEventData);
+			} catch {
+				break;
+			}
+
+			const openAiCompatibleStreamError =
+				parsedEvent &&
+				typeof parsedEvent === "object" &&
+				"error" in parsedEvent &&
+				parsedEvent.error &&
+				typeof parsedEvent.error === "object"
+					? (parsedEvent.error as Record<string, unknown>)
+					: null;
+
+			if (!openAiCompatibleStreamError) {
+				break;
+			}
+
+			const errorResponseText = JSON.stringify(parsedEvent);
+			const inferredStatusCode = inferStreamingErrorStatusCode(
+				openAiCompatibleStreamError,
+				errorResponseText,
+			);
+			const errorType = getFinishReasonFromError(
+				inferredStatusCode,
+				errorResponseText,
+			);
+			const errorMessage =
+				typeof openAiCompatibleStreamError.message === "string"
+					? openAiCompatibleStreamError.message
+					: "Upstream provider returned a streaming error";
+			const errorCode =
+				typeof openAiCompatibleStreamError.code === "string"
+					? openAiCompatibleStreamError.code
+					: typeof openAiCompatibleStreamError.type === "string"
+						? openAiCompatibleStreamError.type
+						: errorType;
+			const statusText =
+				typeof openAiCompatibleStreamError.type === "string"
+					? openAiCompatibleStreamError.type
+					: "stream_error";
+
+			try {
+				await reader.cancel();
+			} catch {
+				// Ignore cancellation errors - the response body is no longer needed.
+			}
+
+			return {
+				response,
+				immediateError: {
+					errorCode,
+					errorMessage,
+					errorResponseText,
+					errorType,
+					inferredStatusCode,
+					statusText,
+				},
+			};
+		}
+	} catch (error) {
+		try {
+			await reader.cancel();
+		} catch {
+			// Ignore cancellation errors - the response body is no longer needed.
+		}
+
+		return {
+			response,
+			immediateError: {
+				errorCode: "stream_read_error",
+				errorMessage:
+					error instanceof Error ? error.message : String(error ?? ""),
+				errorResponseText: "",
+				errorType: "stream",
+				inferredStatusCode: 0,
+				statusText: "",
+			},
+		};
+	}
+
+	const replayStream = new ReadableStream<Uint8Array>({
+		async start(controller) {
+			try {
+				for (const chunk of replayChunks) {
+					controller.enqueue(chunk);
+				}
+
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) {
+						break;
+					}
+					controller.enqueue(value);
+				}
+
+				controller.close();
+			} catch (error) {
+				controller.error(error);
+			}
+		},
+		async cancel(reason) {
+			try {
+				await reader.cancel(reason);
+			} catch {
+				// Ignore cancellation errors when the replay stream is closed early.
+			}
+		},
+	});
+
+	return {
+		response: new Response(replayStream, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: new Headers(response.headers),
+		}),
+		immediateError: null,
+	};
+}
 
 // Reusable TextDecoder to avoid per-chunk allocation in the streaming hot path
 const sharedTextDecoder = new TextDecoder();
-const brandName = process.env.BRAND_NAME ?? "KiwiLLM";
-const dashboardUrl = process.env.APP_URL ?? "https://app.kiwillm.in";
 
 export const chat = new OpenAPIHono<ServerTypes>();
 
@@ -135,15 +769,20 @@ const hostedProviderFallbackBaseUrls: Partial<Record<Provider, string>> = {
 	"kiwillm-gpt-oss-worker": "https://gpt-oss-worker.llamai.workers.dev",
 };
 
-const bareModelProviderAliases: Record<string, string> = {
-	"gpt-4o-mini": "kiwillm-claude-talkai/gpt-4o-mini",
-	"gemini-2.5-pro": "kiwillm-chatai-proxy/gemini-2.5-pro",
-	"gpt-oss-120b": "kiwillm-freecfmodels/gpt-oss-120b",
-	"kimi-k2.5": "kiwillm-kimi/kimi-k2.5",
-};
+const bareModelProviderAliases: Record<string, string> = {};
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
 	return !getProviderEnvConfig(providerId)?.required.apiKey;
+}
+
+function getPublicRequestedProvider(
+	requestedProvider: string | undefined,
+): string | null {
+	if (!requestedProvider || requestedProvider.startsWith("kiwillm-")) {
+		return null;
+	}
+
+	return requestedProvider;
 }
 
 function serializeJsonResponse(data: unknown): string {
@@ -175,7 +814,6 @@ function jsonResponse(
 		},
 	});
 }
-
 const completions = createRoute({
 	operationId: "v1_chat_completions",
 	summary: "Chat Completions",
@@ -256,8 +894,27 @@ const completions = createRoute({
 							cost_usd_request: z.number().nullable().optional(),
 						}),
 						metadata: z.object({
+							request_id: z.string(),
 							requested_model: z.string(),
 							requested_provider: z.string().nullable(),
+							used_model: z.string(),
+							used_provider: z.string(),
+							used_region: z.string().nullable().optional(),
+							underlying_used_model: z.string(),
+							routing: z
+								.array(
+									z.object({
+										provider: z.string(),
+										model: z.string(),
+										region: z.string().optional(),
+										status_code: z.number(),
+										error_type: z.string(),
+										succeeded: z.boolean(),
+										apiKeyHash: z.string().optional(),
+										logId: z.string().optional(),
+									}),
+								)
+								.optional(),
 						}),
 					}),
 				},
@@ -290,14 +947,14 @@ const completions = createRoute({
 
 chat.openapi(completions, async (c) => {
 	// Extract or generate request ID
-	const requestId = c.req.header("x-request-id") ?? shortid(40);
+	const requestId = c.req.header("x-request-id")?.trim() || shortid(40);
 
 	// Parse JSON manually even if it's malformed
 	let rawBody: unknown;
 	try {
 		rawBody = await c.req.json();
 	} catch {
-		return jsonResponse(
+		return c.json(
 			{
 				error: {
 					message: "Invalid JSON in request body",
@@ -313,7 +970,7 @@ chat.openapi(completions, async (c) => {
 	// Validate against schema
 	const validationResult = completionsRequestSchema.safeParse(rawBody);
 	if (!validationResult.success) {
-		return jsonResponse(
+		return c.json(
 			{
 				error: {
 					message: "Invalid request parameters",
@@ -384,7 +1041,7 @@ chat.openapi(completions, async (c) => {
 		validationResult.data.reasoning_effort !== undefined &&
 		reasoning_object_effort !== undefined
 	) {
-		return jsonResponse(
+		return c.json(
 			{
 				error: {
 					message:
@@ -466,6 +1123,32 @@ chat.openapi(completions, async (c) => {
 	// Extract custom X-LLMGateway-* headers
 	const customHeaders = extractCustomHeaders(c);
 
+	// Read Responses API context from in-memory Map (set by /v1/responses proxy).
+	// Uses a lookup key passed via header; actual data is never in headers.
+	// External callers cannot exploit this: the key is a resp_ + shortid(24) that
+	// only exists in the Map for the duration of a single app.request() call, and
+	// getResponsesContext() deletes on read (one-time use).
+	const responsesContextKey = c.req.header("x-responses-context-key");
+	const responsesContext = responsesContextKey
+		? getResponsesContext(responsesContextKey)
+		: undefined;
+	const syncLogInsert = responsesContext?.syncInsert ?? false;
+	const logIdOverride = responsesContext?.logId;
+	const responsesApiData: unknown = responsesContext?.responsesApiData ?? null;
+
+	// Wrapper that injects Responses API fields into every log entry.
+	// Only override the id for the final log entry (retried !== true) to avoid
+	// PK conflicts when the request retries across multiple providers.
+	const insertLogEntry = (logData: LogInsertData) =>
+		insertLog(
+			{
+				...logData,
+				...(logIdOverride && !logData.retried ? { id: logIdOverride } : {}),
+				responsesApiData,
+			},
+			{ syncInsert: syncLogInsert },
+		);
+
 	// Check for X-No-Fallback header to disable provider fallback on low uptime
 	const noFallback =
 		c.req.raw.headers.get("x-no-fallback") === "true" ||
@@ -475,10 +1158,10 @@ chat.openapi(completions, async (c) => {
 	const initialRequestedModel = modelInput;
 
 	// Parse model input to resolve model, provider, and custom provider name
-	const routedModelInput = bareModelProviderAliases[modelInput] ?? modelInput;
-	const parseResult = parseModelInput(routedModelInput);
+	const parseResult = parseModelInput(modelInput);
 	const requestedModel = parseResult.requestedModel;
 	const customProviderName = parseResult.customProviderName;
+	const requestedRegion = parseResult.requestedRegion;
 
 	// Count input images from messages for cost calculation
 	const inputImageCount =
@@ -492,9 +1175,47 @@ chat.openapi(completions, async (c) => {
 		requestedModel,
 		parseResult.requestedProvider,
 	);
-	let modelInfo = modelInfoResult.modelInfo;
-	const allModelProviders = modelInfoResult.allModelProviders;
+	const useExpandedRoutingProviders =
+		Boolean(modelInfoResult.requestedProvider) &&
+		modelInfoResult.requestedProvider !== "llmgateway" &&
+		modelInfoResult.requestedProvider !== "custom";
+	const expandedActiveModelProviders = expandAllProviderRegions(
+		modelInfoResult.modelInfo.providers,
+	);
+	const expandedAllModelProviders = expandAllProviderRegions(
+		modelInfoResult.allModelProviders,
+	);
+	let routingExpandedModelProviders = expandedActiveModelProviders;
+	let modelInfo = {
+		...modelInfoResult.modelInfo,
+		providers: useExpandedRoutingProviders
+			? expandedActiveModelProviders
+			: modelInfoResult.modelInfo.providers,
+	};
+	let allModelProviders = useExpandedRoutingProviders
+		? expandedAllModelProviders
+		: modelInfoResult.allModelProviders;
 	let requestedProvider = modelInfoResult.requestedProvider;
+
+	// If a specific region was requested (e.g. "alibaba/qwen-plus:cn-beijing"),
+	// filter providers to only those matching the requested region
+	if (requestedRegion) {
+		const regionProviders = expandedActiveModelProviders.filter(
+			(p) => p.region === requestedRegion,
+		);
+		modelInfo = {
+			...modelInfo,
+			providers: regionProviders,
+		};
+		allModelProviders = expandedAllModelProviders.filter(
+			(p) => p.region === requestedRegion,
+		);
+		if (regionProviders.length === 0) {
+			throw new HTTPException(400, {
+				message: `Region '${requestedRegion}' is not available for model ${requestedModel}`,
+			});
+		}
+	}
 
 	// Validate that models requiring image input have at least one image in the request
 	if (
@@ -536,15 +1257,12 @@ chat.openapi(completions, async (c) => {
 
 	if (!apiKey || apiKey.status !== "active") {
 		throw new HTTPException(401, {
-			message: `Unauthorized: Invalid ${brandName} API token. Please make sure the token is not deleted or disabled. Go to the ${brandName} API keys page in your dashboard to generate a new token.`,
+			message:
+				"Unauthorized: Invalid LLMGateway API token. Please make sure the token is not deleted or disabled. Go to the LLMGateway 'API Keys' page to generate a new token.",
 		});
 	}
 
-	if (apiKey.usageLimit && Number(apiKey.usage) >= Number(apiKey.usageLimit)) {
-		throw new HTTPException(401, {
-			message: `Unauthorized: ${brandName} API key reached its usage limit.`,
-		});
-	}
+	assertApiKeyWithinUsageLimits(apiKey);
 
 	// Get the project to determine mode for routing decisions
 	const project = await findProjectById(apiKey.projectId);
@@ -562,6 +1280,59 @@ chat.openapi(completions, async (c) => {
 		});
 	}
 
+	// Filter region candidates based on available keys.
+	// - credits mode: only keep regions with env keys (base key → default region only)
+	// - hybrid mode: providers with a DB key keep all regions (user chose their region);
+	//   providers without a DB key are filtered like credits mode
+	// - api-keys mode: no filtering (all regions available, user picks via DB key)
+	if (project.mode === "credits") {
+		modelInfo = {
+			...modelInfo,
+			providers: filterRegionsByAvailableKeys(modelInfo.providers),
+		};
+		routingExpandedModelProviders = filterRegionsByAvailableKeys(
+			routingExpandedModelProviders,
+		);
+		allModelProviders = filterRegionsByAvailableKeys(allModelProviders);
+	} else if (project.mode === "hybrid") {
+		const dbProviderKeys = await findActiveProviderKeys(project.organizationId);
+		const providersWithDbKeys = new Set(dbProviderKeys.map((k) => k.provider));
+		const filterHybridRegions = (
+			expanded: ProviderModelMapping[],
+		): ProviderModelMapping[] =>
+			expanded.filter((mapping) => {
+				// Providers with a DB key: keep all regions
+				if (providersWithDbKeys.has(mapping.providerId)) {
+					return true;
+				}
+				// Providers without a DB key: filter like credits mode
+				if (!mapping.region) {
+					return true;
+				}
+				const providerDef = providers.find(
+					(p) => p.id === mapping.providerId,
+				) as ProviderDefinition | undefined;
+				if (!providerDef?.regionConfig) {
+					return true;
+				}
+				if (mapping.region === providerDef.regionConfig.defaultRegion) {
+					return true;
+				}
+				return hasRegionSpecificEnvKey(
+					mapping.providerId as Provider,
+					mapping.region,
+				);
+			});
+		modelInfo = {
+			...modelInfo,
+			providers: filterHybridRegions(modelInfo.providers),
+		};
+		routingExpandedModelProviders = filterHybridRegions(
+			routingExpandedModelProviders,
+		);
+		allModelProviders = filterHybridRegions(allModelProviders);
+	}
+
 	// Fetch organization for coding model restriction check and credit validation
 	const organization = await findOrganizationById(project.organizationId);
 
@@ -571,8 +1342,18 @@ chat.openapi(completions, async (c) => {
 		});
 	}
 
-	const isFreeTierOrganization =
-		organization.plan === "free" && organization.devPlan === "none";
+	const retryProjectContext = {
+		mode: project.mode,
+		organizationId: project.organizationId,
+	};
+	const retryOrganizationContext = {
+		id: organization.id,
+		credits: organization.credits,
+		devPlan: organization.devPlan,
+		devPlanCreditsLimit: organization.devPlanCreditsLimit,
+		devPlanCreditsUsed: organization.devPlanCreditsUsed,
+		devPlanExpiresAt: organization.devPlanExpiresAt,
+	};
 
 	// Run guardrails check for enterprise organizations
 	let guardrailResult: Awaited<ReturnType<typeof checkGuardrails>> | undefined;
@@ -631,12 +1412,6 @@ chat.openapi(completions, async (c) => {
 		}
 	}
 
-	({ messages } = {
-		messages: applyPlatformSecurity(
-			messages as Parameters<typeof applyPlatformSecurity>[0],
-		).messages as typeof messages,
-	});
-
 	// Validate coding model restriction for dev plan personal orgs
 	// This check must happen BEFORE capability checks to give the right error message
 	if (
@@ -646,7 +1421,7 @@ chat.openapi(completions, async (c) => {
 	) {
 		if (!isCodingModel(modelInfo)) {
 			throw new HTTPException(403, {
-				message: `Model ${modelInfo.id} is not available for coding plans. Coding plans only include models optimized for coding tasks with prompt caching, tool calling, JSON output, and streaming support. You can enable access to all models in your dashboard settings at ${dashboardUrl}/dashboard, though this may significantly increase costs due to lack of prompt caching.`,
+				message: `Model ${modelInfo.id} is not available for coding plans. Coding plans only include models optimized for coding tasks with prompt caching, tool calling, JSON output, and streaming support. You can enable access to all models in your dashboard settings at code.llmgateway.io/dashboard, though this may significantly increase costs due to lack of prompt caching.`,
 			});
 		}
 	}
@@ -663,6 +1438,7 @@ chat.openapi(completions, async (c) => {
 
 	let usedProvider = requestedProvider;
 	let usedModel: string = requestedModel;
+	let usedRegion: string | undefined = requestedRegion;
 	let routingMetadata: RoutingMetadata | undefined;
 
 	// Extract retention level for data storage cost calculation
@@ -688,7 +1464,7 @@ chat.openapi(completions, async (c) => {
 		modelInfo,
 	);
 	if (!iamValidation.allowed) {
-		throwIamException(iamValidation.reason!);
+		throwIamException(iamValidation.reason ?? "Model access denied");
 	}
 	// IAM allowed providers - used to filter available providers during routing
 	const iamAllowedProviders = iamValidation.allowedProviders;
@@ -700,12 +1476,18 @@ chat.openapi(completions, async (c) => {
 				iamAllowedProviders.includes(p.providerId),
 			)
 		: modelInfo.providers;
+	let expandedIamFilteredModelProviders = iamAllowedProviders
+		? routingExpandedModelProviders.filter((p) =>
+				iamAllowedProviders.includes(p.providerId),
+			)
+		: routingExpandedModelProviders;
 
 	// Validate the custom provider against the database if one was requested
 	if (requestedProvider === "custom" && customProviderName) {
 		const customProviderKey = await findCustomProviderKey(
 			project.organizationId,
 			customProviderName,
+			requestId,
 		);
 		if (!customProviderKey) {
 			throw new HTTPException(400, {
@@ -758,15 +1540,13 @@ chat.openapi(completions, async (c) => {
 
 		// Get available providers based on project mode
 		let availableProviders: string[] = [];
-		let activeProviderKeys: Awaited<ReturnType<typeof findActiveProviderKeys>> =
-			[];
 
 		if (project.mode === "api-keys") {
-			activeProviderKeys = await findActiveProviderKeys(project.organizationId);
-			availableProviders = activeProviderKeys.map((key) => key.provider);
+			const providerKeys = await findActiveProviderKeys(project.organizationId);
+			availableProviders = providerKeys.map((key) => key.provider);
 		} else if (project.mode === "credits" || project.mode === "hybrid") {
-			activeProviderKeys = await findActiveProviderKeys(project.organizationId);
-			const databaseProviders = activeProviderKeys.map((key) => key.provider);
+			const providerKeys = await findActiveProviderKeys(project.organizationId);
+			const databaseProviders = providerKeys.map((key) => key.provider);
 
 			// Check which providers have environment tokens available
 			const envProviders: string[] = [];
@@ -787,263 +1567,186 @@ chat.openapi(completions, async (c) => {
 				];
 			}
 		}
-		const activeProviderKeyMap = new Map(
-			activeProviderKeys.map((key) => [key.provider, key]),
-		);
 
-		const canRouteProviderMapping = (
-			providerMapping: ProviderModelMapping,
-		): boolean => {
-			const providerId = providerMapping.providerId as Provider;
-			const providerKey = activeProviderKeyMap.get(providerId);
-			let routingToken = "";
-			let routingConfigIndex = 0;
-
-			try {
-				if (project.mode === "api-keys") {
-					if (!providerKey?.token) {
-						return false;
-					}
-					routingToken = providerKey.token;
-				} else if (project.mode === "credits") {
-					const envResult = getProviderEnv(providerId);
-					routingToken = envResult.token;
-					routingConfigIndex = envResult.configIndex;
-				} else if (providerKey?.token) {
-					routingToken = providerKey.token;
-				} else {
-					const envResult = getProviderEnv(providerId);
-					routingToken = envResult.token;
-					routingConfigIndex = envResult.configIndex;
-				}
-
-				const endpoint = getProviderEndpoint(
-					providerId,
-					providerKey?.baseUrl ?? undefined,
-					providerMapping.modelName,
-					providerId === "google-ai-studio" || providerId === "google-vertex"
-						? routingToken
-						: undefined,
-					stream,
-					providerMapping.reasoning === true,
-					hasExistingToolCalls,
-					providerKey?.options ?? undefined,
-					routingConfigIndex,
-					providerMapping.imageGenerations === true,
-				);
-
-				return Boolean(endpoint);
-			} catch (error) {
-				logger.warn("Skipping unavailable auto-route provider", {
-					providerId,
-					modelName: providerMapping.modelName,
-					error: error instanceof Error ? error.message : String(error),
-				});
-				return false;
-			}
-		};
-
-		// Find the cheapest model that meets our context size requirements.
-		// We prefer a curated pool first, then widen if nothing routeable is available.
+		// Find the cheapest model that meets our context size requirements
+		// Only consider hardcoded models for auto selection
 		const allowedAutoModels = ["gpt-oss-120b", "gpt-5-nano", "gpt-4.1-nano"];
 
 		let selectedModel: ModelDefinition | undefined;
-		let selectedProviders: ProviderModelMapping[] = [];
+		let selectedProviders: any[] = [];
 		let lowestPrice = Number.MAX_VALUE;
 		const now = new Date(); // Cache current time for deprecation checks
-		const autoSelectionPasses = free_models_only
-			? [
-					{ freeOnly: true, restrictToAllowed: false },
-					{ freeOnly: false, restrictToAllowed: true },
-					{ freeOnly: false, restrictToAllowed: false },
-				]
-			: [
-					{ freeOnly: false, restrictToAllowed: true },
-					{ freeOnly: false, restrictToAllowed: false },
-				];
 
-		for (const selectionPass of autoSelectionPasses) {
-			selectedModel = undefined;
-			selectedProviders = [];
-			lowestPrice = Number.MAX_VALUE;
-
-			for (const modelDef of models) {
-				if (modelDef.id === "auto" || modelDef.id === "custom") {
-					continue;
-				}
-
-				// On the first free-only pass, prefer free models if available.
-				// If none are routeable, fall back to our standard auto pool.
-				if (selectionPass.freeOnly) {
-					if (!("free" in modelDef && modelDef.free)) {
-						continue;
-					}
-				} else if (
-					selectionPass.restrictToAllowed &&
-					!allowedAutoModels.includes(modelDef.id)
-				) {
-					continue;
-				}
-
-				// Validate IAM rules for this candidate model and filter providers.
-				// We must re-evaluate per model because iamAllowedProviders was computed
-				// for the "auto" model which only has the "llmgateway" provider.
-				const candidateIam = await validateModelAccess(
-					apiKey.id,
-					modelDef.id,
-					undefined,
-					modelDef,
-				);
-				if (!candidateIam.allowed) {
-					continue;
-				}
-				const candidateAllowedProviders = candidateIam.allowedProviders;
-
-				// Check if any of the model's providers are available
-				const availableModelProviders = modelDef.providers.filter(
-					(provider) =>
-						availableProviders.includes(provider.providerId) &&
-						(!candidateAllowedProviders ||
-							candidateAllowedProviders.includes(provider.providerId)),
-				);
-
-				// Filter by context size requirement, reasoning capability, and deprecation status
-				const suitableProviders = availableModelProviders.filter((provider) => {
-					const providerMapping = provider as ProviderModelMapping;
-
-					// Skip deprecated provider mappings
-					if (
-						providerMapping.deprecatedAt &&
-						now > providerMapping.deprecatedAt
-					) {
-						return false;
-					}
-
-					// Use the provider's context size, defaulting to a reasonable value if not specified
-					const modelContextSize = providerMapping.contextSize ?? 8192;
-					const contextSizeMet = modelContextSize >= requiredContextSize;
-					if (!contextSizeMet) {
-						return false;
-					}
-
-					// If no_reasoning is true, exclude reasoning models
-					if (no_reasoning && providerMapping.reasoning === true) {
-						return false;
-					}
-
-					// Check reasoning capability if reasoning_effort is specified
-					if (
-						reasoning_effort !== undefined &&
-						providerMapping.reasoning !== true
-					) {
-						return false;
-					}
-
-					// Check reasoning.max_tokens support if specified
-					if (
-						reasoning_max_tokens !== undefined &&
-						providerMapping.reasoningMaxTokens !== true
-					) {
-						return false;
-					}
-
-					// Check tool capability if tools or tool_choice is specified
-					if (
-						(tools !== undefined || tool_choice !== undefined) &&
-						providerMapping.tools !== true
-					) {
-						return false;
-					}
-
-					// Check web search capability if web search tool is requested
-					if (webSearchTool && providerMapping.webSearch !== true) {
-						return false;
-					}
-
-					// Check JSON output capability if json_object or json_schema response format is requested
-					if (
-						response_format?.type === "json_object" ||
-						response_format?.type === "json_schema"
-					) {
-						if (providerMapping.jsonOutput !== true) {
-							return false;
-						}
-					}
-
-					// Check JSON schema output capability if json_schema response format is requested
-					if (
-						response_format?.type === "json_schema" &&
-						providerMapping.jsonOutputSchema !== true
-					) {
-						return false;
-					}
-
-					// Check vision capability if images are present in messages
-					if (hasImages && providerMapping.vision !== true) {
-						return false;
-					}
-
-					return canRouteProviderMapping(providerMapping);
-				}) as ProviderModelMapping[];
-
-				if (suitableProviders.length > 0) {
-					// Find the cheapest among the suitable providers for this model
-					for (const provider of suitableProviders) {
-						const totalPrice =
-							((provider.inputPrice || 0) + (provider.outputPrice || 0)) / 2;
-
-						if (totalPrice < lowestPrice) {
-							lowestPrice = totalPrice;
-							selectedModel = modelDef;
-							selectedProviders = suitableProviders;
-						}
-					}
-				}
+		for (const modelDef of models) {
+			if (modelDef.id === "auto" || modelDef.id === "custom") {
+				continue;
 			}
 
-			if (selectedModel && selectedProviders.length > 0) {
-				if (free_models_only && !selectionPass.freeOnly) {
-					logger.warn(
-						"Falling back from free-only auto routing to general auto routing",
-						{
-							organizationId: project.organizationId,
-							apiKeyId: apiKey.id,
-						},
-					);
-				} else if (!free_models_only && !selectionPass.restrictToAllowed) {
-					logger.warn(
-						"Falling back from curated auto routing to broad auto routing",
-						{
-							organizationId: project.organizationId,
-							apiKeyId: apiKey.id,
-						},
-					);
+			// When free_models_only is true, only consider models marked as free
+			// Otherwise, only consider hardcoded allowed models
+			if (free_models_only) {
+				if (!("free" in modelDef && modelDef.free)) {
+					continue;
 				}
-				break;
+			} else if (!allowedAutoModels.includes(modelDef.id)) {
+				continue;
+			}
+
+			// Validate IAM rules for this candidate model and filter providers.
+			// We must re-evaluate per model because iamAllowedProviders was computed
+			// for the "auto" model which only has the "llmgateway" provider.
+			const candidateIam = await validateModelAccess(
+				apiKey.id,
+				modelDef.id,
+				undefined,
+				modelDef,
+			);
+			if (!candidateIam.allowed) {
+				continue;
+			}
+			const candidateAllowedProviders = candidateIam.allowedProviders;
+
+			const candidateProviders = preferConcreteRegionalMappings(
+				project.mode === "credits"
+					? filterRegionsByAvailableKeys(
+							expandAllProviderRegions(
+								modelDef.providers as ProviderModelMapping[],
+							),
+						)
+					: expandAllProviderRegions(
+							modelDef.providers as ProviderModelMapping[],
+						),
+			);
+			// Check if any of the model's providers are available
+			const availableModelProviders = candidateProviders.filter(
+				(provider) =>
+					availableProviders.includes(provider.providerId) &&
+					(!candidateAllowedProviders ||
+						candidateAllowedProviders.includes(provider.providerId)),
+			);
+
+			// Filter by context size requirement, reasoning capability, and deprecation status
+			const suitableProviders = availableModelProviders.filter((provider) => {
+				// Skip deprecated provider mappings
+				if (provider.deprecatedAt && now > provider.deprecatedAt!) {
+					return false;
+				}
+
+				// Use the provider's context size, defaulting to a reasonable value if not specified
+				const modelContextSize = provider.contextSize ?? 8192;
+				const contextSizeMet = modelContextSize >= requiredContextSize;
+
+				// If no_reasoning is true, exclude reasoning models
+				if (no_reasoning && provider.reasoning === true) {
+					return false;
+				}
+
+				// Check reasoning capability if reasoning_effort is specified
+				if (reasoning_effort !== undefined && provider.reasoning !== true) {
+					return false;
+				}
+
+				// Check reasoning.max_tokens support if specified
+				if (
+					reasoning_max_tokens !== undefined &&
+					provider.reasoningMaxTokens !== true
+				) {
+					return false;
+				}
+
+				// Check tool capability if tools or tool_choice is specified
+				if (
+					(tools !== undefined || tool_choice !== undefined) &&
+					provider.tools !== true
+				) {
+					return false;
+				}
+
+				// Check web search capability if web search tool is requested
+				if (webSearchTool && provider.webSearch !== true) {
+					return false;
+				}
+
+				// Check JSON output capability if json_object or json_schema response format is requested
+				if (
+					response_format?.type === "json_object" ||
+					response_format?.type === "json_schema"
+				) {
+					if (provider.jsonOutput !== true) {
+						return false;
+					}
+				}
+
+				// Check JSON schema output capability if json_schema response format is requested
+				if (response_format?.type === "json_schema") {
+					if (provider.jsonOutputSchema !== true) {
+						return false;
+					}
+				}
+
+				// Check vision capability if images are present in messages
+				if (hasImages && provider.vision !== true) {
+					return false;
+				}
+
+				if (
+					max_tokens !== undefined &&
+					provider.maxOutput !== undefined &&
+					max_tokens > provider.maxOutput
+				) {
+					return false;
+				}
+
+				return contextSizeMet;
+			});
+
+			if (suitableProviders.length > 0) {
+				// Find the cheapest among the suitable providers for this model
+				for (const provider of suitableProviders) {
+					const totalPrice =
+						((provider.inputPrice ?? 0) + (provider.outputPrice ?? 0)) / 2;
+
+					if (totalPrice < lowestPrice) {
+						lowestPrice = totalPrice;
+						selectedModel = modelDef;
+						selectedProviders = suitableProviders;
+					}
+				}
 			}
 		}
 
+		let providerAgnosticSelectedProviders = selectedProviders;
+
 		// If we found a suitable model, use the cheapest provider from it
 		if (selectedModel && selectedProviders.length > 0) {
-			const resolvedSelectedModel = selectedModel;
-
 			// Fetch uptime/latency metrics from last 5 minutes for provider selection
 			const metricsCombinations = selectedProviders.map((p) => ({
-				modelId: resolvedSelectedModel.id,
+				modelId: selectedModel.id,
 				providerId: p.providerId,
+				region: p.region,
 			}));
 			const metricsMap =
 				await getProviderMetricsForCombinations(metricsCombinations);
+			providerAgnosticSelectedProviders =
+				collapseProvidersToBestRegionPerProvider(
+					selectedProviders,
+					selectedModel,
+					{
+						metricsMap,
+						isStreaming: stream,
+					},
+				);
 
 			const cheapestResult = getCheapestFromAvailableProviders(
-				selectedProviders,
-				resolvedSelectedModel,
+				providerAgnosticSelectedProviders,
+				selectedModel,
 				{ metricsMap, isStreaming: stream },
 			);
 
 			if (cheapestResult) {
 				usedProvider = cheapestResult.provider.providerId;
 				usedModel = cheapestResult.provider.modelName;
+				usedRegion = cheapestResult.provider.region;
 				routingMetadata = {
 					...cheapestResult.metadata,
 					...(noFallback ? { noFallback: true } : {}),
@@ -1054,39 +1757,22 @@ chat.openapi(completions, async (c) => {
 				usedModel = selectedProviders[0].modelName;
 			}
 		} else {
-			if (no_reasoning) {
+			if (free_models_only) {
+				// If free_models_only is true but no suitable model found, return error
+				throw new HTTPException(400, {
+					message:
+						"No free models are available for auto routing. Remove free_models_only parameter or use a specific model.",
+				});
+			} else if (no_reasoning) {
 				// If no_reasoning is true but no suitable model found, return error
 				throw new HTTPException(400, {
 					message:
 						"No non-reasoning models are available for auto routing. Remove no_reasoning parameter or use a specific model.",
 				});
 			}
-
-			const hostedFallbackModel = models.find(
-				(candidate) => candidate.id === "minimax-m1",
-			);
-			const hostedFallbackProvider = hostedFallbackModel?.providers.find(
-				(provider) =>
-					provider.providerId === "kiwillm-minimax" &&
-					canRouteProviderMapping(provider as ProviderModelMapping),
-			) as ProviderModelMapping | undefined;
-
-			if (hostedFallbackModel && hostedFallbackProvider) {
-				logger.warn("Falling back from auto routing to hosted minimax route", {
-					organizationId: project.organizationId,
-					apiKeyId: apiKey.id,
-					freeModelsOnly: free_models_only,
-				});
-				selectedModel = hostedFallbackModel;
-				selectedProviders = [hostedFallbackProvider];
-				usedModel = hostedFallbackProvider.modelName;
-				usedProvider = hostedFallbackProvider.providerId;
-			} else {
-				throw new HTTPException(503, {
-					message:
-						"No routeable models are currently available for auto routing. Please choose a specific model.",
-				});
-			}
+			// Default fallback if no suitable model is found - use cheapest allowed model
+			usedModel = "gpt-5-nano";
+			usedProvider = "openai";
 		}
 		// Update modelInfo to the selected model so retry/fallback logic can find
 		// alternative providers. Without this, modelInfo still points to the "auto"
@@ -1094,13 +1780,16 @@ chat.openapi(completions, async (c) => {
 		if (selectedModel) {
 			modelInfo = {
 				...selectedModel,
-				providers: selectedProviders,
+				providers: providerAgnosticSelectedProviders,
 			};
 		} else {
 			// Fallback case: look up the default model definition
 			const fallbackModelDef = models.find((m) => m.id === "gpt-5-nano");
 			if (fallbackModelDef) {
-				modelInfo = fallbackModelDef;
+				modelInfo = {
+					...fallbackModelDef,
+					providers: fallbackModelDef.providers,
+				};
 			}
 		}
 		// Clear requestedProvider so retry/fallback logic knows this was auto-routed
@@ -1118,19 +1807,321 @@ chat.openapi(completions, async (c) => {
 			modelInfo,
 		);
 		if (!resolvedIamValidation.allowed) {
-			throwIamException(resolvedIamValidation.reason!);
+			throwIamException(resolvedIamValidation.reason ?? "Model access denied");
 		}
-		iamFilteredModelProviders = resolvedIamValidation.allowedProviders
+		const allowedProviders = resolvedIamValidation.allowedProviders;
+		iamFilteredModelProviders = allowedProviders
 			? modelInfo.providers.filter((p) =>
-					resolvedIamValidation.allowedProviders!.includes(p.providerId),
+					allowedProviders.includes(p.providerId),
 				)
 			: modelInfo.providers;
+		expandedIamFilteredModelProviders = allowedProviders
+			? expandAllProviderRegions(modelInfo.providers).filter((p) =>
+					allowedProviders.includes(p.providerId),
+				)
+			: expandAllProviderRegions(modelInfo.providers);
 	} else if (
 		(usedProvider === "llmgateway" && usedModel === "custom") ||
 		usedModel === "custom"
 	) {
 		usedProvider = "llmgateway";
 		usedModel = "custom";
+	}
+
+	// When a specific provider is requested and it has multiple mappings (for example,
+	// regional variants), pick the best eligible mapping up front so the request and
+	// any low-uptime fallback logic operate on the concrete provider-region pair.
+	if (
+		usedProvider &&
+		usedProvider !== "llmgateway" &&
+		usedProvider !== "custom"
+	) {
+		const sameProviderMappings = modelInfo.providers.filter(
+			(p) => p.providerId === usedProvider,
+		);
+		const sameProviderRegionalMappings = sameProviderMappings.filter(
+			(p) => p.region,
+		);
+		const sameProviderRoutingMappings =
+			sameProviderRegionalMappings.length > 0
+				? sameProviderRegionalMappings
+				: sameProviderMappings;
+
+		if (sameProviderMappings.length > 1) {
+			let lockedRegion = usedRegion;
+
+			if (
+				!lockedRegion &&
+				(project.mode === "api-keys" || project.mode === "hybrid")
+			) {
+				const providerKey = await findProviderKey(
+					project.organizationId,
+					usedProvider,
+					requestId,
+				);
+				lockedRegion = providerKey
+					? resolveExplicitRegionFromProviderKey(providerKey)
+					: undefined;
+			}
+
+			const providerLockedRegions = lockedRegion
+				? new Map([[usedProvider, lockedRegion]])
+				: undefined;
+			const eligibleMappings = filterEligibleModelProviders(
+				sameProviderRoutingMappings,
+				{
+					allProviderVariants: modelInfo.providers,
+					providerLockedRegions,
+					webSearchTool,
+					responseFormatType: response_format?.type,
+					hasImages,
+					maxTokens: max_tokens,
+					reasoningEffort: reasoning_effort,
+				},
+			);
+
+			if (eligibleMappings.length > 0) {
+				let selectedMapping = eligibleMappings[0];
+
+				if (eligibleMappings.length > 1) {
+					const metricsCombinations = eligibleMappings.map((provider) => ({
+						modelId: modelInfo.id,
+						providerId: provider.providerId,
+						region: provider.region,
+					}));
+					const metricsMap =
+						await getProviderMetricsForCombinations(metricsCombinations);
+					const bestRegionResult = getCheapestFromAvailableProviders(
+						eligibleMappings,
+						modelInfo as ModelDefinition & {
+							id: string;
+							output?: string[];
+						},
+						{
+							metricsMap,
+							isStreaming: stream,
+						},
+					);
+
+					selectedMapping = bestRegionResult?.provider ?? eligibleMappings[0];
+				}
+
+				usedModel = selectedMapping.modelName;
+				usedRegion = selectedMapping.region;
+			}
+		} else if (sameProviderMappings.length === 1) {
+			usedModel = sameProviderMappings[0].modelName;
+			usedRegion ??= (sameProviderMappings[0] as ProviderModelMapping).region;
+		}
+
+		if (!usedRegion) {
+			const firstRegionalMatch = sameProviderRoutingMappings.find(
+				(p) => (p as ProviderModelMapping).region,
+			) as ProviderModelMapping | undefined;
+			if (firstRegionalMatch) {
+				usedRegion = firstRegionalMatch.region;
+				usedModel = firstRegionalMatch.modelName;
+			}
+		}
+	}
+
+	const contentFilterMode = getContentFilterMode();
+	const contentFilterMethod = getContentFilterMethod();
+	const shouldApplyGatewayContentFilter =
+		contentFilterMode !== "disabled" &&
+		shouldApplyContentFilterToModel(requestedModel);
+	const keywordContentFilterMatch =
+		shouldApplyGatewayContentFilter && contentFilterMethod === "keywords"
+			? checkContentFilter(messages as BaseMessage[])
+			: null;
+	const openAIContentFilterResult =
+		shouldApplyGatewayContentFilter && contentFilterMethod === "openai"
+			? await checkOpenAIContentFilter(
+					messages as BaseMessage[],
+					{
+						requestId,
+						organizationId: project.organizationId,
+						projectId: project.id,
+						apiKeyId: apiKey.id,
+					},
+					c.req.raw.signal,
+				)
+			: null;
+	const contentFilterMatched =
+		keywordContentFilterMatch !== null ||
+		openAIContentFilterResult?.flagged === true;
+	const shouldRerouteContentFilter =
+		contentFilterMode === "enabled" && contentFilterMatched;
+	let contentFilterRoutingExcludedProviders: ProviderModelMapping[] = [];
+	let contentFilterRoutingApplied = false;
+
+	// Check provider RPM caps for specifically requested providers
+	// If rate-limited, route to an alternative (or 429 if no-fallback)
+	if (
+		usedProvider &&
+		requestedProvider &&
+		requestedProvider !== "llmgateway" &&
+		requestedProvider !== "custom"
+	) {
+		const baseModelId = (modelInfo as ModelDefinition).id;
+		const rateLimitPeek = await peekProviderRateLimit(
+			project.organizationId,
+			usedProvider,
+			baseModelId,
+			usedModel,
+		);
+
+		if (rateLimitPeek.rateLimited) {
+			if (noFallback) {
+				const blockedLimits = rateLimitPeek.blockedBy
+					.map(
+						(window) =>
+							`${rateLimitPeek.limits[window].limit} ${providerRateLimitWindows[window].label}`,
+					)
+					.join(" and ");
+
+				throw new HTTPException(429, {
+					message: `Rate limit exceeded: maximum ${blockedLimits} for ${requestedProvider}/${baseModelId}. Please try again later.`,
+				});
+			}
+
+			// Attempt to re-route to alternative providers (same pattern as low-uptime fallback)
+			const providerIds = modelInfo.providers
+				.filter(
+					(p) => !(p.providerId === usedProvider && p.region === usedRegion),
+				)
+				.map((p) => p.providerId);
+
+			if (providerIds.length > 0) {
+				const providerKeys = await findProviderKeysByProviders(
+					project.organizationId,
+					providerIds,
+				);
+
+				const availableProviders =
+					project.mode === "api-keys"
+						? providerKeys.map((key) => key.provider)
+						: providers
+								.filter((p) => p.id !== "llmgateway" && p.id !== usedProvider)
+								.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
+								.map((p) => p.id);
+
+				const availableModelProviders = preferConcreteRegionalMappings(
+					iamFilteredModelProviders,
+				).filter((provider) => {
+					if (!availableProviders.includes(provider.providerId)) {
+						return false;
+					}
+					if (
+						provider.providerId === usedProvider &&
+						provider.region === usedRegion
+					) {
+						return false;
+					}
+					if (webSearchTool && provider.webSearch !== true) {
+						return false;
+					}
+					if (
+						response_format?.type === "json_object" ||
+						response_format?.type === "json_schema"
+					) {
+						if (provider.jsonOutput !== true) {
+							return false;
+						}
+					}
+					if (response_format?.type === "json_schema") {
+						if (provider.jsonOutputSchema !== true) {
+							return false;
+						}
+					}
+					if (hasImages && provider.vision !== true) {
+						return false;
+					}
+					return true;
+				});
+
+				// Also filter out rate-limited alternatives
+				const rateLimitedAlternatives = await filterRateLimitedProviders(
+					project.organizationId,
+					availableModelProviders.map((p) => ({
+						providerId: p.providerId,
+						model: baseModelId,
+						providerModelName: p.modelName,
+					})),
+				);
+				const nonRateLimitedAlternatives = availableModelProviders.filter(
+					(p) => !rateLimitedAlternatives.has(p.providerId),
+				);
+
+				const candidatesForRouting =
+					nonRateLimitedAlternatives.length > 0
+						? nonRateLimitedAlternatives
+						: availableModelProviders;
+
+				if (candidatesForRouting.length > 0) {
+					const rawModelForFallback = models.find((m) => m.id === baseModelId);
+					const modelWithPricing = rawModelForFallback
+						? {
+								...rawModelForFallback,
+								providers: expandAllProviderRegions(
+									rawModelForFallback.providers as ProviderModelMapping[],
+								),
+							}
+						: undefined;
+
+					if (modelWithPricing) {
+						const metricsCombinations = candidatesForRouting.map((p) => ({
+							modelId: modelWithPricing.id,
+							providerId: p.providerId,
+							region: p.region,
+						}));
+						const allMetricsMap =
+							await getProviderMetricsForCombinations(metricsCombinations);
+
+						const cheapestResult = getCheapestFromAvailableProviders(
+							candidatesForRouting,
+							modelWithPricing,
+							{
+								metricsMap: allMetricsMap,
+								isStreaming: stream,
+							},
+						);
+
+						const originalProviderInfo = modelInfo.providers.find(
+							(p) => p.providerId === requestedProvider,
+						);
+						const originalProviderPrice = originalProviderInfo
+							? (originalProviderInfo.inputPrice ?? 0) +
+								(originalProviderInfo.outputPrice ?? 0)
+							: 0;
+
+						const originalProviderScore = {
+							providerId: requestedProvider,
+							score: -1,
+							price: originalProviderPrice,
+							rate_limited: true as const,
+						};
+
+						if (cheapestResult) {
+							usedProvider = cheapestResult.provider.providerId;
+							usedModel = cheapestResult.provider.modelName;
+							usedRegion = cheapestResult.provider.region;
+							routingMetadata = {
+								...cheapestResult.metadata,
+								selectionReason: "rate-limit-fallback",
+								originalProvider: requestedProvider,
+								originalProviderRateLimited: true,
+								providerScores: [
+									originalProviderScore,
+									...cheapestResult.metadata.providerScores,
+								],
+							};
+						}
+					}
+				}
+			}
+			// If no alternative providers available, continue with the rate-limited one (fail-open)
+		}
 	}
 
 	// Check uptime for specifically requested providers (not llmgateway or custom)
@@ -1149,17 +2140,21 @@ chat.openapi(completions, async (c) => {
 
 		// Fetch uptime metrics for the requested provider
 		const metricsMap = await getProviderMetricsForCombinations([
-			{ modelId: baseModelId, providerId: usedProvider },
+			{ modelId: baseModelId, providerId: usedProvider, region: usedRegion },
 		]);
 
-		const metrics = metricsMap.get(`${baseModelId}:${usedProvider}`);
+		const metrics = metricsMap.get(
+			metricsKey(baseModelId, usedProvider, usedRegion),
+		);
 
 		// If we have metrics and uptime is below 90%, route to an alternative
 		if (metrics && metrics.uptime !== undefined && metrics.uptime < 90) {
 			const currentUptime = metrics.uptime;
 			// Get available providers for routing
 			const providerIds = modelInfo.providers
-				.filter((p) => p.providerId !== usedProvider) // Exclude the low-uptime provider
+				.filter(
+					(p) => !(p.providerId === usedProvider && p.region === usedRegion),
+				) // Exclude the exact low-uptime provider+region pair
 				.map((p) => p.providerId);
 
 			if (providerIds.length > 0) {
@@ -1170,141 +2165,67 @@ chat.openapi(completions, async (c) => {
 
 				const availableProviders =
 					project.mode === "api-keys"
-						? [
-								...new Set([
-									...providerKeys.map((key) => key.provider),
-									...providers
-										.filter(
-											(p) => p.id !== "llmgateway" && p.id !== usedProvider,
-										)
-										.filter((p) =>
-											providerCanUseHostedRouteWithoutKey(p.id as Provider),
-										)
-										.map((p) => p.id),
-								]),
-							]
+						? providerKeys.map((key) => key.provider)
 						: providers
 								.filter((p) => p.id !== "llmgateway" && p.id !== usedProvider)
 								.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
 								.map((p) => p.id);
-				const providerKeyMap = new Map(
-					providerKeys.map((key) => [key.provider, key]),
-				);
 
 				// Filter model providers to only those available (excluding the low-uptime one)
 				// If web search is requested, also filter to providers that support it
 				// If JSON output is requested, also filter to providers that support it
-				const availableModelProviders = iamFilteredModelProviders.filter(
-					(provider) => {
-						if (!availableProviders.includes(provider.providerId)) {
-							return false;
-						}
-						if (provider.providerId === usedProvider) {
-							return false;
-						}
-						// If web search tool is requested, only include providers that support it
-						if (webSearchTool) {
-							if ((provider as ProviderModelMapping).webSearch !== true) {
-								return false;
-							}
-						}
-						// If JSON output is requested, only include providers that support it
-						if (
-							response_format?.type === "json_object" ||
-							response_format?.type === "json_schema"
-						) {
-							if ((provider as ProviderModelMapping).jsonOutput !== true) {
-								return false;
-							}
-						}
-						// If JSON schema output is requested, only include providers that support it
-						if (response_format?.type === "json_schema") {
-							if (
-								(provider as ProviderModelMapping).jsonOutputSchema !== true
-							) {
-								return false;
-							}
-						}
-						// If images are present in messages, only include providers that support vision
-						if (
-							hasImages &&
-							(provider as ProviderModelMapping).vision !== true
-						) {
-							return false;
-						}
-
-						const providerMapping = provider as ProviderModelMapping;
-						const providerKey = providerKeyMap.get(provider.providerId);
-						let routingToken = "";
-						let routingConfigIndex = 0;
-
-						try {
-							if (project.mode === "api-keys") {
-								if (!providerKey?.token) {
-									if (
-										providerCanUseHostedRouteWithoutKey(provider.providerId)
-									) {
-										routingToken = "";
-										routingConfigIndex = 0;
-									} else {
-										return false;
-									}
-								} else {
-									routingToken = providerKey.token;
-								}
-							} else if (project.mode === "credits") {
-								const envResult = getProviderEnv(provider.providerId);
-								routingToken = envResult.token;
-								routingConfigIndex = envResult.configIndex;
-							} else if (providerKey?.token) {
-								routingToken = providerKey.token;
-							} else {
-								const envResult = getProviderEnv(provider.providerId);
-								routingToken = envResult.token;
-								routingConfigIndex = envResult.configIndex;
-							}
-
-							return Boolean(
-								getProviderEndpoint(
-									provider.providerId,
-									providerKey?.baseUrl ?? undefined,
-									provider.modelName,
-									provider.providerId === "google-ai-studio" ||
-										provider.providerId === "google-vertex"
-										? routingToken
-										: undefined,
-									stream,
-									providerMapping.reasoning === true,
-									hasExistingToolCalls,
-									providerKey?.options ?? undefined,
-									routingConfigIndex,
-									providerMapping.imageGenerations === true,
-								),
-							);
-						} catch {
-							return false;
-						}
+				const availableModelProviders = filterEligibleModelProviders(
+					preferConcreteRegionalMappings(expandedIamFilteredModelProviders),
+					{
+						allProviderVariants: modelInfo.providers,
+						availableProviders,
+						webSearchTool,
+						responseFormatType: response_format?.type,
+						hasImages,
+						maxTokens: max_tokens,
+						reasoningEffort: reasoning_effort,
 					},
+				).filter(
+					(provider) =>
+						!(
+							provider.providerId === usedProvider &&
+							provider.region === usedRegion
+						),
 				);
 
 				if (availableModelProviders.length > 0) {
-					const modelWithPricing = models.find((m) => m.id === baseModelId);
+					const rawModelForFallback = models.find((m) => m.id === baseModelId);
+					const modelWithPricing = rawModelForFallback
+						? {
+								...rawModelForFallback,
+								providers: expandAllProviderRegions(
+									rawModelForFallback.providers as ProviderModelMapping[],
+								),
+							}
+						: undefined;
 
 					if (modelWithPricing) {
 						// Fetch metrics for all available providers
 						const metricsCombinations = availableModelProviders.map((p) => ({
 							modelId: modelWithPricing.id,
 							providerId: p.providerId,
+							region: p.region,
 						}));
 						const allMetricsMap =
 							await getProviderMetricsForCombinations(metricsCombinations);
+						const providerAgnosticCandidates =
+							collapseProvidersToBestRegionPerProvider(
+								availableModelProviders,
+								modelWithPricing,
+								{ metricsMap: allMetricsMap, isStreaming: stream },
+							);
 
 						// Filter to only providers with better uptime than the original
 						// to avoid falling back to worse providers
-						const betterUptimeProviders = availableModelProviders.filter(
+						const betterUptimeProviders = providerAgnosticCandidates.filter(
 							(p) => {
 								const providerMetrics = allMetricsMap.get(
-									`${modelWithPricing.id}:${p.providerId}`,
+									metricsKey(modelWithPricing.id, p.providerId, p.region),
 								);
 								// If no metrics, assume the provider is healthy (100% uptime)
 								// If has metrics, only include if uptime is better than original
@@ -1366,34 +2287,6 @@ chat.openapi(completions, async (c) => {
 		}
 	}
 
-	// For models with multiple provider mappings for the same provider (e.g., routing models
-	// like grok-4-fast with reasoning and non-reasoning variants), select the correct variant
-	// based on request capabilities when a specific provider is already set
-	if (
-		usedProvider &&
-		usedProvider !== "llmgateway" &&
-		usedProvider !== "custom"
-	) {
-		const sameProviderMappings = modelInfo.providers.filter(
-			(p) => p.providerId === usedProvider,
-		);
-		if (sameProviderMappings.length > 1) {
-			let selectedMapping;
-			if (reasoning_effort !== undefined) {
-				selectedMapping = sameProviderMappings.find(
-					(p) => (p as ProviderModelMapping).reasoning === true,
-				);
-			} else {
-				selectedMapping = sameProviderMappings.find(
-					(p) => (p as ProviderModelMapping).reasoning !== true,
-				);
-			}
-			if (selectedMapping) {
-				usedModel = selectedMapping.modelName;
-			}
-		}
-	}
-
 	if (!usedProvider) {
 		if (iamFilteredModelProviders.length === 0) {
 			throw new HTTPException(403, {
@@ -1404,6 +2297,7 @@ chat.openapi(completions, async (c) => {
 		if (iamFilteredModelProviders.length === 1) {
 			usedProvider = iamFilteredModelProviders[0].providerId;
 			usedModel = iamFilteredModelProviders[0].modelName;
+			usedRegion = iamFilteredModelProviders[0].region;
 		} else {
 			const providerIds = iamFilteredModelProviders.map((p) => p.providerId);
 			const providerKeys = await findProviderKeysByProviders(
@@ -1413,215 +2307,47 @@ chat.openapi(completions, async (c) => {
 
 			const availableProviders =
 				project.mode === "api-keys"
-					? [
-							...new Set([
-								...providerKeys.map((key) => key.provider),
-								...providers
-									.filter((p) => p.id !== "llmgateway")
-									.filter((p) =>
-										providerCanUseHostedRouteWithoutKey(p.id as Provider),
-									)
-									.map((p) => p.id),
-							]),
-						]
+					? providerKeys.map((key) => key.provider)
 					: providers
 							.filter((p) => p.id !== "llmgateway")
 							.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
 							.map((p) => p.id);
-			const providerKeyMap = new Map(
-				providerKeys.map((key) => [key.provider, key]),
-			);
 
-			// Filter model providers to only those available
-			// If web search is requested, also filter to providers that support it
-			// If JSON output is requested, also filter to providers that support it
-			const availableModelProviders = iamFilteredModelProviders.filter(
-				(provider) => {
-					if (!availableProviders.includes(provider.providerId)) {
-						return false;
+			// Build a map of provider → locked region from DB provider keys.
+			// When a user sets a region in their provider key (e.g. alibaba_region: "cn-beijing"),
+			// only that region should be a candidate — not all expanded regions.
+			const providerLockedRegions = new Map<string, string>();
+			for (const key of providerKeys) {
+				const providerDef = providers.find((p) => p.id === key.provider) as
+					| ProviderDefinition
+					| undefined;
+				const regionKey = providerDef?.regionConfig?.optionsKey;
+				if (regionKey && key.options) {
+					const lockedRegion = (
+						key.options as Record<string, string | undefined>
+					)[regionKey];
+					if (lockedRegion) {
+						providerLockedRegions.set(key.provider, lockedRegion);
 					}
-					// If web search tool is requested, only include providers that support it
-					if (webSearchTool) {
-						if ((provider as ProviderModelMapping).webSearch !== true) {
-							return false;
-						}
-					}
-					// If JSON output is requested, only include providers that support it
-					if (
-						response_format?.type === "json_object" ||
-						response_format?.type === "json_schema"
-					) {
-						if ((provider as ProviderModelMapping).jsonOutput !== true) {
-							return false;
-						}
-					}
-					// If JSON schema output is requested, also include providers that support it
-					if (response_format?.type === "json_schema") {
-						if ((provider as ProviderModelMapping).jsonOutputSchema !== true) {
-							return false;
-						}
-					}
-					// If images are present in messages, only include providers that support vision
-					if (hasImages && (provider as ProviderModelMapping).vision !== true) {
-						return false;
-					}
-					// If reasoning_effort is specified, only include providers with reasoning support
-					if (reasoning_effort !== undefined) {
-						if ((provider as ProviderModelMapping).reasoning !== true) {
-							return false;
-						}
-					}
-					// If reasoning_effort is NOT specified, prefer non-reasoning providers
-					// by excluding reasoning providers when a non-reasoning alternative exists for same provider
-					if (reasoning_effort === undefined) {
-						const hasNonReasoningAlternative = modelInfo.providers.some(
-							(p) =>
-								p.providerId === provider.providerId &&
-								(p as ProviderModelMapping).reasoning !== true,
-						);
-						if (
-							hasNonReasoningAlternative &&
-							(provider as ProviderModelMapping).reasoning === true
-						) {
-							return false;
-						}
-					}
+				}
+			}
 
-					const providerMapping = provider as ProviderModelMapping;
-					const providerKey = providerKeyMap.get(provider.providerId);
-					let routingToken = "";
-					let routingConfigIndex = 0;
-
-					try {
-						if (project.mode === "api-keys") {
-							if (!providerKey?.token) {
-								if (providerCanUseHostedRouteWithoutKey(provider.providerId)) {
-									routingToken = "";
-									routingConfigIndex = 0;
-								} else {
-									return false;
-								}
-							} else {
-								routingToken = providerKey.token;
-							}
-						} else if (project.mode === "credits") {
-							const envResult = getProviderEnv(provider.providerId);
-							routingToken = envResult.token;
-							routingConfigIndex = envResult.configIndex;
-						} else if (providerKey?.token) {
-							routingToken = providerKey.token;
-						} else {
-							const envResult = getProviderEnv(provider.providerId);
-							routingToken = envResult.token;
-							routingConfigIndex = envResult.configIndex;
-						}
-
-						return Boolean(
-							getProviderEndpoint(
-								provider.providerId,
-								providerKey?.baseUrl ?? undefined,
-								provider.modelName,
-								provider.providerId === "google-ai-studio" ||
-									provider.providerId === "google-vertex"
-									? routingToken
-									: undefined,
-								stream,
-								providerMapping.reasoning === true,
-								hasExistingToolCalls,
-								providerKey?.options ?? undefined,
-								routingConfigIndex,
-								providerMapping.imageGenerations === true,
-							),
-						);
-					} catch {
-						return false;
-					}
+			// Filter model providers to only those eligible for this request
+			const availableModelProviders = filterEligibleModelProviders(
+				preferConcreteRegionalMappings(expandedIamFilteredModelProviders),
+				{
+					allProviderVariants: modelInfo.providers,
+					availableProviders,
+					providerLockedRegions,
+					webSearchTool,
+					responseFormatType: response_format?.type,
+					hasImages,
+					maxTokens: max_tokens,
+					reasoningEffort: reasoning_effort,
 				},
 			);
 
-			let routeableModelProviders = availableModelProviders;
-
-			if (routeableModelProviders.length === 0) {
-				routeableModelProviders = iamFilteredModelProviders.filter(
-					(provider) => {
-						if (!providerCanUseHostedRouteWithoutKey(provider.providerId)) {
-							return false;
-						}
-						// If web search tool is requested, only include providers that support it
-						if (webSearchTool) {
-							if ((provider as ProviderModelMapping).webSearch !== true) {
-								return false;
-							}
-						}
-						// If JSON output is requested, only include providers that support it
-						if (
-							response_format?.type === "json_object" ||
-							response_format?.type === "json_schema"
-						) {
-							if ((provider as ProviderModelMapping).jsonOutput !== true) {
-								return false;
-							}
-						}
-						// If JSON schema output is requested, also include providers that support it
-						if (response_format?.type === "json_schema") {
-							if (
-								(provider as ProviderModelMapping).jsonOutputSchema !== true
-							) {
-								return false;
-							}
-						}
-						// If images are present in messages, only include providers that support vision
-						if (
-							hasImages &&
-							(provider as ProviderModelMapping).vision !== true
-						) {
-							return false;
-						}
-						// If reasoning_effort is specified, only include providers with reasoning support
-						if (reasoning_effort !== undefined) {
-							if ((provider as ProviderModelMapping).reasoning !== true) {
-								return false;
-							}
-						}
-						// If reasoning_effort is NOT specified, prefer non-reasoning providers
-						// by excluding reasoning providers when a non-reasoning alternative exists for same provider
-						if (reasoning_effort === undefined) {
-							const hasNonReasoningAlternative = modelInfo.providers.some(
-								(p) =>
-									p.providerId === provider.providerId &&
-									(p as ProviderModelMapping).reasoning !== true,
-							);
-							if (
-								hasNonReasoningAlternative &&
-								(provider as ProviderModelMapping).reasoning === true
-							) {
-								return false;
-							}
-						}
-
-						try {
-							return Boolean(
-								getProviderEndpoint(
-									provider.providerId,
-									undefined,
-									provider.modelName,
-									undefined,
-									stream,
-									(provider as ProviderModelMapping).reasoning === true,
-									hasExistingToolCalls,
-									undefined,
-									0,
-									(provider as ProviderModelMapping).imageGenerations === true,
-								),
-							);
-						} catch {
-							return false;
-						}
-					},
-				);
-			}
-
-			if (routeableModelProviders.length === 0) {
+			if (availableModelProviders.length === 0) {
 				throw new HTTPException(400, {
 					message:
 						project.mode === "api-keys"
@@ -1634,19 +2360,65 @@ chat.openapi(completions, async (c) => {
 				});
 			}
 
-			const modelWithPricing = models.find((m) => m.id === usedModel);
+			const contentFilterRoutingDecision = getContentFilterRoutingDecision(
+				availableModelProviders,
+				shouldRerouteContentFilter,
+			);
+			const contentFilterPreferredProviders =
+				contentFilterRoutingDecision.candidates;
+			contentFilterRoutingExcludedProviders =
+				contentFilterRoutingDecision.excludedProviders;
+			contentFilterRoutingApplied = contentFilterRoutingDecision.rerouted;
+
+			// Filter out rate-limited providers during routing
+			const rateLimitedProviderIds = await filterRateLimitedProviders(
+				project.organizationId,
+				contentFilterPreferredProviders.map((p) => ({
+					providerId: p.providerId,
+					model: (modelInfo as ModelDefinition).id,
+					providerModelName: p.modelName,
+				})),
+			);
+			const nonRateLimitedProviders = contentFilterPreferredProviders.filter(
+				(p) => !rateLimitedProviderIds.has(p.providerId),
+			);
+			// Fail-open: if all are rate-limited, use them all anyway
+			const routingCandidates =
+				nonRateLimitedProviders.length > 0
+					? nonRateLimitedProviders
+					: contentFilterPreferredProviders;
+
+			const rawModelWithPricing = models.find((m) => m.id === usedModel);
+			const modelWithPricing = rawModelWithPricing
+				? {
+						...rawModelWithPricing,
+						providers: expandAllProviderRegions(
+							rawModelWithPricing.providers as ProviderModelMapping[],
+						),
+					}
+				: undefined;
 
 			if (modelWithPricing) {
 				// Fetch uptime/latency metrics from last 5 minutes for provider selection
-				const metricsCombinations = routeableModelProviders.map((p) => ({
+				const metricsCombinations = [
+					...routingCandidates,
+					...contentFilterRoutingExcludedProviders,
+				].map((provider) => ({
 					modelId: modelWithPricing.id,
-					providerId: p.providerId,
+					providerId: provider.providerId,
+					region: provider.region,
 				}));
 				const metricsMap =
 					await getProviderMetricsForCombinations(metricsCombinations);
+				const providerAgnosticCandidates =
+					collapseProvidersToBestRegionPerProvider(
+						routingCandidates,
+						modelWithPricing,
+						{ metricsMap, isStreaming: stream },
+					);
 
 				const cheapestResult = getCheapestFromAvailableProviders(
-					routeableModelProviders,
+					providerAgnosticCandidates,
 					modelWithPricing,
 					{ metricsMap, isStreaming: stream },
 				);
@@ -1654,17 +2426,51 @@ chat.openapi(completions, async (c) => {
 				if (cheapestResult) {
 					usedProvider = cheapestResult.provider.providerId;
 					usedModel = cheapestResult.provider.modelName;
-					routingMetadata = {
-						...cheapestResult.metadata,
-						...(noFallback ? { noFallback: true } : {}),
-					};
+					usedRegion = cheapestResult.provider.region;
+					routingMetadata = addContentFilterRoutingMetadata(
+						{
+							...cheapestResult.metadata,
+							...(noFallback ? { noFallback: true } : {}),
+						},
+						contentFilterMatched,
+						contentFilterRoutingExcludedProviders,
+						modelWithPricing.id,
+						metricsMap,
+					);
+					// Annotate rate-limited providers in routing metadata
+					if (rateLimitedProviderIds.size > 0) {
+						// Add filtered-out rate-limited providers as score entries
+						for (const rlProviderId of rateLimitedProviderIds) {
+							const existing = routingMetadata.providerScores.find(
+								(s) => s.providerId === rlProviderId,
+							);
+							if (existing) {
+								existing.rate_limited = true;
+							} else {
+								const providerInfo = modelInfo.providers.find(
+									(p) => p.providerId === rlProviderId,
+								);
+								routingMetadata.providerScores.push({
+									providerId: rlProviderId,
+									score: -1,
+									price: providerInfo
+										? (providerInfo.inputPrice ?? 0) +
+											(providerInfo.outputPrice ?? 0)
+										: 0,
+									rate_limited: true,
+								});
+							}
+						}
+					}
 				} else {
-					usedProvider = availableModelProviders[0].providerId;
-					usedModel = availableModelProviders[0].modelName;
+					usedProvider = routingCandidates[0].providerId;
+					usedModel = routingCandidates[0].modelName;
+					usedRegion = routingCandidates[0].region;
 				}
 			} else {
-				usedProvider = routeableModelProviders[0].providerId;
-				usedModel = routeableModelProviders[0].modelName;
+				usedProvider = contentFilterPreferredProviders[0].providerId;
+				usedModel = contentFilterPreferredProviders[0].modelName;
+				usedRegion = contentFilterPreferredProviders[0].region;
 			}
 		}
 	}
@@ -1687,52 +2493,152 @@ chat.openapi(completions, async (c) => {
 			selectionReason = "fallback-first-available";
 		}
 
-		// Fetch metrics for all providers (including deactivated) to include in routing metadata
-		// This provides visibility into uptime/latency/throughput for all providers
+		let routingMetadataProviders = allModelProviders;
+		let directProviderRegionWasExplicit = false;
+
+		if (
+			selectionReason === "direct-provider-specified" &&
+			requestedProvider &&
+			requestedProvider !== "custom"
+		) {
+			let explicitDirectRegion = requestedRegion;
+			if (
+				!explicitDirectRegion &&
+				(project.mode === "api-keys" || project.mode === "hybrid")
+			) {
+				const providerKey = await findProviderKey(
+					project.organizationId,
+					requestedProvider,
+					requestId,
+				);
+				explicitDirectRegion = providerKey
+					? resolveExplicitRegionFromProviderKey(providerKey)
+					: undefined;
+			}
+
+			directProviderRegionWasExplicit = Boolean(explicitDirectRegion);
+			const providerLockedRegions = explicitDirectRegion
+				? new Map([[requestedProvider, explicitDirectRegion]])
+				: undefined;
+			const directProviderMappings = allModelProviders.filter(
+				(provider) => provider.providerId === requestedProvider,
+			);
+			const directProviderRegionalMappings = directProviderMappings.filter(
+				(provider) => provider.region,
+			);
+			routingMetadataProviders = filterEligibleModelProviders(
+				directProviderRegionalMappings.length > 0
+					? directProviderRegionalMappings
+					: directProviderMappings,
+				{
+					allProviderVariants: modelInfo.providers,
+					providerLockedRegions,
+					webSearchTool,
+					responseFormatType: response_format?.type,
+					hasImages,
+					maxTokens: max_tokens,
+					reasoningEffort: reasoning_effort,
+				},
+			);
+
+			if (directProviderRegionWasExplicit) {
+				const selectedDirectProvider =
+					routingMetadataProviders.find(
+						(provider) =>
+							provider.modelName === usedModel &&
+							provider.region === usedRegion,
+					) ??
+					routingMetadataProviders.find(
+						(provider) => provider.modelName === usedModel,
+					);
+
+				routingMetadataProviders = selectedDirectProvider
+					? [selectedDirectProvider]
+					: [];
+			}
+		}
+
+		// Fetch metrics for all eligible providers to include in routing metadata
 		const baseModelId = (modelInfo as ModelDefinition).id;
-		let metricsMap: Map<
-			string,
-			{ uptime?: number; averageLatency?: number; throughput?: number }
-		> = new Map();
+		let metricsMap: Map<string, ProviderMetrics> = new Map();
 
 		if (baseModelId && usedProvider !== "custom") {
-			const metricsCombinations = allModelProviders.map((p) => ({
+			const metricsCombinations = [
+				...routingMetadataProviders,
+				...contentFilterRoutingExcludedProviders,
+			].map((provider) => ({
 				modelId: baseModelId,
-				providerId: p.providerId,
+				providerId: provider.providerId,
+				region: provider.region,
 			}));
 			metricsMap = await getProviderMetricsForCombinations(metricsCombinations);
 		}
 
-		// Build provider scores for all providers (including deactivated) with default values for missing metrics
-		const allProviderScores = allModelProviders.map((p) => {
-			const metrics = metricsMap.get(`${baseModelId}:${p.providerId}`);
-			const price = (p.inputPrice ?? 0) + (p.outputPrice ?? 0);
-			const isSelected = p.providerId === usedProvider;
-			return {
-				providerId: p.providerId,
-				score: isSelected ? 1 : 0,
-				price,
-				uptime: metrics?.uptime ?? 0,
-				latency: metrics?.averageLatency ?? 0,
-				throughput: metrics?.throughput ?? 0,
-			};
-		});
+		const weightedScores =
+			selectionReason === "direct-provider-specified" &&
+			directProviderRegionWasExplicit
+				? null
+				: getCheapestFromAvailableProviders(
+						routingMetadataProviders,
+						modelInfo as ModelDefinition & {
+							id: string;
+							output?: string[];
+						},
+						{
+							metricsMap,
+							isStreaming: stream,
+						},
+					);
 
-		routingMetadata = {
-			availableProviders: allModelProviders.map((p) => p.providerId),
-			selectedProvider: usedProvider,
-			selectionReason,
-			providerScores: allProviderScores,
-			...(noFallback ? { noFallback: true } : {}),
-		};
+		const allProviderScores =
+			weightedScores?.metadata.providerScores ??
+			routingMetadataProviders.map((p) => {
+				const metrics = metricsMap.get(
+					metricsKey(baseModelId, p.providerId, p.region),
+				);
+				return {
+					providerId: p.providerId,
+					region: p.region,
+					score:
+						selectionReason === "direct-provider-specified" &&
+						directProviderRegionWasExplicit
+							? 1
+							: 0,
+					price: getProviderSelectionPrice(p),
+					uptime: metrics?.uptime ?? 0,
+					latency: metrics?.averageLatency ?? 0,
+					throughput: metrics?.throughput ?? 0,
+				};
+			});
+
+		routingMetadata = addContentFilterRoutingMetadata(
+			{
+				availableProviders: routingMetadataProviders.map((p) => p.providerId),
+				selectedProvider: usedProvider,
+				selectionReason,
+				providerScores: allProviderScores,
+				...(noFallback ? { noFallback: true } : {}),
+			},
+			contentFilterMatched,
+			contentFilterRoutingExcludedProviders,
+			baseModelId,
+			metricsMap,
+		);
 	}
 
 	// Update baseModelName to match the final usedModel after routing
 	// Find the model definition that corresponds to the final usedModel
-	let finalModelInfo;
+	let finalModelInfo: ModelDefinition | undefined;
+	usedRegion ??= (
+		modelInfo.providers.find(
+			(p) => p.providerId === usedProvider && p.modelName === usedModel,
+		) as ProviderModelMapping | undefined
+	)?.region;
+
 	if (usedProvider === "custom") {
 		finalModelInfo = {
-			model: usedModel,
+			id: usedModel,
+			family: "custom",
 			providers: [
 				{
 					providerId: "custom" as const,
@@ -1747,30 +2653,51 @@ chat.openapi(completions, async (c) => {
 			],
 		};
 	} else {
-		finalModelInfo = models.find(
-			(m) =>
-				m.id === usedModel ||
-				m.providers.some(
-					(p) => p.modelName === usedModel && p.providerId === usedProvider,
-				),
-		);
+		const baseUsedModel = stripRegionFromModelName(usedModel, usedRegion);
+		const rawFinalModelInfo =
+			models.find(
+				(m) =>
+					(m.id === baseUsedModel ||
+						m.providers.some((p) => p.modelName === baseUsedModel)) &&
+					m.providers.some((p) => p.providerId === usedProvider),
+			) ??
+			models.find(
+				(m) =>
+					m.id === baseUsedModel ||
+					m.providers.some(
+						(p) =>
+							p.modelName === baseUsedModel && p.providerId === usedProvider,
+					),
+			);
+		if (rawFinalModelInfo) {
+			finalModelInfo = {
+				...rawFinalModelInfo,
+				providers: expandAllProviderRegions(rawFinalModelInfo.providers),
+			};
+		}
 	}
 
 	// Use the canonical model ID from finalModelInfo (looked up after routing)
 	// Fall back to usedModel (raw provider model name) for custom providers
-	let baseModelName = finalModelInfo?.id ?? usedModel;
+	let baseModelName =
+		finalModelInfo?.id ?? stripRegionFromModelName(usedModel, usedRegion);
 
 	// Check if this is an image generation model
 	const imageGenProviderMapping = finalModelInfo?.providers.find(
-		(p) => p.providerId === usedProvider && p.modelName === usedModel,
+		(p) =>
+			p.providerId === usedProvider &&
+			p.modelName === usedModel &&
+			p.region === usedRegion,
 	);
-	let isImageGeneration =
-		(imageGenProviderMapping as ProviderModelMapping)?.imageGenerations ===
-		true;
+	let isImageGeneration = imageGenProviderMapping?.imageGenerations === true;
 
 	// Create the model mapping values according to new schema
 	let usedModelMapping = usedModel; // Store the original provider model name
-	let usedModelFormatted = `${usedProvider}/${baseModelName}`; // Store in LLMGateway format
+	let usedModelFormatted = formatUsedModelForDisplay(
+		usedProvider,
+		usedRegion ? `${baseModelName}:${usedRegion}` : baseModelName,
+		customProviderName,
+	); // Store in LLMGateway format
 
 	// Auto-set reasoning_effort for auto-routing when model supports reasoning
 	// Skip when web_search tool is present since it's incompatible with "minimal" reasoning effort
@@ -1782,7 +2709,7 @@ chat.openapi(completions, async (c) => {
 	) {
 		// Check if the selected model supports reasoning
 		const selectedModelSupportsReasoning = finalModelInfo.providers.some(
-			(provider) => (provider as ProviderModelMapping).reasoning === true,
+			(provider) => provider.reasoning === true,
 		);
 
 		if (selectedModelSupportsReasoning) {
@@ -1801,27 +2728,9 @@ chat.openapi(completions, async (c) => {
 
 	let providerKey: InferSelectModel<typeof tables.providerKey> | undefined;
 	let usedToken: string | undefined;
+	let usedApiKeyHash: string | undefined;
 	let configIndex = 0; // Index for round-robin environment variables
 	let envVarName: string | undefined; // Environment variable name for health tracking
-	const billingProviderMapping = (finalModelInfo ?? modelInfo).providers.find(
-		(provider) =>
-			provider.providerId === usedProvider && provider.modelName === usedModel,
-	);
-	const selectedProviderIsZeroCost = isProviderMappingTrulyFree(
-		billingProviderMapping as ProviderModelMapping | undefined,
-	);
-	const resolvedModelDefinition = (finalModelInfo ??
-		modelInfo) as ModelDefinition;
-	const promptPreview = messages
-		.map((message) => messageContentToString(message.content))
-		.join("\n");
-	const estimatedPromptTokens =
-		estimateTokens(usedProvider, messages, null, null, null)
-			.calculatedPromptTokens ?? null;
-	const estimatedCompletionTokens = max_tokens ?? 1024;
-	const estimatedReasoningTokens = reasoning_max_tokens ?? null;
-	const estimatedWebSearchCount = webSearchTool ? 1 : null;
-
 	if (
 		project.mode === "credits" &&
 		(usedProvider === "custom" || usedProvider === "llmgateway")
@@ -1838,9 +2747,14 @@ chat.openapi(completions, async (c) => {
 			providerKey = await findCustomProviderKey(
 				project.organizationId,
 				customProviderName,
+				requestId,
 			);
 		} else {
-			providerKey = await findProviderKey(project.organizationId, usedProvider);
+			providerKey = await findProviderKey(
+				project.organizationId,
+				usedProvider,
+				requestId,
+			);
 		}
 
 		if (!providerKey) {
@@ -1854,6 +2768,14 @@ chat.openapi(completions, async (c) => {
 		}
 
 		usedToken = providerKey.token;
+		usedRegion ??= resolveRegionFromProviderKey(providerKey);
+		// Override with region-specific env var if the DB key doesn't match the requested region
+		if (usedRegion) {
+			const regionToken = getRegionSpecificEnvValue(usedProvider, usedRegion);
+			if (regionToken && regionToken !== usedToken) {
+				usedToken = regionToken;
+			}
+		}
 	} else if (project.mode === "credits") {
 		// Check both regular credits AND dev plan credits
 		const regularCredits = parseFloat(organization.credits ?? "0");
@@ -1866,14 +2788,19 @@ chat.openapi(completions, async (c) => {
 
 		if (
 			totalAvailableCredits <= 0 &&
-			!isFreeTierOrganization &&
 			!free_models_only &&
-			!resolvedModelDefinition.free &&
-			!selectedProviderIsZeroCost
+			!((finalModelInfo ?? modelInfo) as ModelDefinition).free
 		) {
+			if (organization.devPlan !== "none" && devPlanCreditsRemaining <= 0) {
+				const renewalDate = organization.devPlanExpiresAt
+					? new Date(organization.devPlanExpiresAt).toLocaleDateString()
+					: "your next billing date";
+				throw new HTTPException(402, {
+					message: `Dev Plan credit limit reached. Upgrade your plan or wait for renewal on ${renewalDate}.`,
+				});
+			}
 			throw new HTTPException(402, {
-				message:
-					"Low credit balance. This hosted request requires credits. Add more credits and try again.",
+				message: `Organization ${organization.id} has insufficient credits`,
 			});
 		}
 
@@ -1888,19 +2815,40 @@ chat.openapi(completions, async (c) => {
 		usedToken = envResult.token;
 		configIndex = envResult.configIndex;
 		envVarName = envResult.envVarName;
+
+		// Override with region-specific env var if a non-default region is selected
+		if (usedRegion) {
+			const regionToken = getRegionSpecificEnvValue(usedProvider, usedRegion);
+			if (regionToken) {
+				usedToken = regionToken;
+			}
+		}
 	} else if (project.mode === "hybrid") {
 		// First try to get the provider key from the database
 		if (usedProvider === "custom" && customProviderName) {
 			providerKey = await findCustomProviderKey(
 				project.organizationId,
 				customProviderName,
+				requestId,
 			);
 		} else {
-			providerKey = await findProviderKey(project.organizationId, usedProvider);
+			providerKey = await findProviderKey(
+				project.organizationId,
+				usedProvider,
+				requestId,
+			);
 		}
 
 		if (providerKey) {
 			usedToken = providerKey.token;
+			usedRegion ??= resolveRegionFromProviderKey(providerKey);
+			// Override with region-specific env var if the DB key doesn't match the requested region
+			if (usedRegion) {
+				const regionToken = getRegionSpecificEnvValue(usedProvider, usedRegion);
+				if (regionToken && regionToken !== usedToken) {
+					usedToken = regionToken;
+				}
+			}
 		} else {
 			// No API key available, fall back to credits
 			// Check both regular credits AND dev plan credits
@@ -1914,10 +2862,8 @@ chat.openapi(completions, async (c) => {
 
 			if (
 				totalAvailableCredits <= 0 &&
-				!isFreeTierOrganization &&
 				!free_models_only &&
-				!isModelTrulyFree(resolvedModelDefinition) &&
-				!selectedProviderIsZeroCost
+				!isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition)
 			) {
 				if (organization.devPlan !== "none" && devPlanCreditsRemaining <= 0) {
 					const renewalDate = organization.devPlanExpiresAt
@@ -1929,7 +2875,7 @@ chat.openapi(completions, async (c) => {
 				}
 				throw new HTTPException(402, {
 					message:
-						"Low credit balance. No provider key is configured for this model, so Kiwi credits are required. Add more credits and try again.",
+						"No API key set for provider and organization has insufficient credits",
 				});
 			}
 
@@ -1944,6 +2890,14 @@ chat.openapi(completions, async (c) => {
 			usedToken = envResult.token;
 			configIndex = envResult.configIndex;
 			envVarName = envResult.envVarName;
+
+			// Override with region-specific env var if a non-default region is selected
+			if (usedRegion) {
+				const regionToken = getRegionSpecificEnvValue(usedProvider, usedRegion);
+				if (regionToken) {
+					usedToken = regionToken;
+				}
+			}
 		}
 	} else {
 		throw new HTTPException(400, {
@@ -1951,46 +2905,100 @@ chat.openapi(completions, async (c) => {
 		});
 	}
 
-	const shouldApplyFreeUserUsageLimit =
-		(!providerKey || !providerKey.token) &&
-		isFreeTierOrganization &&
-		(isModelTrulyFree(resolvedModelDefinition) || selectedProviderIsZeroCost);
+	// Check email verification and rate limits for free models (only when using credits/environment tokens)
+	if (
+		isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition) &&
+		(!providerKey || !providerKey.token)
+	) {
+		await validateFreeModelUsage(
+			c,
+			project.organizationId,
+			usedModel,
+			modelInfo as ModelDefinition,
+			{ skipEmailVerification: onboarding },
+		);
+	}
 
-	// Apply free-tier protections only to truly free requests.
-	if (!providerKey || !providerKey.token) {
-		if (shouldApplyFreeUserUsageLimit) {
-			try {
-				await validateFreeUserUsage(c, project.organizationId, {
-					skipEmailVerification: onboarding,
-				});
-			} catch (error) {
-				const regularCredits = parseFloat(organization.credits ?? "0");
-				const devPlanCreditsRemaining =
-					organization.devPlan !== "none"
-						? parseFloat(organization.devPlanCreditsLimit ?? "0") -
-							parseFloat(organization.devPlanCreditsUsed ?? "0")
-						: 0;
-				const totalAvailableCredits = regularCredits + devPlanCreditsRemaining;
+	// Consume a rate-limit slot for the chosen provider (routing already filtered rate-limited ones)
+	{
+		const providerRateLimitResult = await checkProviderRateLimit(
+			project.organizationId,
+			usedProvider,
+			modelInfo.id,
+			usedModel,
+		);
 
-				if (
-					error instanceof HTTPException &&
-					error.status === 429 &&
-					totalAvailableCredits > 0
-				) {
-					c.header("X-KiwiLLM-Credits-Fallback", "true");
-				} else {
-					throw error;
-				}
+		const providerRateLimitEntries = Object.entries(
+			providerRateLimitResult.limits,
+		) as Array<
+			[
+				keyof typeof providerRateLimitWindows,
+				(typeof providerRateLimitResult.limits)[keyof typeof providerRateLimitResult.limits],
+			]
+		>;
+		const primaryProviderRateLimit = providerRateLimitEntries.find(
+			([, limit]) => limit.limit > 0,
+		);
+
+		if (primaryProviderRateLimit) {
+			c.header(
+				"X-RateLimit-Limit-Provider",
+				primaryProviderRateLimit[1].limit.toString(),
+			);
+			c.header(
+				"X-RateLimit-Remaining-Provider",
+				primaryProviderRateLimit[1].remaining.toString(),
+			);
+		}
+
+		for (const [window, limit] of providerRateLimitEntries) {
+			if (limit.limit === 0) {
+				continue;
 			}
-		} else if (
-			isModelTrulyFree((finalModelInfo ?? modelInfo) as ModelDefinition)
-		) {
-			await validateFreeModelUsage(
-				c,
-				project.organizationId,
-				usedModel,
-				modelInfo as ModelDefinition,
-				{ skipEmailVerification: onboarding },
+
+			c.header(
+				`X-RateLimit-Limit-Provider-${providerRateLimitWindows[window].headerSuffix}`,
+				limit.limit.toString(),
+			);
+			c.header(
+				`X-RateLimit-Remaining-Provider-${providerRateLimitWindows[window].headerSuffix}`,
+				limit.remaining.toString(),
+			);
+		}
+
+		// Race condition: between peek and consume, the window may have filled.
+		// Only hard-block if the user explicitly requested this provider with no-fallback.
+		if (!providerRateLimitResult.allowed) {
+			if (noFallback && requestedProvider) {
+				const retryAfter = providerRateLimitResult.retryAfter;
+				if (retryAfter) {
+					c.header("Retry-After", retryAfter.toString());
+					const resetTime = Math.floor(Date.now() / 1000) + retryAfter;
+					c.header("X-RateLimit-Reset", resetTime.toString());
+				}
+
+				const blockedLimits = providerRateLimitResult.blockedBy
+					.map(
+						(window) =>
+							`${providerRateLimitResult.limits[window].limit} ${providerRateLimitWindows[window].label}`,
+					)
+					.join(" and ");
+
+				throw new HTTPException(429, {
+					message: `Rate limit exceeded: maximum ${blockedLimits} for this provider/model. Please try again later.`,
+				});
+			}
+			// Otherwise proceed — the provider was the best available option from routing
+			logger.warn(
+				"Provider rate limit exceeded after routing (race condition), proceeding anyway",
+				{
+					organizationId: project.organizationId,
+					provider: usedProvider,
+					model: modelInfo.id,
+					blockedBy: getExceededProviderRateLimitLabels(
+						providerRateLimitResult.blockedBy,
+					),
+				},
 			);
 		}
 	}
@@ -2014,24 +3022,178 @@ chat.openapi(completions, async (c) => {
 		}
 	}
 
-	if (usedToken === undefined) {
+	if (!usedToken) {
 		throw new HTTPException(500, {
 			message: `No token`,
 		});
 	}
 
+	usedApiKeyHash = getApiKeyFingerprint(usedToken);
+	routingMetadata = withUsedApiKeyHash(routingMetadata, usedApiKeyHash);
+
+	const contentFilterBlocked =
+		contentFilterMode === "enabled" &&
+		contentFilterMatched &&
+		!contentFilterRoutingApplied;
+
+	// Preserve monitor tagging, and also tag successful reroutes triggered by a
+	// gateway content-filter match so the decision remains visible in logs.
+	const shouldTagContentFilter =
+		(contentFilterMode === "monitor" && contentFilterMatched) ||
+		contentFilterRoutingApplied;
+	const gatewayContentFilterResponse = openAIContentFilterResult?.responses
+		.length
+		? openAIContentFilterResult.responses
+		: null;
+	const insertLog = (
+		logData: Parameters<typeof _insertLog>[0],
+		options?: Parameters<typeof _insertLog>[1],
+	) =>
+		_insertLog(
+			{
+				...logData,
+				internalContentFilter: shouldTagContentFilter
+					? true
+					: logData.internalContentFilter,
+				gatewayContentFilterResponse:
+					logData.gatewayContentFilterResponse ?? gatewayContentFilterResponse,
+			},
+			options,
+		);
+
+	if (contentFilterBlocked) {
+		const contentFilterResponseId = `chatcmpl-${Date.now()}`;
+		const contentFilterCreated = Math.floor(Date.now() / 1000);
+
+		// Log the filtered request
+		try {
+			await insertLog({
+				...createLogEntry(
+					requestId,
+					project,
+					apiKey,
+					undefined,
+					"",
+					undefined,
+					"llmgateway",
+					requestedModel,
+					requestedProvider,
+					messages as any[],
+					temperature,
+					max_tokens,
+					top_p,
+					frequency_penalty,
+					presence_penalty,
+					undefined,
+					undefined,
+					effort as "low" | "medium" | "high" | undefined,
+					response_format,
+					tools,
+					tool_choice,
+					source,
+					customHeaders,
+					c.req.header("x-debug") === "true",
+					c.req.header("user-agent"),
+				),
+				content: null,
+				responseSize: 0,
+				finishReason: "llmgateway_content_filter",
+				unifiedFinishReason: "content_filter",
+				promptTokens: null,
+				completionTokens: null,
+				totalTokens: null,
+				reasoningTokens: null,
+				cachedTokens: null,
+				hasError: false,
+				streamed: !!stream,
+				canceled: false,
+				errorDetails: null,
+				duration: 0,
+				timeToFirstToken: null,
+				inputCost: 0,
+				outputCost: 0,
+				cachedInputCost: 0,
+				requestCost: 0,
+				webSearchCost: 0,
+				imageInputTokens: null,
+				imageOutputTokens: null,
+				imageInputCost: null,
+				imageOutputCost: null,
+				cost: 0,
+				estimatedCost: false,
+				discount: null,
+				pricingTier: null,
+				dataStorageCost: "0",
+			});
+		} catch {
+			// Silently ignore logging failures
+		}
+
+		if (stream) {
+			return streamSSE(c, async (sseStream) => {
+				const chunk = {
+					id: contentFilterResponseId,
+					object: "chat.completion.chunk",
+					created: contentFilterCreated,
+					model: requestedModel,
+					choices: [
+						{
+							index: 0,
+							delta: {},
+							finish_reason: "content_filter",
+						},
+					],
+				};
+				await sseStream.writeSSE({
+					data: JSON.stringify(chunk),
+					id: "0",
+				});
+				await sseStream.writeSSE({ data: "[DONE]" });
+			});
+		}
+
+		return c.json({
+			id: contentFilterResponseId,
+			object: "chat.completion",
+			created: contentFilterCreated,
+			model: requestedModel,
+			choices: [
+				{
+					index: 0,
+					message: {
+						role: "assistant",
+						content: null,
+					},
+					finish_reason: "content_filter",
+				},
+			],
+			usage: {
+				prompt_tokens: 0,
+				completion_tokens: 0,
+				total_tokens: 0,
+			},
+		});
+	}
+
 	// Check if the selected provider supports reasoning (from specific mapping, not any)
 	const selectedProviderMapping = modelInfo.providers.find(
-		(p) => p.providerId === usedProvider && p.modelName === usedModel,
+		(p) =>
+			p.providerId === usedProvider &&
+			p.modelName === usedModel &&
+			p.region === usedRegion,
 	);
-	let supportsReasoning =
-		(selectedProviderMapping as ProviderModelMapping)?.reasoning === true;
+	let supportsReasoning = selectedProviderMapping?.reasoning === true;
+	let splitTaggedReasoning =
+		selectedProviderMapping?.splitTaggedReasoning === true;
 
 	// Check if messages contain existing tool calls or tool results
 	// If so, use Chat Completions API instead of Responses API
 	const hasExistingToolCalls = messages.some(
 		(msg: any) => msg.tool_calls ?? msg.role === "tool",
 	);
+
+	// Strip :region suffix before sending to upstream provider API
+	const upstreamModelName = stripRegionFromModelName(usedModel, usedRegion);
 
 	try {
 		if (!usedProvider) {
@@ -2043,41 +3205,46 @@ chat.openapi(completions, async (c) => {
 		url = getProviderEndpoint(
 			usedProvider,
 			providerKey?.baseUrl ?? undefined,
-			usedModel,
-			usedProvider === "google-ai-studio" || usedProvider === "google-vertex"
-				? usedToken
-				: undefined,
+			upstreamModelName,
+			usesGoogleQueryToken(usedProvider) ? usedToken : undefined,
 			stream,
 			supportsReasoning,
 			hasExistingToolCalls,
 			providerKey?.options ?? undefined,
 			configIndex,
 			isImageGeneration,
+			usedRegion,
 		);
+
+		// If region is still unset but the provider supports regions, resolve the
+		// default region so it appears in logs and metadata.
+		if (!usedRegion) {
+			const providerDef = providers.find((p) => p.id === usedProvider) as
+				| { regionConfig?: { defaultRegion: string } }
+				| undefined;
+			if (providerDef?.regionConfig) {
+				usedRegion = providerDef.regionConfig.defaultRegion;
+			}
+		}
+
+		// Re-compute usedModelFormatted now that region may have been resolved
+		if (usedRegion) {
+			usedModelFormatted = formatUsedModelForDisplay(
+				usedProvider,
+				`${baseModelName}:${usedRegion}`,
+				customProviderName,
+			);
+		}
 	} catch (error) {
-		const hostedFallbackBaseUrl = usedProvider
-			? hostedProviderFallbackBaseUrls[usedProvider]
-			: undefined;
-		if (
-			hostedFallbackBaseUrl &&
-			error instanceof Error &&
-			error.message.includes("requires a baseUrl")
-		) {
-			logger.warn("Falling back to hosted provider default base URL", {
-				provider: usedProvider,
-				model: usedModel,
-				hostedFallbackBaseUrl,
-			});
-			url = `${hostedFallbackBaseUrl}/v1/chat/completions`;
-		} else if (usedProvider === "llmgateway" && usedModel !== "custom") {
+		if (usedProvider === "llmgateway" && usedModel !== "custom") {
 			throw new HTTPException(400, {
 				message: `Invalid model: ${usedModel} for provider: ${usedProvider}`,
 			});
-		} else {
-			throw new HTTPException(500, {
-				message: `Could not use provider: ${usedProvider}. ${error instanceof Error ? error.message : ""}`,
-			});
 		}
+
+		throw new HTTPException(500, {
+			message: `Could not use provider: ${usedProvider}. ${error instanceof Error ? error.message : ""}`,
+		});
 	}
 
 	let useResponsesApi = url?.includes("/responses") ?? false;
@@ -2236,7 +3403,7 @@ chat.openapi(completions, async (c) => {
 					project.organizationId,
 				);
 
-				await insertLog({
+				await insertLogEntry({
 					...baseLogEntry,
 					duration: 0, // No processing time for cached response
 					timeToFirstToken: null, // Not applicable for cached response
@@ -2329,6 +3496,9 @@ chat.openapi(completions, async (c) => {
 			cacheKey = generateCacheKey(cachePayload);
 			const cachedResponse = cacheKey ? await getCache(cacheKey) : null;
 			if (cachedResponse) {
+				const responseForCurrentRequest =
+					withCurrentRequestMetadataOnOpenAiResponse(cachedResponse, requestId);
+
 				// Log the cached request
 				const duration = 0; // No processing time needed
 				// Extract plugin IDs for logging (cached non-streaming)
@@ -2363,9 +3533,9 @@ chat.openapi(completions, async (c) => {
 					image_config,
 					routingMetadata,
 					rawBody,
-					cachedResponse,
+					responseForCurrentRequest,
 					null, // No upstream request for cached response
-					cachedResponse, // upstream response is same as cached response
+					responseForCurrentRequest, // upstream response is same as cached response
 					cachedPluginIds,
 					undefined, // No plugin results for cached response
 				);
@@ -2395,7 +3565,7 @@ chat.openapi(completions, async (c) => {
 					(cachedReasoningContent?.length ?? 0) +
 					500; // overhead for metadata
 
-				await insertLog({
+				await insertLogEntry({
 					...baseLogEntry,
 					duration,
 					timeToFirstToken: null, // Not applicable for cached response
@@ -2449,7 +3619,7 @@ chat.openapi(completions, async (c) => {
 					toolResults: cachedResponse.choices?.[0]?.message?.tool_calls ?? null,
 				});
 
-				return jsonResponse(cachedResponse);
+				return c.json(responseForCurrentRequest);
 			}
 		}
 	}
@@ -2458,7 +3628,10 @@ chat.openapi(completions, async (c) => {
 	if (max_tokens !== undefined && finalModelInfo) {
 		// Find the provider mapping for the used provider
 		const providerMapping = finalModelInfo.providers.find(
-			(p) => p.providerId === usedProvider && p.modelName === usedModel,
+			(p) =>
+				p.providerId === usedProvider &&
+				p.modelName === usedModel &&
+				p.region === usedRegion,
 		);
 
 		if (
@@ -2477,13 +3650,20 @@ chat.openapi(completions, async (c) => {
 	// Check if streaming is requested and if the model/provider combination supports it
 	// For image generation models, we'll fake streaming by converting the response
 	const fakeStreamingForImageGen = stream && isImageGeneration;
-	const effectiveStream = fakeStreamingForImageGen ? false : stream;
+	const streamingSupport = getModelStreamingSupport(
+		baseModelName,
+		usedProvider,
+		usedRegion,
+	);
+	// When the provider only supports streaming, force it even if the client didn't request it.
+	// The upstream request uses effectiveStream; the client response uses stream.
+	const forceStream = streamingSupport === "only" && !stream;
+	const effectiveStream = fakeStreamingForImageGen
+		? false
+		: stream || forceStream;
 
 	if (stream) {
-		if (
-			!isImageGeneration &&
-			getModelStreamingSupport(baseModelName, usedProvider) === false
-		) {
+		if (!isImageGeneration && streamingSupport === false) {
 			throw new HTTPException(400, {
 				message: `Model ${usedModel} with provider ${usedProvider} does not support streaming`,
 			});
@@ -2493,12 +3673,14 @@ chat.openapi(completions, async (c) => {
 	// Check if effort parameter is supported by the specific provider being used
 	if (effort !== undefined && finalModelInfo) {
 		const providerMapping = finalModelInfo.providers.find(
-			(p) => p.providerId === usedProvider && p.modelName === usedModel,
+			(p) =>
+				p.providerId === usedProvider &&
+				p.modelName === usedModel &&
+				p.region === usedRegion,
 		);
 
 		if (providerMapping) {
-			const params = (providerMapping as ProviderModelMapping)
-				.supportedParameters;
+			const params = providerMapping.supportedParameters;
 			if (!params?.includes("effort")) {
 				throw new HTTPException(400, {
 					message: `Model ${usedModel} with provider ${usedProvider} does not support the effort parameter. Try using provider 'anthropic' instead.`,
@@ -2519,10 +3701,12 @@ chat.openapi(completions, async (c) => {
 	// Strip unsupported parameters based on model's supportedParameters
 	if (finalModelInfo) {
 		const providerMapping = finalModelInfo.providers.find(
-			(p) => p.providerId === usedProvider && p.modelName === usedModel,
+			(p) =>
+				p.providerId === usedProvider &&
+				p.modelName === usedModel &&
+				p.region === usedRegion,
 		);
-		const supported = (providerMapping as ProviderModelMapping | undefined)
-			?.supportedParameters;
+		const supported = providerMapping?.supportedParameters;
 		if (supported && supported.length > 0) {
 			if (temperature !== undefined && !supported.includes("temperature")) {
 				temperature = undefined;
@@ -2561,11 +3745,7 @@ chat.openapi(completions, async (c) => {
 
 	// For Google providers, enrich messages with cached thought_signatures
 	// This is needed for multi-turn tool call conversations with Gemini 3+
-	if (
-		usedProvider === "google-ai-studio" ||
-		usedProvider === "google-vertex" ||
-		usedProvider === "obsidian"
-	) {
+	if (isGoogleCompatibleProvider(usedProvider)) {
 		const { redisClient } = await import("@llmgateway/cache");
 		for (const message of messages) {
 			if (
@@ -2634,7 +3814,7 @@ chat.openapi(completions, async (c) => {
 
 	let requestBody: ProviderRequestBody = await prepareRequestBody(
 		usedProvider,
-		usedModel,
+		upstreamModelName,
 		messages as BaseMessage[],
 		effectiveStream,
 		temperature,
@@ -2667,7 +3847,10 @@ chat.openapi(completions, async (c) => {
 	) {
 		// Find the provider mapping for the used provider
 		const providerMapping = finalModelInfo.providers.find(
-			(p) => p.providerId === usedProvider && p.modelName === usedModel,
+			(p) =>
+				p.providerId === usedProvider &&
+				p.modelName === usedModel &&
+				p.region === usedRegion,
 		);
 		if (
 			providerMapping &&
@@ -2693,16 +3876,160 @@ chat.openapi(completions, async (c) => {
 	}
 
 	const startTime = Date.now();
+	const failedEnvKeyIndicesByProvider = new Map<string, Set<number>>();
+	const failedTrackedKeyIdsByProvider = new Map<string, Set<string>>();
+
+	function rememberFailedKey(
+		providerId: string,
+		region: string | undefined,
+		options: {
+			envVarName?: string;
+			configIndex?: number;
+			providerKeyId?: string;
+		},
+	): void {
+		const retryKey = providerRetryKey(providerId, region);
+
+		if (options.envVarName !== undefined && options.configIndex !== undefined) {
+			const failedIndices =
+				failedEnvKeyIndicesByProvider.get(retryKey) ?? new Set<number>();
+			failedIndices.add(options.configIndex);
+			failedEnvKeyIndicesByProvider.set(retryKey, failedIndices);
+		}
+
+		if (options.providerKeyId) {
+			const failedKeyIds =
+				failedTrackedKeyIdsByProvider.get(retryKey) ?? new Set<string>();
+			failedKeyIds.add(options.providerKeyId);
+			failedTrackedKeyIdsByProvider.set(retryKey, failedKeyIds);
+		}
+	}
+
+	async function resolveProviderContextForRetry(
+		providerMapping: {
+			providerId: string;
+			modelName: string;
+			region?: string;
+		},
+		streamValue: boolean,
+	) {
+		const retryKey = providerRetryKey(
+			providerMapping.providerId,
+			providerMapping.region,
+		);
+		return await resolveProviderContext(
+			providerMapping,
+			retryProjectContext,
+			retryOrganizationContext,
+			modelInfo,
+			originalRequestParams,
+			{
+				requestId,
+				stream: streamValue,
+				effectiveStream,
+				messages: messages as BaseMessage[],
+				response_format,
+				tools,
+				tool_choice,
+				reasoning_effort,
+				reasoning_max_tokens,
+				effort,
+				webSearchTool,
+				image_config,
+				sensitive_word_check,
+				maxImageSizeMB,
+				userPlan,
+				hasExistingToolCalls,
+				customProviderName,
+				webSearchEnabled: !!webSearchTool,
+				excludedEnvKeyIndices: failedEnvKeyIndicesByProvider.get(retryKey),
+				excludedProviderKeyIds: failedTrackedKeyIdsByProvider.get(retryKey),
+			},
+		);
+	}
+
+	function applyResolvedProviderContext(
+		ctx: Awaited<ReturnType<typeof resolveProviderContext>>,
+	): void {
+		usedProvider = ctx.usedProvider;
+		usedModel = ctx.usedModel;
+		usedModelFormatted = ctx.usedModelFormatted;
+		usedModelMapping = ctx.usedModelMapping;
+		baseModelName = ctx.baseModelName;
+		usedToken = ctx.usedToken;
+		usedApiKeyHash = ctx.usedApiKeyHash;
+		providerKey = ctx.providerKey;
+		configIndex = ctx.configIndex;
+		envVarName = ctx.envVarName;
+		url = ctx.url;
+		requestBody = ctx.requestBody;
+		useResponsesApi = ctx.useResponsesApi;
+		requestCanBeCanceled = ctx.requestCanBeCanceled;
+		isImageGeneration = ctx.isImageGeneration;
+		supportsReasoning = ctx.supportsReasoning;
+		splitTaggedReasoning = ctx.splitTaggedReasoning ?? false;
+		temperature = ctx.temperature;
+		max_tokens = ctx.max_tokens;
+		top_p = ctx.top_p;
+		frequency_penalty = ctx.frequency_penalty;
+		presence_penalty = ctx.presence_penalty;
+		usedRegion = ctx.usedRegion;
+		routingMetadata = withUsedApiKeyHash(routingMetadata, usedApiKeyHash);
+	}
+
+	async function tryResolveAlternateKeyForCurrentProvider(
+		streamValue: boolean,
+	): Promise<Awaited<ReturnType<typeof resolveProviderContext>> | null> {
+		if (!usedProvider || !usedModel) {
+			return null;
+		}
+
+		const currentProviderKeyId = providerKey?.id;
+		const currentEnvVarName = envVarName;
+		const currentConfigIndex = configIndex;
+		const currentToken = usedToken;
+
+		try {
+			const nextContext = await resolveProviderContextForRetry(
+				{
+					providerId: usedProvider,
+					modelName: usedModel,
+					region: usedRegion,
+				},
+				streamValue,
+			);
+
+			const isDifferentTrackedKey =
+				nextContext.providerKey?.id !== undefined &&
+				nextContext.providerKey.id !== currentProviderKeyId;
+			const isDifferentEnvKey =
+				nextContext.envVarName !== undefined &&
+				(nextContext.envVarName !== currentEnvVarName ||
+					nextContext.configIndex !== currentConfigIndex);
+			const isDifferentToken = nextContext.usedToken !== currentToken;
+
+			if (!isDifferentTrackedKey && !isDifferentEnvKey && !isDifferentToken) {
+				return null;
+			}
+
+			return nextContext;
+		} catch {
+			return null;
+		}
+	}
 
 	// Handle streaming response if requested
 	// For image generation models, we skip real streaming and use fake streaming later
-	if (effectiveStream) {
+	// For stream-only models where the client didn't request streaming, use the non-streaming path
+	// (effectiveStream forces streaming upstream, but the client gets a regular JSON response)
+	if (effectiveStream && !forceStream) {
 		return streamSSE(
 			c,
 			async (stream) => {
 				let eventId = 0;
 				let canceled = false;
 				let streamingError: unknown = null;
+				let doneSent = false; // Track if [DONE] has been sent downstream
 
 				// Raw logging variables
 				let streamingRawResponseData = ""; // Raw SSE data sent back to the client
@@ -2760,6 +4087,103 @@ chat.openapi(completions, async (c) => {
 					}
 				};
 
+				const writeStreamingContentFilterResponse = async ({
+					billingModel,
+					billingProvider,
+					responseModel,
+					metadata,
+				}: {
+					billingModel: string;
+					billingProvider: Provider;
+					responseModel: string;
+					metadata?: Record<string, unknown>;
+				}) => {
+					const { calculatedPromptTokens } = estimateTokens(
+						billingProvider,
+						messages,
+						null,
+						null,
+						0,
+					);
+					const promptTokenCount = Math.max(
+						1,
+						Math.round(calculatedPromptTokens ?? 1),
+					);
+					const streamingCosts = await calculateCosts(
+						billingModel,
+						billingProvider,
+						promptTokenCount,
+						0,
+						null,
+						{
+							prompt: messages
+								.map((m) => messageContentToString(m.content))
+								.join("\n"),
+							completion: "",
+						},
+						null,
+						0,
+						image_config?.image_size,
+						inputImageCount,
+						0,
+						project.organizationId,
+					);
+
+					await writeSSEAndCache({
+						data: JSON.stringify({
+							id: `chatcmpl-${Date.now()}`,
+							object: "chat.completion.chunk",
+							created: Math.floor(Date.now() / 1000),
+							model: responseModel,
+							choices: [
+								{
+									index: 0,
+									delta: {},
+									finish_reason: "content_filter",
+								},
+							],
+							...(metadata && { metadata }),
+						}),
+						id: String(eventId++),
+					});
+
+					await writeSSEAndCache({
+						data: JSON.stringify({
+							id: `chatcmpl-${Date.now()}`,
+							object: "chat.completion.chunk",
+							created: Math.floor(Date.now() / 1000),
+							model: responseModel,
+							choices: [
+								{
+									index: 0,
+									delta: {},
+									finish_reason: null,
+								},
+							],
+							usage: {
+								prompt_tokens: promptTokenCount,
+								completion_tokens: 0,
+								total_tokens: promptTokenCount,
+								cost_usd_total: streamingCosts.totalCost,
+								cost_usd_input: streamingCosts.inputCost,
+								cost_usd_output: streamingCosts.outputCost,
+								cost_usd_cached_input: streamingCosts.cachedInputCost,
+								cost_usd_request: streamingCosts.requestCost,
+								cost_usd_image_input: streamingCosts.imageInputCost,
+								cost_usd_image_output: streamingCosts.imageOutputCost,
+							},
+						}),
+						id: String(eventId++),
+					});
+
+					await writeSSEAndCache({
+						event: "done",
+						data: "[DONE]",
+						id: String(eventId++),
+					});
+					doneSent = true;
+				};
+
 				// Set up cancellation handling
 				const controller = new AbortController();
 				// Set up a listener for the request being aborted
@@ -2778,7 +4202,7 @@ chat.openapi(completions, async (c) => {
 				const routingAttempts: RoutingAttempt[] = [];
 				const failedProviderIds = new Set<string>();
 				let res: Response | undefined;
-				const finalLogId = shortid();
+				const finalLogId = logIdOverride ?? shortid();
 				for (
 					let retryAttempt = 0;
 					retryAttempt <= MAX_RETRIES;
@@ -2789,7 +4213,7 @@ chat.openapi(completions, async (c) => {
 					// Type guard: narrow variables that TypeScript widens due to loop reassignment
 					if (
 						!usedProvider ||
-						usedToken === undefined ||
+						!usedToken ||
 						!url ||
 						!usedModelFormatted ||
 						!usedModelMapping
@@ -2810,65 +4234,39 @@ chat.openapi(completions, async (c) => {
 							break;
 						}
 
-						try {
-							const ctx = await resolveProviderContext(
-								nextProvider,
-								{
-									mode: project.mode,
-									organizationId: project.organizationId,
-								},
-								{
-									id: organization.id,
-									credits: organization.credits,
-									devPlan: organization.devPlan,
-									devPlanCreditsLimit: organization.devPlanCreditsLimit,
-									devPlanCreditsUsed: organization.devPlanCreditsUsed,
-									devPlanExpiresAt: organization.devPlanExpiresAt,
-								},
-								modelInfo,
-								originalRequestParams,
-								{
-									stream: true,
-									effectiveStream,
-									messages: messages as BaseMessage[],
-									response_format,
-									tools,
-									tool_choice,
-									reasoning_effort,
-									reasoning_max_tokens,
-									effort,
-									webSearchTool,
-									image_config,
-									sensitive_word_check,
-									maxImageSizeMB,
-									userPlan,
-									hasExistingToolCalls,
-									customProviderName,
-									webSearchEnabled: !!webSearchTool,
-								},
+						// Check if the fallback candidate is rate-limited
+						const retryRateLimitPeek = await peekProviderRateLimit(
+							project.organizationId,
+							nextProvider.providerId,
+							modelInfo.id,
+							nextProvider.modelName,
+						);
+						if (retryRateLimitPeek.rateLimited) {
+							failedProviderIds.add(
+								providerRetryKey(nextProvider.providerId, nextProvider.region),
 							);
-							usedProvider = ctx.usedProvider;
-							usedModel = ctx.usedModel;
-							usedModelFormatted = ctx.usedModelFormatted;
-							usedModelMapping = ctx.usedModelMapping;
-							baseModelName = ctx.baseModelName;
-							usedToken = ctx.usedToken;
-							providerKey = ctx.providerKey;
-							configIndex = ctx.configIndex;
-							envVarName = ctx.envVarName;
-							url = ctx.url;
-							requestBody = ctx.requestBody;
-							useResponsesApi = ctx.useResponsesApi;
-							requestCanBeCanceled = ctx.requestCanBeCanceled;
-							isImageGeneration = ctx.isImageGeneration;
-							supportsReasoning = ctx.supportsReasoning;
-							temperature = ctx.temperature;
-							max_tokens = ctx.max_tokens;
-							top_p = ctx.top_p;
-							frequency_penalty = ctx.frequency_penalty;
-							presence_penalty = ctx.presence_penalty;
+							// Mark as rate-limited in routing metadata
+							const scoreEntry = routingMetadata?.providerScores.find(
+								(s) => s.providerId === nextProvider.providerId,
+							);
+							if (scoreEntry) {
+								scoreEntry.rate_limited = true;
+							}
+							// Don't consume a retry slot for rate-limit skips
+							retryAttempt--;
+							continue;
+						}
+
+						try {
+							const ctx = await resolveProviderContextForRetry(
+								nextProvider,
+								true,
+							);
+							applyResolvedProviderContext(ctx);
 						} catch {
-							failedProviderIds.add(nextProvider.providerId);
+							failedProviderIds.add(
+								providerRetryKey(nextProvider.providerId, nextProvider.region),
+							);
 							// Don't consume a retry slot for context-resolution failures
 							retryAttempt--;
 							continue;
@@ -2877,6 +4275,7 @@ chat.openapi(completions, async (c) => {
 
 					try {
 						const headers = getProviderHeaders(usedProvider, usedToken, {
+							requestId,
 							webSearchEnabled: !!webSearchTool,
 						});
 						headers["Content-Type"] = "application/json";
@@ -2928,16 +4327,31 @@ chat.openapi(completions, async (c) => {
 								requestedProvider,
 								usedModel,
 								initialRequestedModel,
+								unifiedFinishReason: getUnifiedFinishReason(
+									"upstream_error",
+									usedProvider,
+								),
 							});
 
 							// Log the timeout error in the database
 							const timeoutPluginIds = plugins?.map((p) => p.id) ?? [];
 
+							let sameProviderRetryContext: Awaited<
+								ReturnType<typeof resolveProviderContext>
+							> | null = null;
+							rememberFailedKey(usedProvider, usedRegion, {
+								envVarName,
+								configIndex,
+								providerKeyId: providerKey?.id,
+							});
+							sameProviderRetryContext =
+								await tryResolveAlternateKeyForCurrentProvider(true);
+
 							// Check if we should retry before logging so we can mark the log as retried
 							const willRetryTimeout = shouldRetryRequest({
 								requestedProvider,
 								noFallback,
-								statusCode: 0,
+								errorType: "upstream_timeout",
 								retryCount: retryAttempt,
 								remainingProviders:
 									(routingMetadata?.providerScores.length ?? 0) -
@@ -2945,6 +4359,9 @@ chat.openapi(completions, async (c) => {
 									1,
 								usedProvider,
 							});
+							const willRetrySameProvider = sameProviderRetryContext !== null;
+							const willRetryRequest =
+								willRetrySameProvider || willRetryTimeout;
 
 							const baseLogEntry = createLogEntry(
 								requestId,
@@ -2981,9 +4398,11 @@ chat.openapi(completions, async (c) => {
 								timeoutPluginIds,
 								undefined, // No plugin results for error case
 							);
+							const attemptLogId = shortid();
 
-							await insertLog({
+							await insertLogEntry({
 								...baseLogEntry,
+								id: attemptLogId,
 								duration: Date.now() - perAttemptStartTime,
 								timeToFirstToken: null,
 								timeToFirstReasoningToken: null,
@@ -3016,19 +4435,48 @@ chat.openapi(completions, async (c) => {
 								dataStorageCost: "0",
 								cached: false,
 								toolResults: null,
-								retried: willRetryTimeout,
-								retriedByLogId: willRetryTimeout ? finalLogId : null,
+								retried: willRetryRequest,
+								retriedByLogId: willRetryRequest ? finalLogId : null,
 							});
 
+							if (willRetrySameProvider && sameProviderRetryContext) {
+								routingAttempts.push(
+									buildRoutingAttempt(
+										usedProvider,
+										baseModelName,
+										0,
+										getErrorType(0),
+										false,
+										{
+											region: usedRegion,
+											apiKeyHash: usedApiKeyHash,
+											logId: attemptLogId,
+										},
+									),
+								);
+								applyResolvedProviderContext(sameProviderRetryContext);
+								retryAttempt--;
+								continue;
+							}
+
 							if (willRetryTimeout) {
-								routingAttempts.push({
-									provider: usedProvider,
-									model: usedModel,
-									status_code: 0,
-									error_type: getErrorType(0),
-									succeeded: false,
-								});
-								failedProviderIds.add(usedProvider);
+								routingAttempts.push(
+									buildRoutingAttempt(
+										usedProvider,
+										baseModelName,
+										0,
+										getErrorType(0),
+										false,
+										{
+											region: usedRegion,
+											apiKeyHash: usedApiKeyHash,
+											logId: attemptLogId,
+										},
+									),
+								);
+								failedProviderIds.add(
+									providerRetryKey(usedProvider, usedRegion),
+								);
 								continue;
 							}
 
@@ -3126,7 +4574,7 @@ chat.openapi(completions, async (c) => {
 								undefined, // No plugin results for canceled request
 							);
 
-							await insertLog({
+							await insertLogEntry({
 								...baseLogEntry,
 								duration: Date.now() - perAttemptStartTime,
 								timeToFirstToken: null, // Not applicable for canceled request
@@ -3205,17 +4653,34 @@ chat.openapi(completions, async (c) => {
 								requestedProvider,
 								usedModel,
 								initialRequestedModel,
+								unifiedFinishReason: getUnifiedFinishReason(
+									"upstream_error",
+									usedProvider,
+								),
 							});
 
 							// Log the error in the database
 							// Extract plugin IDs for logging (fetch error)
 							const fetchErrorPluginIds = plugins?.map((p) => p.id) ?? [];
 
+							let sameProviderRetryContext: Awaited<
+								ReturnType<typeof resolveProviderContext>
+							> | null = null;
+							if (isRetryableErrorType("network_error")) {
+								rememberFailedKey(usedProvider, usedRegion, {
+									envVarName,
+									configIndex,
+									providerKeyId: providerKey?.id,
+								});
+								sameProviderRetryContext =
+									await tryResolveAlternateKeyForCurrentProvider(true);
+							}
+
 							// Check if we should retry before logging so we can mark the log as retried
 							const willRetryFetch = shouldRetryRequest({
 								requestedProvider,
 								noFallback,
-								statusCode: 0,
+								errorType: "network_error",
 								retryCount: retryAttempt,
 								remainingProviders:
 									(routingMetadata?.providerScores.length ?? 0) -
@@ -3223,6 +4688,8 @@ chat.openapi(completions, async (c) => {
 									1,
 								usedProvider,
 							});
+							const willRetrySameProvider = sameProviderRetryContext !== null;
+							const willRetryRequest = willRetrySameProvider || willRetryFetch;
 
 							const baseLogEntry = createLogEntry(
 								requestId,
@@ -3259,9 +4726,11 @@ chat.openapi(completions, async (c) => {
 								fetchErrorPluginIds,
 								undefined, // No plugin results for error case
 							);
+							const attemptLogId = shortid();
 
-							await insertLog({
+							await insertLogEntry({
 								...baseLogEntry,
+								id: attemptLogId,
 								duration: Date.now() - perAttemptStartTime,
 								timeToFirstToken: null, // Not applicable for error case
 								timeToFirstReasoningToken: null, // Not applicable for error case
@@ -3294,24 +4763,56 @@ chat.openapi(completions, async (c) => {
 								dataStorageCost: "0",
 								cached: false,
 								toolResults: null,
-								retried: willRetryFetch,
-								retriedByLogId: willRetryFetch ? finalLogId : null,
+								retried: willRetryRequest,
+								retriedByLogId: willRetryRequest ? finalLogId : null,
 							});
 
-							// Report key health for environment-based tokens
+							// Report key health for the selected token source
 							if (envVarName !== undefined) {
 								reportKeyError(envVarName, configIndex, 0);
 							}
+							if (providerKey?.id) {
+								reportTrackedKeyError(providerKey.id, 0);
+							}
+
+							if (willRetrySameProvider && sameProviderRetryContext) {
+								routingAttempts.push(
+									buildRoutingAttempt(
+										usedProvider,
+										baseModelName,
+										0,
+										getErrorType(0),
+										false,
+										{
+											region: usedRegion,
+											apiKeyHash: usedApiKeyHash,
+											logId: attemptLogId,
+										},
+									),
+								);
+								applyResolvedProviderContext(sameProviderRetryContext);
+								retryAttempt--;
+								continue;
+							}
 
 							if (willRetryFetch) {
-								routingAttempts.push({
-									provider: usedProvider,
-									model: usedModel,
-									status_code: 0,
-									error_type: getErrorType(0),
-									succeeded: false,
-								});
-								failedProviderIds.add(usedProvider);
+								routingAttempts.push(
+									buildRoutingAttempt(
+										usedProvider,
+										baseModelName,
+										0,
+										getErrorType(0),
+										false,
+										{
+											region: usedRegion,
+											apiKeyHash: usedApiKeyHash,
+											logId: attemptLogId,
+										},
+									),
+								);
+								failedProviderIds.add(
+									providerRetryKey(usedProvider, usedRegion),
+								);
 								continue;
 							}
 
@@ -3366,6 +4867,10 @@ chat.openapi(completions, async (c) => {
 								organizationId: project.organizationId,
 								projectId: apiKey.projectId,
 								apiKeyId: apiKey.id,
+								unifiedFinishReason: getUnifiedFinishReason(
+									finishReason,
+									usedProvider,
+								),
 							});
 						}
 
@@ -3373,11 +4878,24 @@ chat.openapi(completions, async (c) => {
 						// Extract plugin IDs for logging
 						const streamingErrorPluginIds = plugins?.map((p) => p.id) ?? [];
 
+						let sameProviderRetryContext: Awaited<
+							ReturnType<typeof resolveProviderContext>
+						> | null = null;
+						if (isRetryableErrorType(finishReason)) {
+							rememberFailedKey(usedProvider, usedRegion, {
+								envVarName,
+								configIndex,
+								providerKeyId: providerKey?.id,
+							});
+							sameProviderRetryContext =
+								await tryResolveAlternateKeyForCurrentProvider(true);
+						}
+
 						// Check if we should retry before logging so we can mark the log as retried
 						const willRetryHttpError = shouldRetryRequest({
 							requestedProvider,
 							noFallback,
-							statusCode: res.status,
+							errorType: finishReason,
 							retryCount: retryAttempt,
 							remainingProviders:
 								(routingMetadata?.providerScores.length ?? 0) -
@@ -3385,6 +4903,9 @@ chat.openapi(completions, async (c) => {
 								1,
 							usedProvider,
 						});
+						const willRetrySameProvider = sameProviderRetryContext !== null;
+						const willRetryRequest =
+							willRetrySameProvider || willRetryHttpError;
 
 						const baseLogEntry = createLogEntry(
 							requestId,
@@ -3421,9 +4942,11 @@ chat.openapi(completions, async (c) => {
 							streamingErrorPluginIds,
 							undefined, // No plugin results for error case
 						);
+						const attemptLogId = shortid();
 
-						await insertLog({
+						await insertLogEntry({
 							...baseLogEntry,
+							id: attemptLogId,
 							duration: Date.now() - perAttemptStartTime,
 							timeToFirstToken: null,
 							timeToFirstReasoningToken: null,
@@ -3431,9 +4954,21 @@ chat.openapi(completions, async (c) => {
 							content: null,
 							reasoningContent: null,
 							finishReason,
-							promptTokens: null,
+							promptTokens:
+								finishReason === "content_filter"
+									? (
+											estimateTokens(usedProvider, messages, null, null, 0)
+												.calculatedPromptTokens ?? null
+										)?.toString()
+									: null,
 							completionTokens: null,
-							totalTokens: null,
+							totalTokens:
+								finishReason === "content_filter"
+									? (
+											estimateTokens(usedProvider, messages, null, null, 0)
+												.calculatedPromptTokens ?? null
+										)?.toString()
+									: null,
 							reasoningTokens: null,
 							cachedTokens: null,
 							hasError: finishReason !== "content_filter", // content_filter is not an error
@@ -3458,11 +4993,11 @@ chat.openapi(completions, async (c) => {
 							dataStorageCost: "0",
 							cached: false,
 							toolResults: null,
-							retried: willRetryHttpError,
-							retriedByLogId: willRetryHttpError ? finalLogId : null,
+							retried: willRetryRequest,
+							retriedByLogId: willRetryRequest ? finalLogId : null,
 						});
 
-						// Report key health for environment-based tokens
+						// Report key health for the selected token source
 						// Don't report content_filter as a key error - it's intentional provider behavior
 						if (envVarName !== undefined && finishReason !== "content_filter") {
 							reportKeyError(
@@ -3472,74 +5007,66 @@ chat.openapi(completions, async (c) => {
 								errorResponseText,
 							);
 						}
+						if (providerKey?.id && finishReason !== "content_filter") {
+							reportTrackedKeyError(
+								providerKey.id,
+								res.status,
+								errorResponseText,
+							);
+						}
+
+						if (willRetrySameProvider && sameProviderRetryContext) {
+							routingAttempts.push(
+								buildRoutingAttempt(
+									usedProvider,
+									baseModelName,
+									res.status,
+									getErrorType(res.status),
+									false,
+									{
+										region: usedRegion,
+										apiKeyHash: usedApiKeyHash,
+										logId: attemptLogId,
+									},
+								),
+							);
+							applyResolvedProviderContext(sameProviderRetryContext);
+							retryAttempt--;
+							continue;
+						}
 
 						if (willRetryHttpError) {
-							routingAttempts.push({
-								provider: usedProvider,
-								model: usedModel,
-								status_code: res.status,
-								error_type: getErrorType(res.status),
-								succeeded: false,
-							});
-							failedProviderIds.add(usedProvider);
+							routingAttempts.push(
+								buildRoutingAttempt(
+									usedProvider,
+									baseModelName,
+									res.status,
+									getErrorType(res.status),
+									false,
+									{
+										region: usedRegion,
+										apiKeyHash: usedApiKeyHash,
+										logId: attemptLogId,
+									},
+								),
+							);
+							failedProviderIds.add(providerRetryKey(usedProvider, usedRegion));
 							continue;
 						}
 
 						// For content_filter, return a proper completion chunk (not an error)
 						// This handles Azure ResponsibleAIPolicyViolation and similar content filtering errors
 						if (finishReason === "content_filter") {
-							const contentFilterChunk = {
-								id: `chatcmpl-${Date.now()}`,
-								object: "chat.completion.chunk",
-								created: Math.floor(Date.now() / 1000),
-								model: `${usedProvider}/${baseModelName}`,
-								choices: [
-									{
-										index: 0,
-										delta: {},
-										finish_reason: "content_filter",
-									},
-								],
+							await writeStreamingContentFilterResponse({
+								billingModel: usedModel,
+								billingProvider: usedProvider,
+								responseModel: initialRequestedModel,
 								metadata: {
 									requested_model: initialRequestedModel,
-									requested_provider: requestedProvider,
+									requested_provider: getPublicRequestedProvider(
+										requestedProvider,
+									),
 								},
-							};
-
-							await writeSSEAndCache({
-								data: JSON.stringify(contentFilterChunk),
-								id: String(eventId++),
-							});
-
-							// Send a usage chunk for SDK compatibility (stream_options: { include_usage: true })
-							const contentFilterUsageChunk = {
-								id: `chatcmpl-${Date.now()}`,
-								object: "chat.completion.chunk",
-								created: Math.floor(Date.now() / 1000),
-								model: `${usedProvider}/${baseModelName}`,
-								choices: [
-									{
-										index: 0,
-										delta: {},
-										finish_reason: null,
-									},
-								],
-								usage: {
-									prompt_tokens: 0,
-									completion_tokens: 0,
-									total_tokens: 0,
-								},
-							};
-
-							await writeSSEAndCache({
-								data: JSON.stringify(contentFilterUsageChunk),
-								id: String(eventId++),
-							});
-
-							await writeSSEAndCache({
-								event: "done",
-								data: "[DONE]",
-								id: String(eventId++),
 							});
 						} else {
 							// For client errors, return the original provider error response
@@ -3587,18 +5114,239 @@ chat.openapi(completions, async (c) => {
 						return;
 					}
 
+					const inspectedStreamingResponse =
+						await inspectImmediateStreamingProviderError(res, usedProvider);
+					res = inspectedStreamingResponse.response;
+					if (inspectedStreamingResponse.immediateError) {
+						const {
+							errorCode,
+							errorMessage,
+							errorResponseText,
+							errorType,
+							inferredStatusCode,
+							statusText,
+						} = inspectedStreamingResponse.immediateError;
+
+						logger.warn("Immediate streaming provider error", {
+							status: inferredStatusCode,
+							errorText: errorResponseText,
+							usedProvider,
+							requestedProvider,
+							usedModel,
+							initialRequestedModel,
+							organizationId: project.organizationId,
+							projectId: apiKey.projectId,
+							apiKeyId: apiKey.id,
+							unifiedFinishReason: getUnifiedFinishReason(
+								errorType,
+								usedProvider,
+							),
+						});
+
+						const streamingErrorPluginIds = plugins?.map((p) => p.id) ?? [];
+
+						let sameProviderRetryContext: Awaited<
+							ReturnType<typeof resolveProviderContext>
+						> | null = null;
+						if (isRetryableErrorType(errorType)) {
+							rememberFailedKey(usedProvider, usedRegion, {
+								envVarName,
+								configIndex,
+								providerKeyId: providerKey?.id,
+							});
+							sameProviderRetryContext =
+								await tryResolveAlternateKeyForCurrentProvider(true);
+						}
+
+						const willRetryStreamingError = shouldRetryRequest({
+							requestedProvider,
+							noFallback,
+							errorType,
+							retryCount: retryAttempt,
+							remainingProviders:
+								(routingMetadata?.providerScores.length ?? 0) -
+								failedProviderIds.size -
+								1,
+							usedProvider,
+						});
+						const willRetrySameProvider = sameProviderRetryContext !== null;
+						const willRetryRequest =
+							willRetrySameProvider || willRetryStreamingError;
+
+						const baseLogEntry = createLogEntry(
+							requestId,
+							project,
+							apiKey,
+							providerKey?.id,
+							usedModelFormatted,
+							usedModelMapping,
+							usedProvider,
+							initialRequestedModel,
+							requestedProvider,
+							messages,
+							temperature,
+							max_tokens,
+							top_p,
+							frequency_penalty,
+							presence_penalty,
+							reasoning_effort,
+							reasoning_max_tokens,
+							effort,
+							response_format,
+							tools,
+							tool_choice,
+							source,
+							customHeaders,
+							debugMode,
+							userAgent,
+							image_config,
+							routingMetadata,
+							rawBody,
+							null,
+							requestBody,
+							null,
+							streamingErrorPluginIds,
+							undefined,
+						);
+						const attemptLogId = shortid();
+
+						await insertLogEntry({
+							...baseLogEntry,
+							id: attemptLogId,
+							duration: Date.now() - perAttemptStartTime,
+							timeToFirstToken: null,
+							timeToFirstReasoningToken: null,
+							responseSize: errorResponseText.length,
+							content: null,
+							reasoningContent: null,
+							finishReason: errorType,
+							promptTokens: null,
+							completionTokens: null,
+							totalTokens: null,
+							reasoningTokens: null,
+							cachedTokens: null,
+							hasError: errorType !== "content_filter",
+							streamed: true,
+							canceled: false,
+							errorDetails:
+								errorType === "content_filter"
+									? null
+									: {
+											statusCode: inferredStatusCode,
+											statusText,
+											responseText: errorResponseText,
+										},
+							cachedInputCost: null,
+							requestCost: null,
+							webSearchCost: null,
+							imageInputTokens: null,
+							imageOutputTokens: null,
+							imageInputCost: null,
+							imageOutputCost: null,
+							discount: null,
+							dataStorageCost: "0",
+							cached: false,
+							toolResults: null,
+							retried: willRetryRequest,
+							retriedByLogId: willRetryRequest ? finalLogId : null,
+						});
+
+						if (envVarName !== undefined && errorType !== "content_filter") {
+							reportKeyError(
+								envVarName,
+								configIndex,
+								inferredStatusCode,
+								errorResponseText,
+							);
+						}
+						if (providerKey?.id && errorType !== "content_filter") {
+							reportTrackedKeyError(
+								providerKey.id,
+								inferredStatusCode,
+								errorResponseText,
+							);
+						}
+
+						if (willRetrySameProvider && sameProviderRetryContext) {
+							routingAttempts.push(
+								buildRoutingAttempt(
+									usedProvider,
+									baseModelName,
+									inferredStatusCode,
+									getErrorType(inferredStatusCode),
+									false,
+									{
+										region: usedRegion,
+										apiKeyHash: usedApiKeyHash,
+										logId: attemptLogId,
+									},
+								),
+							);
+							applyResolvedProviderContext(sameProviderRetryContext);
+							retryAttempt--;
+							continue;
+						}
+
+						if (willRetryStreamingError) {
+							routingAttempts.push(
+								buildRoutingAttempt(
+									usedProvider,
+									baseModelName,
+									inferredStatusCode,
+									getErrorType(inferredStatusCode),
+									false,
+									{
+										region: usedRegion,
+										apiKeyHash: usedApiKeyHash,
+										logId: attemptLogId,
+									},
+								),
+							);
+							failedProviderIds.add(providerRetryKey(usedProvider, usedRegion));
+							continue;
+						}
+
+						await writeSSEAndCache({
+							event: "error",
+							data: JSON.stringify({
+								error: {
+									message: errorMessage,
+									type: errorType,
+									code: errorCode,
+									param: null,
+									responseText: errorResponseText,
+								},
+							}),
+							id: String(eventId++),
+						});
+						await writeSSEAndCache({
+							event: "done",
+							data: "[DONE]",
+							id: String(eventId++),
+						});
+						clearKeepalive();
+						return;
+					}
+
 					break; // Fetch succeeded, exit retry loop
 				} // End of retry for loop
 
 				// Add the final attempt (successful or last failed) to routing
 				if (res && res.ok && usedProvider) {
-					routingAttempts.push({
-						provider: usedProvider,
-						model: usedModel,
-						status_code: res.status,
-						error_type: "none",
-						succeeded: true,
-					});
+					routingAttempts.push(
+						buildRoutingAttempt(
+							usedProvider,
+							baseModelName,
+							res.status,
+							"none",
+							true,
+							{
+								region: usedRegion,
+								apiKeyHash: usedApiKeyHash,
+								logId: finalLogId,
+							},
+						),
+					);
 				}
 
 				// Update routingMetadata with all routing attempts for DB logging
@@ -3652,7 +5400,7 @@ chat.openapi(completions, async (c) => {
 				// After retry loop: narrow provider variables for the rest of the streaming body
 				if (
 					!usedProvider ||
-					usedToken === undefined ||
+					!usedToken ||
 					!url ||
 					!usedModelFormatted ||
 					!usedModelMapping
@@ -3696,11 +5444,20 @@ chat.openapi(completions, async (c) => {
 				let outputImageCount = 0; // Track number of output images for cost calculation
 				let webSearchCount = 0; // Track web search calls for cost calculation
 				const serverToolUseIndices = new Set<number>(); // Track Anthropic server_tool_use block indices
-				let doneSent = false; // Track if [DONE] has been sent
+				let sawUpstreamDoneSentinel = false;
+				let sawProviderTerminalEvent = false;
+				let sawOpenAiResponsesDoneEvent = false;
+				let sawOpenAiResponsesCompletedStatus = false;
+				let sentDownstreamFinishReasonChunk = false;
+				let handledTerminalProviderEvent = false;
 				let buffer = ""; // Buffer for accumulating partial data across chunks (string for SSE)
 				let binaryBuffer = new Uint8Array(0); // Buffer for binary event streams (AWS Bedrock)
 				let rawUpstreamData = ""; // Raw data received from upstream provider
 				const isAwsBedrock = usedProvider === "aws-bedrock";
+				const taggedReasoningStreamState = {
+					inReasoning: false,
+					pending: "",
+				};
 				let shouldTerminateStream = false;
 
 				// Response healing for streaming mode
@@ -3711,7 +5468,10 @@ chat.openapi(completions, async (c) => {
 					response_format?.type === "json_object" ||
 					response_format?.type === "json_schema";
 				const shouldBufferForHealing =
-					streamingResponseHealingEnabled && streamingIsJsonResponseFormat;
+					streamingIsJsonResponseFormat &&
+					(streamingResponseHealingEnabled === true ||
+						usedProvider === "novita" ||
+						splitTaggedReasoning);
 
 				// Buffer for storing chunks when healing is enabled
 				// We need to buffer content, track last chunk info, and replay healed content at the end
@@ -4023,6 +5783,7 @@ chat.openapi(completions, async (c) => {
 							}
 
 							if (eventData === "[DONE]") {
+								sawUpstreamDoneSentinel = true;
 								// Set default finish_reason if not provided by the stream
 								// Some providers (like Novita) don't send finish_reason in streaming chunks
 								if (finishReason === null) {
@@ -4149,12 +5910,47 @@ chat.openapi(completions, async (c) => {
 									});
 								}
 
-								await writeSSEAndCache({
-									event: "done",
-									data: "[DONE]",
-									id: String(eventId++),
-								});
-								doneSent = true;
+								if (!shouldBufferForHealing) {
+									if (splitTaggedReasoning) {
+										const flushedRemainder = flushTaggedStreamingRemainder(
+											taggedReasoningStreamState,
+										);
+										if (
+											flushedRemainder.content ||
+											flushedRemainder.reasoning
+										) {
+											await writeSSEAndCache({
+												data: JSON.stringify({
+													id: `chatcmpl-${Date.now()}`,
+													object: "chat.completion.chunk",
+													created: Math.floor(Date.now() / 1000),
+													model: usedModel,
+													choices: [
+														{
+															index: 0,
+															delta: {
+																...(flushedRemainder.content && {
+																	content: flushedRemainder.content,
+																}),
+																...(flushedRemainder.reasoning && {
+																	reasoning: flushedRemainder.reasoning,
+																}),
+															},
+														},
+													],
+												}),
+												id: String(eventId++),
+											});
+										}
+									}
+
+									await writeSSEAndCache({
+										event: "done",
+										data: "[DONE]",
+										id: String(eventId++),
+									});
+									doneSent = true;
+								}
 
 								processedLength = eventEnd;
 							} else {
@@ -4201,6 +5997,137 @@ chat.openapi(completions, async (c) => {
 									usedProvider === "aws-bedrock"
 										? extractAwsBedrockStreamError(data)
 										: null;
+								if (
+									data &&
+									typeof data === "object" &&
+									"response" in data &&
+									data.response &&
+									typeof data.response === "object" &&
+									"status" in data.response &&
+									data.response.status === "completed"
+								) {
+									sawOpenAiResponsesCompletedStatus = true;
+								}
+								if (
+									data &&
+									typeof data === "object" &&
+									"type" in data &&
+									typeof data.type === "string" &&
+									(data.type === "response.content_part.done" ||
+										data.type === "response.output_item.done" ||
+										data.type === "response.output_text.done")
+								) {
+									sawOpenAiResponsesDoneEvent = true;
+								}
+								const openAiCompatibleStreamError =
+									!awsBedrockStreamError &&
+									data &&
+									typeof data === "object" &&
+									"error" in data &&
+									data.error &&
+									typeof data.error === "object"
+										? (data.error as Record<string, unknown>)
+										: null;
+								if (openAiCompatibleStreamError) {
+									const errorResponseText = JSON.stringify(data);
+									if (
+										debugMode &&
+										streamingRawResponseData.length < MAX_RAW_DATA_SIZE
+									) {
+										const rawProviderSseEvent = `data: ${errorResponseText}\n\n`;
+										streamingRawResponseData += rawProviderSseEvent.substring(
+											0,
+											Math.max(
+												0,
+												MAX_RAW_DATA_SIZE - streamingRawResponseData.length,
+											),
+										);
+									}
+									const inferredStatusCode = inferStreamingErrorStatusCode(
+										openAiCompatibleStreamError,
+										errorResponseText,
+									);
+									const errorType = getFinishReasonFromError(
+										inferredStatusCode,
+										errorResponseText,
+									);
+									const errorMessage =
+										typeof openAiCompatibleStreamError.message === "string"
+											? openAiCompatibleStreamError.message
+											: "Upstream provider returned a streaming error";
+									const errorCode =
+										typeof openAiCompatibleStreamError.code === "string"
+											? openAiCompatibleStreamError.code
+											: typeof openAiCompatibleStreamError.type === "string"
+												? openAiCompatibleStreamError.type
+												: errorType;
+
+									logger.info("[streaming] Provider SSE error received", {
+										requestId,
+										provider: usedProvider,
+										model: usedModel,
+										errorType,
+										errorCode,
+										inferredStatusCode,
+										errorMessage,
+										errorPayload: errorResponseText.substring(0, 5000),
+									});
+
+									finishReason = errorType;
+
+									if (errorType === "content_filter") {
+										await writeStreamingContentFilterResponse({
+											billingModel: usedModel,
+											billingProvider: usedProvider,
+											responseModel: data.model ?? usedModel,
+										});
+										handledTerminalProviderEvent = true;
+									} else {
+										streamingError = {
+											message: errorMessage,
+											type: errorType,
+											code: errorCode,
+											details: {
+												statusCode: inferredStatusCode,
+												statusText:
+													typeof openAiCompatibleStreamError.type === "string"
+														? openAiCompatibleStreamError.type
+														: "stream_error",
+												responseText: errorResponseText,
+											},
+										};
+
+										await writeSSEAndCache({
+											event: "error",
+											data: JSON.stringify({
+												error: {
+													message: errorMessage,
+													type: errorType,
+													code: errorCode,
+													param:
+														"param" in openAiCompatibleStreamError
+															? (openAiCompatibleStreamError.param ?? null)
+															: null,
+													responseText: errorResponseText,
+												},
+											}),
+											id: String(eventId++),
+										});
+									}
+
+									if (!doneSent) {
+										await writeSSEAndCache({
+											event: "done",
+											data: "[DONE]",
+											id: String(eventId++),
+										});
+										doneSent = true;
+									}
+									shouldTerminateStream = true;
+									processedLength = eventEnd;
+									searchStart = eventEnd;
+									break;
+								}
 								if (awsBedrockStreamError) {
 									const errorType = getFinishReasonFromError(
 										awsBedrockStreamError.statusCode,
@@ -4248,12 +6175,11 @@ chat.openapi(completions, async (c) => {
 								const transformedData = transformStreamingToOpenai(
 									usedProvider,
 									usedModel,
-									requestedProvider
-										? `${requestedProvider}/${initialRequestedModel}`
-										: initialRequestedModel,
+									initialRequestedModel,
 									data,
 									messages,
 									serverToolUseIndices,
+									supportsReasoning,
 								);
 
 								// Skip null events (some providers have non-data events)
@@ -4261,6 +6187,34 @@ chat.openapi(completions, async (c) => {
 									processedLength = eventEnd;
 									searchStart = eventEnd;
 									continue;
+								}
+
+								if (splitTaggedReasoning) {
+									const deltaContent =
+										transformedData.choices?.[0]?.delta?.content;
+
+									if (
+										typeof deltaContent === "string" &&
+										deltaContent.length > 0
+									) {
+										const splitChunk = splitTaggedStreamingContentChunk(
+											deltaContent,
+											taggedReasoningStreamState,
+										);
+
+										if (splitChunk.content) {
+											transformedData.choices[0].delta.content =
+												splitChunk.content;
+										} else {
+											delete transformedData.choices[0].delta.content;
+										}
+
+										if (splitChunk.reasoning) {
+											transformedData.choices[0].delta.reasoning =
+												(transformedData.choices[0].delta.reasoning ?? "") +
+												splitChunk.reasoning;
+										}
+									}
 								}
 
 								// For Anthropic, if we have partial usage data, complete it
@@ -4289,11 +6243,7 @@ chat.openapi(completions, async (c) => {
 								}
 
 								// For Google providers, add usage information when available
-								if (
-									usedProvider === "google-ai-studio" ||
-									usedProvider === "google-vertex" ||
-									usedProvider === "obsidian"
-								) {
+								if (isGoogleCompatibleProvider(usedProvider)) {
 									const usage = extractTokenUsage(
 										data,
 										usedProvider,
@@ -4425,7 +6375,10 @@ chat.openapi(completions, async (c) => {
 								}
 
 								// Extract usage data from transformedData to update tracking variables
-								if (transformedData.usage && usedProvider === "openai") {
+								if (
+									transformedData.usage &&
+									(usedProvider === "openai" || usedProvider === "azure")
+								) {
 									const usage = transformedData.usage;
 									if (
 										usage.prompt_tokens !== undefined &&
@@ -4453,15 +6406,15 @@ chat.openapi(completions, async (c) => {
 								// Extract finishReason from transformedData to update tracking variable
 								if (transformedData.choices?.[0]?.finish_reason) {
 									finishReason = transformedData.choices[0].finish_reason;
+									sawProviderTerminalEvent = true;
+									sentDownstreamFinishReasonChunk = true;
 								}
 
 								// Extract content for logging using helper function
 								// For providers with custom extraction logic (google-ai-studio, anthropic),
 								// use raw data. For others (like aws-bedrock), use transformed OpenAI format.
 								const contentChunk = extractContent(
-									usedProvider === "google-ai-studio" ||
-										usedProvider === "google-vertex" ||
-										usedProvider === "obsidian" ||
+									isGoogleCompatibleProvider(usedProvider) ||
 										usedProvider === "anthropic"
 										? data
 										: transformedData,
@@ -4478,11 +6431,7 @@ chat.openapi(completions, async (c) => {
 								}
 
 								// Track image data size for Google providers (for token estimation)
-								if (
-									usedProvider === "google-ai-studio" ||
-									usedProvider === "google-vertex" ||
-									usedProvider === "obsidian"
-								) {
+								if (isGoogleCompatibleProvider(usedProvider)) {
 									const parts = data.candidates?.[0]?.content?.parts ?? [];
 									for (const part of parts) {
 										if (part.inlineData?.data) {
@@ -4505,11 +6454,7 @@ chat.openapi(completions, async (c) => {
 									) {
 										webSearchCount++;
 									}
-								} else if (
-									usedProvider === "google-ai-studio" ||
-									usedProvider === "google-vertex" ||
-									usedProvider === "obsidian"
-								) {
+								} else if (isGoogleCompatibleProvider(usedProvider)) {
 									// For Google, count when grounding metadata is present
 									if (data.candidates?.[0]?.groundingMetadata) {
 										const groundingMetadata =
@@ -4541,9 +6486,7 @@ chat.openapi(completions, async (c) => {
 								// For providers with custom extraction logic (google-ai-studio, anthropic),
 								// use raw data. For others, use transformed OpenAI format.
 								const reasoningContentChunk = extractReasoning(
-									usedProvider === "google-ai-studio" ||
-										usedProvider === "google-vertex" ||
-										usedProvider === "obsidian" ||
+									isGoogleCompatibleProvider(usedProvider) ||
 										usedProvider === "anthropic"
 										? data
 										: transformedData,
@@ -4559,8 +6502,11 @@ chat.openapi(completions, async (c) => {
 									}
 								}
 
-								// Extract and accumulate tool calls
-								const toolCallsChunk = extractToolCalls(data, usedProvider);
+								const toolCallsChunk = extractToolCalls(
+									data,
+									usedProvider,
+									transformedData,
+								);
 								if (toolCallsChunk && toolCallsChunk.length > 0) {
 									streamingToolCalls ??= [];
 									// Merge tool calls (accumulating function arguments)
@@ -4601,13 +6547,17 @@ chat.openapi(completions, async (c) => {
 								// Handle provider-specific finish reason extraction
 								switch (usedProvider) {
 									case "google-ai-studio":
+									case "glacier":
 									case "google-vertex":
+									case "quartz":
 									case "obsidian":
 										// Preserve original Google finish reason for logging
 										if (data.promptFeedback?.blockReason) {
 											finishReason = data.promptFeedback.blockReason;
+											sawProviderTerminalEvent = true;
 										} else if (data.candidates?.[0]?.finishReason) {
 											finishReason = data.candidates[0].finishReason;
+											sawProviderTerminalEvent = true;
 										}
 										break;
 									case "anthropic":
@@ -4616,13 +6566,16 @@ chat.openapi(completions, async (c) => {
 											data.delta?.stop_reason
 										) {
 											finishReason = data.delta.stop_reason;
+											sawProviderTerminalEvent = true;
 										} else if (
 											data.type === "message_stop" ||
 											data.stop_reason
 										) {
 											finishReason = data.stop_reason ?? "end_turn";
+											sawProviderTerminalEvent = true;
 										} else if (data.delta?.stop_reason) {
 											finishReason = data.delta.stop_reason;
+											sawProviderTerminalEvent = true;
 										}
 										break;
 									default: // OpenAI format
@@ -4708,6 +6661,10 @@ chat.openapi(completions, async (c) => {
 							requestedProvider,
 							usedModel,
 							initialRequestedModel,
+							unifiedFinishReason: getUnifiedFinishReason(
+								"upstream_error",
+								usedProvider,
+							),
 						});
 
 						try {
@@ -4750,9 +6707,48 @@ chat.openapi(completions, async (c) => {
 							},
 						};
 					} else {
-						logger.warn(
-							"Error reading stream",
+						const normalizedStreamingError = normalizeStreamingError({
+							error,
+							provider: usedProvider,
+							model: usedModel,
+							bufferSnapshot: buffer ? buffer.substring(0, 5000) : undefined,
+							phase: "upstream_read",
+						});
+
+						logger.error(
+							"Error reading upstream stream",
 							error instanceof Error ? error : new Error(String(error)),
+							{
+								requestId,
+								usedProvider,
+								requestedProvider,
+								usedModel,
+								initialRequestedModel,
+								upstreamStatus: res?.status ?? null,
+								upstreamStatusText: res?.statusText ?? null,
+								upstreamHeaders: res
+									? {
+											contentType: res.headers.get("content-type"),
+											contentLength: res.headers.get("content-length"),
+											transferEncoding: res.headers.get("transfer-encoding"),
+											requestId:
+												res.headers.get("x-request-id") ??
+												res.headers.get("request-id") ??
+												res.headers.get("openai-request-id"),
+										}
+									: null,
+								streamingDiagnostics: normalizedStreamingError.log.details,
+								timeToFirstToken,
+								timeToFirstReasoningToken,
+								firstTokenReceived,
+								firstReasoningTokenReceived,
+								unifiedFinishReason: getUnifiedFinishReason(
+									normalizedStreamingError.client.type === "gateway_error"
+										? "gateway_error"
+										: "upstream_error",
+									usedProvider,
+								),
+							},
 						);
 
 						// Forward the error to the client with the buffered content that caused the error
@@ -4760,14 +6756,7 @@ chat.openapi(completions, async (c) => {
 							await stream.writeSSE({
 								event: "error",
 								data: JSON.stringify({
-									error: {
-										message: `Streaming error: ${error instanceof Error ? error.message : String(error)}`,
-										type: "gateway_error",
-										param: null,
-										code: "streaming_error",
-										// Include the buffer content that caused the parsing error
-										responseText: buffer.substring(0, 5000), // Limit to 5000 chars to avoid too large error messages
-									},
+									error: normalizedStreamingError.client,
 								}),
 								id: String(eventId++),
 							});
@@ -4786,20 +6775,7 @@ chat.openapi(completions, async (c) => {
 							);
 						}
 
-						// Create structured error object for logging
-						streamingError = {
-							message: error instanceof Error ? error.message : String(error),
-							type: "streaming_error",
-							code: "streaming_error",
-							details: {
-								name: error instanceof Error ? error.name : "UnknownError",
-								stack: error instanceof Error ? error.stack : undefined,
-								timestamp: new Date().toISOString(),
-								provider: usedProvider,
-								model: usedModel,
-								bufferSnapshot: buffer ? buffer.substring(0, 5000) : undefined,
-							},
-						};
+						streamingError = normalizedStreamingError.log;
 					}
 				} finally {
 					// Clean up the reader to prevent file descriptor leaks
@@ -4874,32 +6850,125 @@ chat.openapi(completions, async (c) => {
 								estimateTokensFromContent(fullReasoningContent);
 						}
 					}
+
+					if (
+						!streamingError &&
+						!canceled &&
+						finishReason === null &&
+						sawOpenAiResponsesDoneEvent &&
+						sawOpenAiResponsesCompletedStatus
+					) {
+						sawProviderTerminalEvent = true;
+						finishReason =
+							streamingToolCalls && streamingToolCalls.length > 0
+								? "tool_calls"
+								: "stop";
+					}
+
+					const streamHasVerifiedTerminalEvent =
+						sawUpstreamDoneSentinel ||
+						sawProviderTerminalEvent ||
+						handledTerminalProviderEvent;
+					// A terminal finish reason (stop, tool_calls, length) also counts
+					// as a valid stream completion — some providers (e.g. MiniMax)
+					// send finish_reason but omit the [DONE] sentinel.
+					const hasTerminalFinishReason =
+						finishReason !== null &&
+						finishReason !== "upstream_error" &&
+						finishReason !== "gateway_error";
+					const streamEndedWithoutTerminalEvent =
+						!streamingError &&
+						!canceled &&
+						!streamHasVerifiedTerminalEvent &&
+						!hasTerminalFinishReason;
+					if (streamEndedWithoutTerminalEvent) {
+						const hasBufferedNonWhitespace = /\S/u.test(buffer);
+						const responseText = hasBufferedNonWhitespace
+							? buffer.slice(0, 5000)
+							: "Stream ended before a terminal finish reason or [DONE] event";
+						const errorMessage =
+							"Upstream stream terminated unexpectedly before completion";
+
+						logger.warn("[streaming] Stream ended without terminal event", {
+							provider: usedProvider,
+							model: usedModel,
+							bufferLength: buffer.length,
+							fullContentLength: fullContent.length,
+							hasToolCalls:
+								!!streamingToolCalls && streamingToolCalls.length > 0,
+							unifiedFinishReason: getUnifiedFinishReason(
+								"upstream_error",
+								usedProvider,
+							),
+						});
+
+						streamingError = {
+							message: errorMessage,
+							type: "upstream_error",
+							code: "stream_truncated",
+							details: {
+								statusCode: 502,
+								statusText: "Upstream Stream Terminated",
+								responseText,
+								timestamp: new Date().toISOString(),
+								provider: usedProvider,
+								model: usedModel,
+								bufferLength: buffer.length,
+							},
+						};
+						finishReason = "upstream_error";
+
+						try {
+							await writeSSEAndCache({
+								event: "error",
+								data: JSON.stringify({
+									error: {
+										message: errorMessage,
+										type: "upstream_error",
+										code: "stream_truncated",
+										param: null,
+										responseText,
+									},
+								}),
+								id: String(eventId++),
+							});
+							await writeSSEAndCache({
+								event: "done",
+								data: "[DONE]",
+								id: String(eventId++),
+							});
+							doneSent = true;
+						} catch (sseError) {
+							logger.error(
+								"Failed to send truncated stream error SSE",
+								sseError instanceof Error
+									? sseError
+									: new Error(String(sseError)),
+							);
+						}
+					}
+
 					// Check if the response finished successfully but has no content, tokens, or tool calls
 					// This indicates an empty response which should be marked as an error
 					// Do this check BEFORE sending usage chunks to ensure proper event ordering
-					// Exclude content_filter responses as they are intentionally empty (blocked by provider)
-					// For Google, check for original finish reasons that indicate content filtering
-					// These include both finishReason values and promptFeedback.blockReason values
-					const isGoogleContentFilterStreaming =
-						(usedProvider === "google-ai-studio" ||
-							usedProvider === "google-vertex" ||
-							usedProvider === "obsidian") &&
-						(finishReason === "SAFETY" ||
-							finishReason === "PROHIBITED_CONTENT" ||
-							finishReason === "RECITATION" ||
-							finishReason === "BLOCKLIST" ||
-							finishReason === "SPII" ||
-							finishReason === "OTHER");
+					// Exclude content filter responses as they are intentionally empty.
+					const isContentFilterStreamingResponse = isContentFilterFinishReason(
+						finishReason,
+						usedProvider,
+					);
 					const hasEmptyResponse =
 						!streamingError &&
 						finishReason &&
-						finishReason !== "content_filter" &&
 						finishReason !== "incomplete" &&
-						!isGoogleContentFilterStreaming &&
+						!isContentFilterStreamingResponse &&
 						(!calculatedCompletionTokens || calculatedCompletionTokens === 0) &&
 						(!calculatedReasoningTokens || calculatedReasoningTokens === 0) &&
 						(!fullContent || fullContent.trim() === "") &&
 						(!streamingToolCalls || streamingToolCalls.length === 0);
+
+					let streamingCostsEarly:
+						| Awaited<ReturnType<typeof calculateCosts>>
+						| undefined;
 
 					if (hasEmptyResponse) {
 						logger.warn("[streaming] Empty response detected", {
@@ -4915,6 +6984,10 @@ chat.openapi(completions, async (c) => {
 							completionTokens,
 							totalTokens,
 							reasoningTokens,
+							unifiedFinishReason: getUnifiedFinishReason(
+								"upstream_error",
+								usedProvider,
+							),
 						});
 						const errorMessage =
 							"Response finished successfully but returned no content or tool calls";
@@ -4950,23 +7023,14 @@ chat.openapi(completions, async (c) => {
 									: new Error(String(sseError)),
 							);
 						}
-					} else {
-						// Send final usage chunk if we need to send usage data
-						// This includes cases where:
-						// 1. No usage tokens were provided at all (all null)
-						// 2. Some tokens are missing (e.g., Google AI Studio doesn't provide completion tokens during streaming)
-						const needsUsageChunk =
-							(promptTokens === null &&
-								completionTokens === null &&
-								totalTokens === null &&
-								(calculatedPromptTokens !== null ||
-									calculatedCompletionTokens !== null)) ||
-							(completionTokens === null &&
-								calculatedCompletionTokens !== null);
-
-						if (needsUsageChunk) {
+					} else if (!streamingError && !doneSent) {
+						if (
+							finishReason &&
+							!sentDownstreamFinishReasonChunk &&
+							!shouldBufferForHealing
+						) {
 							try {
-								const finalUsageChunk = {
+								const finishChunk = {
 									id: `chatcmpl-${Date.now()}`,
 									object: "chat.completion.chunk",
 									created: Math.floor(Date.now() / 1000),
@@ -4975,56 +7039,132 @@ chat.openapi(completions, async (c) => {
 										{
 											index: 0,
 											delta: {},
-											finish_reason: null,
+											finish_reason: finishReason,
 										},
 									],
-									usage: (() => {
-										// Only add image input tokens for providers that
-										// exclude them from upstream usage (Google)
-										const providerExcludesImageInput =
-											usedProvider === "google-ai-studio" ||
-											usedProvider === "google-vertex" ||
-											usedProvider === "obsidian";
-										const imageInputAdj = providerExcludesImageInput
-											? inputImageCount * 560
-											: 0;
-										const adjPrompt = Math.max(
-											1,
-											Math.round(
-												promptTokens && promptTokens > 0
-													? promptTokens + imageInputAdj
-													: (calculatedPromptTokens ?? 1) + imageInputAdj,
-											),
-										);
-										const adjCompletion = Math.round(
-											completionTokens ?? calculatedCompletionTokens ?? 0,
-										);
-										return {
-											prompt_tokens: adjPrompt,
-											completion_tokens: adjCompletion,
-											total_tokens: Math.max(
-												1,
-												Math.round(adjPrompt + adjCompletion),
-											),
-											...(cachedTokens !== null && {
-												prompt_tokens_details: {
-													cached_tokens: cachedTokens,
-												},
-											}),
-										};
-									})(),
 								};
 
 								await writeSSEAndCache({
-									data: JSON.stringify(finalUsageChunk),
+									data: JSON.stringify(finishChunk),
 									id: String(eventId++),
 								});
+								sentDownstreamFinishReasonChunk = true;
 							} catch (error) {
 								logger.error(
-									"Error sending final usage chunk",
+									"Error sending synthesized finish chunk",
 									error instanceof Error ? error : new Error(String(error)),
 								);
 							}
+						}
+
+						// Calculate costs before sending usage chunk so we can include cost data
+						const billCancelledRequestsEarly = shouldBillCancelledRequests();
+						streamingCostsEarly =
+							canceled && !billCancelledRequestsEarly
+								? {
+										inputCost: null,
+										outputCost: null,
+										cachedInputCost: null,
+										requestCost: null,
+										webSearchCost: null,
+										imageInputTokens: null,
+										imageOutputTokens: null,
+										imageInputCost: null,
+										imageOutputCost: null,
+										totalCost: null,
+										promptTokens: null,
+										completionTokens: null,
+										cachedTokens: null,
+										estimatedCost: false,
+										discount: undefined,
+										pricingTier: undefined,
+									}
+								: await calculateCosts(
+										usedModel,
+										usedProvider,
+										calculatedPromptTokens,
+										calculatedCompletionTokens,
+										cachedTokens,
+										{
+											prompt: messages
+												.map((m) => messageContentToString(m.content))
+												.join("\n"),
+											completion: fullContent,
+											toolResults: streamingToolCalls ?? undefined,
+										},
+										reasoningTokens,
+										outputImageCount,
+										image_config?.image_size,
+										inputImageCount,
+										webSearchCount,
+										project.organizationId,
+									);
+
+						// Always send final usage chunk with cost data for SDK compatibility
+						try {
+							const finalUsageChunk = {
+								id: `chatcmpl-${Date.now()}`,
+								object: "chat.completion.chunk",
+								created: Math.floor(Date.now() / 1000),
+								model: usedModel,
+								choices: [
+									{
+										index: 0,
+										delta: {},
+										finish_reason: null,
+									},
+								],
+								usage: (() => {
+									// Only add image input tokens for providers that
+									// exclude them from upstream usage (Google)
+									const providerExcludesImageInput =
+										isGoogleCompatibleProvider(usedProvider);
+									const imageInputAdj = providerExcludesImageInput
+										? inputImageCount * 560
+										: 0;
+									const adjPrompt = Math.max(
+										1,
+										Math.round(
+											promptTokens && promptTokens > 0
+												? promptTokens + imageInputAdj
+												: (calculatedPromptTokens ?? 1) + imageInputAdj,
+										),
+									);
+									const adjCompletion = Math.round(
+										completionTokens ?? calculatedCompletionTokens ?? 0,
+									);
+									return {
+										prompt_tokens: adjPrompt,
+										completion_tokens: adjCompletion,
+										total_tokens: Math.max(
+											1,
+											Math.round(adjPrompt + adjCompletion),
+										),
+										...(cachedTokens !== null && {
+											prompt_tokens_details: {
+												cached_tokens: cachedTokens,
+											},
+										}),
+										cost_usd_total: streamingCostsEarly.totalCost,
+										cost_usd_input: streamingCostsEarly.inputCost,
+										cost_usd_output: streamingCostsEarly.outputCost,
+										cost_usd_cached_input: streamingCostsEarly.cachedInputCost,
+										cost_usd_request: streamingCostsEarly.requestCost,
+										cost_usd_image_input: streamingCostsEarly.imageInputCost,
+										cost_usd_image_output: streamingCostsEarly.imageOutputCost,
+									};
+								})(),
+							};
+
+							await writeSSEAndCache({
+								data: JSON.stringify(finalUsageChunk),
+								id: String(eventId++),
+							});
+						} catch (error) {
+							logger.error(
+								"Error sending final usage chunk",
+								error instanceof Error ? error : new Error(String(error)),
+							);
 						}
 
 						// Send healed content if buffering was enabled
@@ -5120,7 +7260,10 @@ chat.openapi(completions, async (c) => {
 									],
 									metadata: {
 										requested_model: initialRequestedModel,
-										requested_provider: requestedProvider ?? null,
+										requested_provider: getPublicRequestedProvider(
+											requestedProvider,
+										),
+										routing: routingAttempts,
 									},
 								};
 								await writeSSEAndCache({
@@ -5156,12 +7299,20 @@ chat.openapi(completions, async (c) => {
 					// clearInterval is idempotent so calling it multiple times is safe
 					clearKeepalive();
 
-					// Check if we should bill cancelled requests
-					const billCancelledRequests = shouldBillCancelledRequests();
+					if (splitTaggedReasoning && !fullReasoningContent) {
+						const splitContent = splitReasoningFromTaggedContent(fullContent);
+						if (splitContent.reasoningContent) {
+							fullContent = splitContent.content ?? "";
+							fullReasoningContent = splitContent.reasoningContent;
+						}
+					}
 
-					// Calculate costs - for cancelled requests, only bill if env var is enabled
+					// Reuse costs calculated earlier (before usage chunk was sent)
+					// If we came through the error path (hasEmptyResponse), calculate now
+					const billCancelledRequests = shouldBillCancelledRequests();
 					const costs =
-						canceled && !billCancelledRequests
+						streamingCostsEarly ??
+						(canceled && !billCancelledRequests
 							? {
 									inputCost: null,
 									outputCost: null,
@@ -5199,7 +7350,7 @@ chat.openapi(completions, async (c) => {
 									inputImageCount,
 									webSearchCount,
 									project.organizationId,
-								);
+								));
 
 					// Use costs.promptTokens as canonical value (includes image input
 					// tokens for providers that exclude them from upstream usage)
@@ -5259,11 +7410,7 @@ chat.openapi(completions, async (c) => {
 					);
 
 					// Enhanced logging for Google models streaming to debug missing responses
-					if (
-						usedProvider === "google-ai-studio" ||
-						usedProvider === "google-vertex" ||
-						usedProvider === "obsidian"
-					) {
+					if (isGoogleCompatibleProvider(usedProvider)) {
 						logger.debug("Google model streaming response completed", {
 							usedProvider,
 							usedModel,
@@ -5285,7 +7432,18 @@ chat.openapi(completions, async (c) => {
 					const shouldIncludeTokensForBilling =
 						!canceled || (canceled && billCancelledRequests);
 
-					await insertLog({
+					const streamingErrorStatusCode =
+						typeof streamingError === "object" &&
+						streamingError !== null &&
+						"details" in streamingError &&
+						typeof streamingError.details === "object" &&
+						streamingError.details !== null &&
+						"statusCode" in streamingError.details &&
+						typeof streamingError.details.statusCode === "number"
+							? streamingError.details.statusCode
+							: 500;
+
+					await insertLogEntry({
 						...baseLogEntry,
 						id: routingAttempts.length > 0 ? finalLogId : undefined,
 						duration,
@@ -5313,16 +7471,7 @@ chat.openapi(completions, async (c) => {
 						hasError: streamingError !== null,
 						errorDetails: streamingError
 							? {
-									statusCode:
-										typeof streamingError === "object" &&
-										streamingError !== null &&
-										"details" in streamingError &&
-										typeof streamingError.details === "object" &&
-										streamingError.details !== null &&
-										"statusCode" in streamingError.details &&
-										typeof streamingError.details.statusCode === "number"
-											? streamingError.details.statusCode
-											: 500,
+									statusCode: streamingErrorStatusCode,
 									statusText:
 										typeof streamingError === "object" &&
 										streamingError !== null &&
@@ -5381,12 +7530,19 @@ chat.openapi(completions, async (c) => {
 						toolChoice: tool_choice,
 					});
 
-					// Report key health for environment-based tokens
+					// Report key health for the selected token source
 					if (envVarName !== undefined) {
 						if (streamingError !== null) {
-							reportKeyError(envVarName, configIndex, 500);
+							reportKeyError(envVarName, configIndex, streamingErrorStatusCode);
 						} else {
 							reportKeySuccess(envVarName, configIndex);
+						}
+					}
+					if (providerKey?.id) {
+						if (streamingError !== null) {
+							reportTrackedKeyError(providerKey.id, streamingErrorStatusCode);
+						} else {
+							reportTrackedKeySuccess(providerKey.id);
 						}
 					}
 
@@ -5463,14 +7619,14 @@ chat.openapi(completions, async (c) => {
 	let isTimeoutFetchError = false;
 	let res: Response | undefined;
 	let duration = 0;
-	const finalLogId = shortid();
+	const finalLogId = logIdOverride ?? shortid();
 	for (let retryAttempt = 0; retryAttempt <= MAX_RETRIES; retryAttempt++) {
 		const perAttemptStartTime = Date.now();
 
 		// Type guard: narrow variables that TypeScript widens due to loop reassignment
 		if (
 			!usedProvider ||
-			usedToken === undefined ||
+			!usedToken ||
 			!url ||
 			!usedModelFormatted ||
 			!usedModelMapping
@@ -5491,65 +7647,34 @@ chat.openapi(completions, async (c) => {
 				break;
 			}
 
-			try {
-				const ctx = await resolveProviderContext(
-					nextProvider,
-					{
-						mode: project.mode,
-						organizationId: project.organizationId,
-					},
-					{
-						id: organization.id,
-						credits: organization.credits,
-						devPlan: organization.devPlan,
-						devPlanCreditsLimit: organization.devPlanCreditsLimit,
-						devPlanCreditsUsed: organization.devPlanCreditsUsed,
-						devPlanExpiresAt: organization.devPlanExpiresAt,
-					},
-					modelInfo,
-					originalRequestParams,
-					{
-						stream,
-						effectiveStream,
-						messages: messages as BaseMessage[],
-						response_format,
-						tools,
-						tool_choice,
-						reasoning_effort,
-						reasoning_max_tokens,
-						effort,
-						webSearchTool,
-						image_config,
-						sensitive_word_check,
-						maxImageSizeMB,
-						userPlan,
-						hasExistingToolCalls,
-						customProviderName,
-						webSearchEnabled: !!webSearchTool,
-					},
+			// Check if the fallback candidate is rate-limited
+			const retryRateLimitPeek = await peekProviderRateLimit(
+				project.organizationId,
+				nextProvider.providerId,
+				modelInfo.id,
+				nextProvider.modelName,
+			);
+			if (retryRateLimitPeek.rateLimited) {
+				failedProviderIds.add(
+					providerRetryKey(nextProvider.providerId, nextProvider.region),
 				);
-				usedProvider = ctx.usedProvider;
-				usedModel = ctx.usedModel;
-				usedModelFormatted = ctx.usedModelFormatted;
-				usedModelMapping = ctx.usedModelMapping;
-				baseModelName = ctx.baseModelName;
-				usedToken = ctx.usedToken;
-				providerKey = ctx.providerKey;
-				configIndex = ctx.configIndex;
-				envVarName = ctx.envVarName;
-				url = ctx.url;
-				requestBody = ctx.requestBody;
-				useResponsesApi = ctx.useResponsesApi;
-				requestCanBeCanceled = ctx.requestCanBeCanceled;
-				isImageGeneration = ctx.isImageGeneration;
-				supportsReasoning = ctx.supportsReasoning;
-				temperature = ctx.temperature;
-				max_tokens = ctx.max_tokens;
-				top_p = ctx.top_p;
-				frequency_penalty = ctx.frequency_penalty;
-				presence_penalty = ctx.presence_penalty;
+				const scoreEntry = routingMetadata?.providerScores.find(
+					(s) => s.providerId === nextProvider.providerId,
+				);
+				if (scoreEntry) {
+					scoreEntry.rate_limited = true;
+				}
+				retryAttempt--;
+				continue;
+			}
+
+			try {
+				const ctx = await resolveProviderContextForRetry(nextProvider, stream);
+				applyResolvedProviderContext(ctx);
 			} catch {
-				failedProviderIds.add(nextProvider.providerId);
+				failedProviderIds.add(
+					providerRetryKey(nextProvider.providerId, nextProvider.region),
+				);
 				// Don't consume a retry slot for context-resolution failures
 				retryAttempt--;
 				continue;
@@ -5564,6 +7689,7 @@ chat.openapi(completions, async (c) => {
 
 		try {
 			const headers = getProviderHeaders(usedProvider, usedToken, {
+				requestId,
 				webSearchEnabled: !!webSearchTool,
 			});
 			headers["Content-Type"] = "application/json";
@@ -5633,6 +7759,10 @@ chat.openapi(completions, async (c) => {
 				requestedProvider,
 				usedModel,
 				initialRequestedModel,
+				unifiedFinishReason: getUnifiedFinishReason(
+					"upstream_error",
+					usedProvider,
+				),
 			});
 
 			// Log the error in the database
@@ -5640,10 +7770,23 @@ chat.openapi(completions, async (c) => {
 			const nonStreamingFetchErrorPluginIds = plugins?.map((p) => p.id) ?? [];
 
 			// Check if we should retry before logging so we can mark the log as retried
+			let sameProviderRetryContext: Awaited<
+				ReturnType<typeof resolveProviderContext>
+			> | null = null;
+			if (isRetryableErrorType("network_error")) {
+				rememberFailedKey(usedProvider, usedRegion, {
+					envVarName,
+					configIndex,
+					providerKeyId: providerKey?.id,
+				});
+				sameProviderRetryContext =
+					await tryResolveAlternateKeyForCurrentProvider(stream);
+			}
+
 			const willRetryFetchNonStreaming = shouldRetryRequest({
 				requestedProvider,
 				noFallback,
-				statusCode: 0,
+				errorType: "network_error",
 				retryCount: retryAttempt,
 				remainingProviders:
 					(routingMetadata?.providerScores.length ?? 0) -
@@ -5651,6 +7794,9 @@ chat.openapi(completions, async (c) => {
 					1,
 				usedProvider,
 			});
+			const willRetrySameProvider = sameProviderRetryContext !== null;
+			const willRetryRequest =
+				willRetrySameProvider || willRetryFetchNonStreaming;
 
 			const baseLogEntry = createLogEntry(
 				requestId,
@@ -5687,9 +7833,11 @@ chat.openapi(completions, async (c) => {
 				nonStreamingFetchErrorPluginIds,
 				undefined, // No plugin results for error case
 			);
+			const attemptLogId = shortid();
 
-			await insertLog({
+			await insertLogEntry({
 				...baseLogEntry,
+				id: attemptLogId,
 				duration: perAttemptDuration,
 				timeToFirstToken: null, // Not applicable for error case
 				timeToFirstReasoningToken: null, // Not applicable for error case
@@ -5723,29 +7871,59 @@ chat.openapi(completions, async (c) => {
 				dataStorageCost: "0",
 				cached: false,
 				toolResults: null,
-				retried: willRetryFetchNonStreaming,
-				retriedByLogId: willRetryFetchNonStreaming ? finalLogId : null,
+				retried: willRetryRequest,
+				retriedByLogId: willRetryRequest ? finalLogId : null,
 			});
 
-			// Report key health for environment-based tokens
+			// Report key health for the selected token source
 			if (envVarName !== undefined) {
 				reportKeyError(envVarName, configIndex, 0);
 			}
+			if (providerKey?.id) {
+				reportTrackedKeyError(providerKey.id, 0);
+			}
+
+			if (willRetrySameProvider && sameProviderRetryContext) {
+				routingAttempts.push(
+					buildRoutingAttempt(
+						usedProvider,
+						baseModelName,
+						0,
+						getErrorType(0),
+						false,
+						{
+							region: usedRegion,
+							apiKeyHash: usedApiKeyHash,
+							logId: attemptLogId,
+						},
+					),
+				);
+				applyResolvedProviderContext(sameProviderRetryContext);
+				retryAttempt--;
+				continue;
+			}
 
 			if (willRetryFetchNonStreaming) {
-				routingAttempts.push({
-					provider: usedProvider,
-					model: usedModel,
-					status_code: 0,
-					error_type: getErrorType(0),
-					succeeded: false,
-				});
-				failedProviderIds.add(usedProvider);
+				routingAttempts.push(
+					buildRoutingAttempt(
+						usedProvider,
+						baseModelName,
+						0,
+						getErrorType(0),
+						false,
+						{
+							region: usedRegion,
+							apiKeyHash: usedApiKeyHash,
+							logId: attemptLogId,
+						},
+					),
+				);
+				failedProviderIds.add(providerRetryKey(usedProvider, usedRegion));
 				continue;
 			}
 
 			// Return error response - use 504 for timeouts, 502 for other connection failures
-			return jsonResponse(
+			return c.json(
 				{
 					error: {
 						message: isTimeoutFetchError
@@ -5846,7 +8024,7 @@ chat.openapi(completions, async (c) => {
 				undefined, // No plugin results for canceled request
 			);
 
-			await insertLog({
+			await insertLogEntry({
 				...baseLogEntry,
 				duration,
 				timeToFirstToken: null, // Not applicable for canceled request
@@ -5894,7 +8072,7 @@ chat.openapi(completions, async (c) => {
 				toolResults: null,
 			});
 
-			return jsonResponse(
+			return c.json(
 				{
 					error: {
 						message: "Request canceled by client",
@@ -5929,6 +8107,10 @@ chat.openapi(completions, async (c) => {
 						usedModel,
 						status: res.status,
 						cause: bodyErrorCause,
+						unifiedFinishReason: getUnifiedFinishReason(
+							"upstream_error",
+							usedProvider,
+						),
 					});
 
 					const bodyTimeoutPluginIds = plugins?.map((p) => p.id) ?? [];
@@ -5968,7 +8150,7 @@ chat.openapi(completions, async (c) => {
 						undefined,
 					);
 
-					await insertLog({
+					await insertLogEntry({
 						...baseLogEntry,
 						duration: Date.now() - perAttemptStartTime,
 						timeToFirstToken: null,
@@ -6005,7 +8187,7 @@ chat.openapi(completions, async (c) => {
 						toolResults: null,
 					});
 
-					return jsonResponse(
+					return c.json(
 						{
 							error: {
 								message: `Upstream provider timeout: ${errorMessage}`,
@@ -6040,6 +8222,10 @@ chat.openapi(completions, async (c) => {
 					organizationId: project.organizationId,
 					projectId: apiKey.projectId,
 					apiKeyId: apiKey.id,
+					unifiedFinishReason: getUnifiedFinishReason(
+						finishReason,
+						usedProvider,
+					),
 				});
 			}
 
@@ -6047,11 +8233,24 @@ chat.openapi(completions, async (c) => {
 			// Extract plugin IDs for logging
 			const providerErrorPluginIds = plugins?.map((p) => p.id) ?? [];
 
+			let sameProviderRetryContext: Awaited<
+				ReturnType<typeof resolveProviderContext>
+			> | null = null;
+			if (isRetryableErrorType(finishReason)) {
+				rememberFailedKey(usedProvider, usedRegion, {
+					envVarName,
+					configIndex,
+					providerKeyId: providerKey?.id,
+				});
+				sameProviderRetryContext =
+					await tryResolveAlternateKeyForCurrentProvider(stream);
+			}
+
 			// Check if we should retry before logging so we can mark the log as retried
 			const willRetryHttpNonStreaming = shouldRetryRequest({
 				requestedProvider,
 				noFallback,
-				statusCode: res.status,
+				errorType: finishReason,
 				retryCount: retryAttempt,
 				remainingProviders:
 					(routingMetadata?.providerScores.length ?? 0) -
@@ -6059,6 +8258,9 @@ chat.openapi(completions, async (c) => {
 					1,
 				usedProvider,
 			});
+			const willRetrySameProvider = sameProviderRetryContext !== null;
+			const willRetryRequest =
+				willRetrySameProvider || willRetryHttpNonStreaming;
 
 			const baseLogEntry = createLogEntry(
 				requestId,
@@ -6095,9 +8297,11 @@ chat.openapi(completions, async (c) => {
 				providerErrorPluginIds,
 				undefined, // No plugin results for error case
 			);
+			const attemptLogId = shortid();
 
-			await insertLog({
+			await insertLogEntry({
 				...baseLogEntry,
+				id: attemptLogId,
 				duration: perAttemptDuration,
 				timeToFirstToken: null, // Not applicable for error case
 				timeToFirstReasoningToken: null, // Not applicable for error case
@@ -6150,32 +8354,62 @@ chat.openapi(completions, async (c) => {
 				dataStorageCost: "0",
 				cached: false,
 				toolResults: null,
-				retried: willRetryHttpNonStreaming,
-				retriedByLogId: willRetryHttpNonStreaming ? finalLogId : null,
+				retried: willRetryRequest,
+				retriedByLogId: willRetryRequest ? finalLogId : null,
 			});
 
-			// Report key health for environment-based tokens
+			// Report key health for the selected token source
 			// Don't report content_filter as a key error - it's intentional provider behavior
 			if (envVarName !== undefined && finishReason !== "content_filter") {
 				reportKeyError(envVarName, configIndex, res.status, errorResponseText);
 			}
+			if (providerKey?.id && finishReason !== "content_filter") {
+				reportTrackedKeyError(providerKey.id, res.status, errorResponseText);
+			}
+
+			if (willRetrySameProvider && sameProviderRetryContext) {
+				routingAttempts.push(
+					buildRoutingAttempt(
+						usedProvider,
+						baseModelName,
+						res.status,
+						getErrorType(res.status),
+						false,
+						{
+							region: usedRegion,
+							apiKeyHash: usedApiKeyHash,
+							logId: attemptLogId,
+						},
+					),
+				);
+				applyResolvedProviderContext(sameProviderRetryContext);
+				retryAttempt--;
+				continue;
+			}
 
 			if (willRetryHttpNonStreaming) {
-				routingAttempts.push({
-					provider: usedProvider,
-					model: usedModel,
-					status_code: res.status,
-					error_type: getErrorType(res.status),
-					succeeded: false,
-				});
-				failedProviderIds.add(usedProvider);
+				routingAttempts.push(
+					buildRoutingAttempt(
+						usedProvider,
+						baseModelName,
+						res.status,
+						getErrorType(res.status),
+						false,
+						{
+							region: usedRegion,
+							apiKeyHash: usedApiKeyHash,
+							logId: attemptLogId,
+						},
+					),
+				);
+				failedProviderIds.add(providerRetryKey(usedProvider, usedRegion));
 				continue;
 			}
 
 			// For content_filter, return a proper completion response (not an error)
 			// This handles Azure ResponsibleAIPolicyViolation and similar content filtering errors
 			if (finishReason === "content_filter") {
-				return jsonResponse({
+				return c.json({
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion",
 					created: Math.floor(Date.now() / 1000),
@@ -6196,8 +8430,11 @@ chat.openapi(completions, async (c) => {
 						total_tokens: 0,
 					},
 					metadata: {
+						request_id: requestId,
 						requested_model: initialRequestedModel,
-						requested_provider: requestedProvider,
+						requested_provider: getPublicRequestedProvider(
+							requestedProvider,
+						),
 					},
 				});
 			}
@@ -6206,14 +8443,14 @@ chat.openapi(completions, async (c) => {
 			if (finishReason === "client_error") {
 				try {
 					const originalError = JSON.parse(errorResponseText);
-					return jsonResponse(originalError, res.status);
+					return c.json(originalError, res.status as 400);
 				} catch {
 					// If we can't parse the original error, fall back to our format
 				}
 			}
 
 			// Return our wrapped error response for non-client errors
-			return jsonResponse(
+			return c.json(
 				{
 					error: {
 						message: `Error from provider: ${res.status} ${res.statusText} ${errorResponseText}`,
@@ -6236,13 +8473,20 @@ chat.openapi(completions, async (c) => {
 
 	// Add the final attempt (successful or last failed) to routing
 	if (res && res.ok && usedProvider) {
-		routingAttempts.push({
-			provider: usedProvider,
-			model: usedModel,
-			status_code: res.status,
-			error_type: "none",
-			succeeded: true,
-		});
+		routingAttempts.push(
+			buildRoutingAttempt(
+				usedProvider,
+				baseModelName,
+				res.status,
+				"none",
+				true,
+				{
+					region: usedRegion,
+					apiKeyHash: usedApiKeyHash,
+					logId: finalLogId,
+				},
+			),
+		);
 	}
 
 	// Update routingMetadata with all routing attempts for DB logging
@@ -6271,7 +8515,7 @@ chat.openapi(completions, async (c) => {
 
 	if (!res || !res.ok) {
 		// All retries exhausted
-		return jsonResponse(
+		return c.json(
 			{
 				error: {
 					message: "All provider attempts failed",
@@ -6291,7 +8535,92 @@ chat.openapi(completions, async (c) => {
 
 	let json: any;
 	try {
-		json = await res.json();
+		if (forceStream && res.body) {
+			// Stream-only model: upstream returned SSE but client expects JSON.
+			// Read the full stream and assemble a non-streaming response.
+			const text = await res.text();
+			const lines = text.split("\n");
+			let content = "";
+			const toolCalls: any[] = [];
+			let finishReason: string | null = null;
+			let usage: any = null;
+			let responseId = "";
+			let model = "";
+			let created = 0;
+
+			for (const line of lines) {
+				if (!line.startsWith("data: ") || line === "data: [DONE]") {
+					continue;
+				}
+				try {
+					const chunk = JSON.parse(line.slice(6));
+					if (!responseId && chunk.id) {
+						responseId = chunk.id;
+					}
+					if (!model && chunk.model) {
+						model = chunk.model;
+					}
+					if (!created && chunk.created) {
+						created = chunk.created;
+					}
+					const delta = chunk.choices?.[0]?.delta;
+					if (delta?.content) {
+						content += delta.content;
+					}
+					if (delta?.tool_calls) {
+						for (const tc of delta.tool_calls) {
+							const idx = tc.index ?? 0;
+							if (!toolCalls[idx]) {
+								toolCalls[idx] = {
+									id: tc.id ?? "",
+									type: tc.type ?? "function",
+									function: { name: tc.function?.name ?? "", arguments: "" },
+								};
+							} else {
+								if (tc.id) {
+									toolCalls[idx].id = tc.id;
+								}
+								if (tc.function?.name) {
+									toolCalls[idx].function.name = tc.function.name;
+								}
+							}
+							if (tc.function?.arguments) {
+								toolCalls[idx].function.arguments += tc.function.arguments;
+							}
+						}
+					}
+					if (chunk.choices?.[0]?.finish_reason) {
+						finishReason = chunk.choices[0].finish_reason;
+					}
+					if (chunk.usage) {
+						usage = chunk.usage;
+					}
+				} catch {
+					// skip unparseable lines
+				}
+			}
+
+			json = {
+				id: responseId,
+				object: "chat.completion",
+				created,
+				model,
+				choices: [
+					{
+						index: 0,
+						message: {
+							role: "assistant",
+							content: content || null,
+							...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
+						},
+						finish_reason: finishReason ?? "stop",
+					},
+				],
+				...(usage ? { usage } : {}),
+			};
+		} else {
+			json = await res.json();
+		}
 	} catch (bodyError) {
 		if (isTimeoutError(bodyError)) {
 			const errorMessage =
@@ -6304,6 +8633,10 @@ chat.openapi(completions, async (c) => {
 				usedModel,
 				initialRequestedModel,
 				cause: bodyReadCause,
+				unifiedFinishReason: getUnifiedFinishReason(
+					"upstream_error",
+					usedProvider,
+				),
 			});
 
 			const bodyTimeoutPluginIds = plugins?.map((p) => p.id) ?? [];
@@ -6343,7 +8676,7 @@ chat.openapi(completions, async (c) => {
 				undefined,
 			);
 
-			await insertLog({
+			await insertLogEntry({
 				...baseLogEntry,
 				duration: Date.now() - startTime,
 				timeToFirstToken: null,
@@ -6380,7 +8713,7 @@ chat.openapi(completions, async (c) => {
 				toolResults: null,
 			});
 
-			return jsonResponse(
+			return c.json(
 				{
 					error: {
 						message: `Upstream provider timeout: ${errorMessage}`,
@@ -6409,6 +8742,8 @@ chat.openapi(completions, async (c) => {
 		usedModel,
 		json,
 		messages,
+		supportsReasoning,
+		splitTaggedReasoning,
 	);
 	let { content, totalTokens } = parsedResponse;
 	const {
@@ -6424,7 +8759,6 @@ chat.openapi(completions, async (c) => {
 		webSearchCount,
 	} = parsedResponse;
 
-	// Apply response healing if enabled and response_format is json_object or json_schema
 	const responseHealingEnabled = plugins?.some(
 		(p) => p.id === "response-healing",
 	);
@@ -6440,7 +8774,13 @@ chat.openapi(completions, async (c) => {
 		};
 	} = {};
 
-	if (responseHealingEnabled && isJsonResponseFormat && content) {
+	const shouldHealNonStreaming =
+		isJsonResponseFormat &&
+		(responseHealingEnabled === true ||
+			usedProvider === "novita" ||
+			splitTaggedReasoning);
+
+	if (shouldHealNonStreaming && content) {
 		const healingResult = healJsonResponse(content);
 		pluginResults.responseHealing = {
 			healed: healingResult.healed,
@@ -6457,11 +8797,7 @@ chat.openapi(completions, async (c) => {
 	}
 
 	// Enhanced logging for Google models to debug missing responses
-	if (
-		usedProvider === "google-ai-studio" ||
-		usedProvider === "google-vertex" ||
-		usedProvider === "obsidian"
-	) {
+	if (isGoogleCompatibleProvider(usedProvider)) {
 		logger.debug("Google model response parsed", {
 			usedProvider,
 			usedModel,
@@ -6575,7 +8911,7 @@ chat.openapi(completions, async (c) => {
 		toolResults,
 		convertedImages,
 		modelInput,
-		requestedProvider ?? null,
+		getPublicRequestedProvider(requestedProvider),
 		baseModelName,
 		shouldIncludeCosts
 			? {
@@ -6592,6 +8928,8 @@ chat.openapi(completions, async (c) => {
 		false, // showUpgradeMessage - never show since Pro plan is removed
 		annotations,
 		routingAttempts.length > 0 ? routingAttempts : null,
+		requestId,
+		usedRegion,
 	);
 
 	// Extract plugin IDs for logging
@@ -6634,28 +8972,22 @@ chat.openapi(completions, async (c) => {
 	);
 
 	// Check if the non-streaming response is empty (no content, tokens, or tool calls)
-	// Exclude content_filter responses as they are intentionally empty (blocked by provider)
-	// For Google, check for original finish reasons that indicate content filtering
-	// These include both finishReason values and promptFeedback.blockReason values
-	const isGoogleContentFilter =
-		(usedProvider === "google-ai-studio" ||
-			usedProvider === "google-vertex" ||
-			usedProvider === "obsidian") &&
-		(finishReason === "SAFETY" ||
-			finishReason === "PROHIBITED_CONTENT" ||
-			finishReason === "RECITATION" ||
-			finishReason === "BLOCKLIST" ||
-			finishReason === "SPII" ||
-			finishReason === "OTHER");
+	// Exclude content filter responses as they are intentionally empty.
+	const isContentFilterResponse = isContentFilterFinishReason(
+		finishReason,
+		usedProvider,
+	);
 	const hasEmptyNonStreamingResponse =
 		!!finishReason &&
-		finishReason !== "content_filter" &&
 		finishReason !== "incomplete" &&
-		!isGoogleContentFilter &&
-		(!calculatedCompletionTokens || calculatedCompletionTokens === 0) &&
-		(!calculatedReasoningTokens || calculatedReasoningTokens === 0) &&
-		(!content || content.trim() === "") &&
-		(!toolResults || toolResults.length === 0);
+		!isContentFilterResponse &&
+		!hasMeaningfulAssistantOutput({
+			completionTokens: calculatedCompletionTokens,
+			reasoningTokens: calculatedReasoningTokens,
+			content,
+			toolResults,
+			images: convertedImages,
+		});
 
 	if (hasEmptyNonStreamingResponse) {
 		logger.debug("Empty non-streaming response detected", {
@@ -6665,6 +8997,7 @@ chat.openapi(completions, async (c) => {
 			calculatedCompletionTokens,
 			contentLength: content?.length ?? 0,
 			toolResultsLength: toolResults?.length ?? 0,
+			imageCount: convertedImages?.length ?? 0,
 		});
 	}
 
@@ -6682,14 +9015,24 @@ chat.openapi(completions, async (c) => {
 		}
 	}
 
-	await insertLog({
+	// For image generation, store the base64 data URLs in content
+	// so the activity detail page can render the images
+	const base64Images =
+		convertedImages?.filter((img) => img.image_url.url.startsWith("data:")) ??
+		[];
+	const logContent =
+		base64Images.length > 0
+			? base64Images.map((img) => img.image_url.url).join("\n")
+			: content;
+
+	await insertLogEntry({
 		...baseLogEntry,
 		id: routingAttempts.length > 0 ? finalLogId : undefined,
 		duration,
 		timeToFirstToken: null, // Not applicable for non-streaming requests
 		timeToFirstReasoningToken: null, // Not applicable for non-streaming requests
 		responseSize,
-		content: content,
+		content: logContent,
 		reasoningContent: reasoningContent,
 		finishReason: hasEmptyNonStreamingResponse
 			? "upstream_error"
@@ -6740,14 +9083,21 @@ chat.openapi(completions, async (c) => {
 		toolChoice: tool_choice,
 	});
 
-	// Report key health for environment-based tokens
+	// Report key health for the selected token source
 	// Note: We don't report empty responses as key errors since they're not upstream errors
 	if (envVarName !== undefined) {
 		reportKeySuccess(envVarName, configIndex);
 	}
+	if (providerKey?.id) {
+		reportTrackedKeySuccess(providerKey.id);
+	}
 
 	if (cachingEnabled && cacheKey && !stream && !hasEmptyNonStreamingResponse) {
-		await setCache(cacheKey, transformedResponse, cacheDuration);
+		await setCache(
+			cacheKey,
+			stripRequestScopedMetadataFromOpenAiResponse(transformedResponse),
+			cacheDuration,
+		);
 	}
 
 	// For image generation models with streaming requested, convert to SSE format
@@ -6808,5 +9158,5 @@ chat.openapi(completions, async (c) => {
 		});
 	}
 
-	return jsonResponse(transformedResponse);
+	return c.json(transformedResponse);
 });

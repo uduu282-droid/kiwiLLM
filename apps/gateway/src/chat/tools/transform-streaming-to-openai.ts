@@ -12,13 +12,34 @@ import type { Provider } from "@llmgateway/models";
 export function transformStreamingToOpenai(
 	usedProvider: Provider,
 	usedModel: string,
-	publicModel: string,
+	requestedModel: string,
 	data: any,
 	messages: any[],
 	serverToolUseIndices?: Set<number>,
+	supportsReasoning = true,
 ): any {
 	let transformedData = data;
-	const responseModel = publicModel;
+
+	const isKnownNonRenderableAwsBedrockDelta = (delta: any): boolean => {
+		if (!delta || typeof delta !== "object") {
+			return false;
+		}
+
+		if (delta.toolResult || delta.citation || delta.image) {
+			return true;
+		}
+
+		if (delta.reasoningContent) {
+			const reasoningContent = delta.reasoningContent;
+			return (
+				typeof reasoningContent === "object" &&
+				reasoningContent !== null &&
+				!reasoningContent.text
+			);
+		}
+
+		return false;
+	};
 
 	switch (usedProvider) {
 		case "anthropic": {
@@ -27,7 +48,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -49,7 +70,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -76,7 +97,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -96,7 +117,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -133,7 +154,7 @@ export function transformStreamingToOpenai(
 						id: data.id ?? `chatcmpl-${Date.now()}`,
 						object: "chat.completion.chunk",
 						created: data.created ?? Math.floor(Date.now() / 1000),
-						model: data.model ?? responseModel,
+						model: requestedModel,
 						choices: [
 							{
 								index: 0,
@@ -150,7 +171,7 @@ export function transformStreamingToOpenai(
 						id: data.id ?? `chatcmpl-${Date.now()}`,
 						object: "chat.completion.chunk",
 						created: data.created ?? Math.floor(Date.now() / 1000),
-						model: data.model ?? responseModel,
+						model: requestedModel,
 						choices: [
 							{
 								index: 0,
@@ -193,7 +214,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -212,7 +233,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -237,7 +258,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -261,7 +282,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -277,7 +298,7 @@ export function transformStreamingToOpenai(
 			} else {
 				logger.warn("[streaming] Unrecognized Anthropic chunk", {
 					provider: usedProvider,
-					model: usedModel,
+					model: requestedModel,
 					type: data.type,
 					deltaType: data.delta?.type,
 					dataKeys: Object.keys(data),
@@ -286,7 +307,7 @@ export function transformStreamingToOpenai(
 					id: data.id ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: data.created ?? Math.floor(Date.now() / 1000),
-					model: data.model ?? responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -303,7 +324,9 @@ export function transformStreamingToOpenai(
 		}
 
 		case "google-ai-studio":
+		case "glacier":
 		case "google-vertex":
+		case "quartz":
 		case "obsidian": {
 			const mapFinishReason = (
 				finishReason?: string,
@@ -500,7 +523,7 @@ export function transformStreamingToOpenai(
 					if (!isKnownPartType) {
 						logger.warn("[streaming] Unrecognized Google part type", {
 							provider: usedProvider,
-							model: usedModel,
+							model: requestedModel,
 							partIndex,
 							partKeys: Object.keys(part),
 						});
@@ -603,7 +626,7 @@ export function transformStreamingToOpenai(
 					id: data.responseId ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: data.modelVersion ?? responseModel,
+					model: requestedModel,
 					choices,
 					usage: buildUsage(data.usageMetadata, messages),
 				};
@@ -651,14 +674,14 @@ export function transformStreamingToOpenai(
 					id: data.responseId ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: data.modelVersion ?? responseModel,
+					model: requestedModel,
 					choices: finishChoices,
 					usage: buildUsage(data.usageMetadata, messages),
 				};
 			} else {
 				logger.warn("[streaming] Google chunk with no content", {
 					provider: usedProvider,
-					model: usedModel,
+					model: requestedModel,
 					hasCandidates: hasCandidatesArray,
 					candidatesCount: candidates.length,
 					firstCandidateKeys: firstCandidate ? Object.keys(firstCandidate) : [],
@@ -671,7 +694,7 @@ export function transformStreamingToOpenai(
 					id: data.responseId ?? `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: data.modelVersion ?? responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: firstCandidate?.index ?? 0,
@@ -689,18 +712,11 @@ export function transformStreamingToOpenai(
 		case "azure":
 		case "openai": {
 			if (data.type) {
-				// Log full OpenAI event data for debugging
-				logger.info("[OpenAI Streaming Debug]", {
-					eventType: data.type,
-					hasAnnotations: !!(data.annotations ?? data.part?.annotations),
-					annotationsCount: (data.annotations ?? data.part?.annotations ?? [])
-						.length,
-					hasDelta: !!data.delta,
-					deltaKeys: data.delta ? Object.keys(data.delta) : [],
-					fullData: JSON.stringify(data),
-				});
-
 				switch (data.type) {
+					case "keepalive":
+						transformedData = null;
+						break;
+
 					case "response.created":
 					case "response.in_progress":
 						transformedData = {
@@ -708,7 +724,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? responseModel,
+							model: requestedModel,
 							choices: [
 								{
 									index: 0,
@@ -730,7 +746,7 @@ export function transformStreamingToOpenai(
 								object: "chat.completion.chunk",
 								created:
 									data.response?.created_at ?? Math.floor(Date.now() / 1000),
-								model: data.response?.model ?? responseModel,
+								model: requestedModel,
 								choices: [
 									{
 										index: 0,
@@ -759,7 +775,7 @@ export function transformStreamingToOpenai(
 								object: "chat.completion.chunk",
 								created:
 									data.response?.created_at ?? Math.floor(Date.now() / 1000),
-								model: data.response?.model ?? responseModel,
+								model: requestedModel,
 								choices: [
 									{
 										index: 0,
@@ -773,6 +789,8 @@ export function transformStreamingToOpenai(
 						break;
 					}
 					case "response.output_item.done":
+					case "response.content_part.done":
+					case "response.output_text.done":
 					case "response.web_search_call.in_progress":
 					case "response.web_search_call.searching":
 					case "response.web_search_call.completed":
@@ -781,7 +799,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? responseModel,
+							model: requestedModel,
 							choices: [
 								{
 									index: 0,
@@ -800,7 +818,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? responseModel,
+							model: requestedModel,
 							choices: [
 								{
 									index: 0,
@@ -823,7 +841,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? responseModel,
+							model: requestedModel,
 							choices: [
 								{
 									index: 0,
@@ -845,7 +863,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? responseModel,
+							model: requestedModel,
 							choices: [
 								{
 									index: 0,
@@ -875,7 +893,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? responseModel,
+							model: requestedModel,
 							choices: [
 								{
 									index: 0,
@@ -897,7 +915,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? responseModel,
+							model: requestedModel,
 							choices: [
 								{
 									index: 0,
@@ -938,7 +956,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? responseModel,
+							model: requestedModel,
 							choices: [
 								{
 									index: 0,
@@ -980,7 +998,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? responseModel,
+							model: requestedModel,
 							choices: [
 								{
 									index: 0,
@@ -996,7 +1014,7 @@ export function transformStreamingToOpenai(
 					default:
 						logger.warn("[streaming] Unrecognized OpenAI event type", {
 							provider: usedProvider,
-							model: usedModel,
+							model: requestedModel,
 							eventType: data.type,
 							dataKeys: Object.keys(data),
 						});
@@ -1005,7 +1023,7 @@ export function transformStreamingToOpenai(
 							object: "chat.completion.chunk",
 							created:
 								data.response?.created_at ?? Math.floor(Date.now() / 1000),
-							model: data.response?.model ?? responseModel,
+							model: requestedModel,
 							choices: [
 								{
 									index: 0,
@@ -1018,22 +1036,8 @@ export function transformStreamingToOpenai(
 						break;
 				}
 			} else {
-				// Log standard OpenAI streaming format for debugging
-				logger.info("[OpenAI Standard Streaming Debug]", {
-					hasChoices: !!data.choices,
-					choicesLength: data.choices?.length ?? 0,
-					firstChoiceDeltaKeys: data.choices?.[0]?.delta
-						? Object.keys(data.choices[0].delta)
-						: [],
-					hasAnnotations: !!data.choices?.[0]?.delta?.annotations,
-					annotationsCount: data.choices?.[0]?.delta?.annotations?.length ?? 0,
-					fullData: JSON.stringify(data),
-				});
-
-				transformedData = transformOpenaiStreaming(
-					data,
-					usedModel,
-					responseModel,
+				transformedData = transformOpenaiStreaming(data, requestedModel,
+					supportsReasoning,
 				);
 			}
 			break;
@@ -1047,12 +1051,32 @@ export function transformStreamingToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
 							delta: {
 								content: data.delta.text,
+								role: "assistant",
+							},
+							finish_reason: null,
+						},
+					],
+				};
+			} else if (
+				eventType === "contentBlockDelta" &&
+				data.delta?.reasoningContent?.text
+			) {
+				transformedData = {
+					id: `chatcmpl-${Date.now()}`,
+					object: "chat.completion.chunk",
+					created: Math.floor(Date.now() / 1000),
+					model: requestedModel,
+					choices: [
+						{
+							index: 0,
+							delta: {
+								reasoning: data.delta.reasoningContent.text,
 								role: "assistant",
 							},
 							finish_reason: null,
@@ -1066,7 +1090,7 @@ export function transformStreamingToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -1101,7 +1125,7 @@ export function transformStreamingToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -1120,12 +1144,22 @@ export function transformStreamingToOpenai(
 						},
 					],
 				};
+			} else if (
+				eventType === "contentBlockDelta" &&
+				isKnownNonRenderableAwsBedrockDelta(data.delta)
+			) {
+				// Bedrock contentBlockDelta is a documented union. Some known members
+				// like reasoning signatures, citations, images, or tool results don't
+				// have a direct OpenAI chat chunk representation, so we treat them as handled.
+				transformedData = null;
+			} else if (eventType === "contentBlockStop") {
+				transformedData = null;
 			} else if (eventType === "messageStart") {
 				transformedData = {
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -1151,7 +1185,7 @@ export function transformStreamingToOpenai(
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -1161,11 +1195,16 @@ export function transformStreamingToOpenai(
 					],
 				};
 			} else if (eventType === "metadata" && data.usage) {
+				const inputTokens = data.usage.inputTokens ?? 0;
+				const cacheReadTokens = data.usage.cacheReadInputTokens ?? 0;
+				const cacheWriteTokens = data.usage.cacheWriteInputTokens ?? 0;
+				const promptTokens = inputTokens + cacheReadTokens + cacheWriteTokens;
+
 				transformedData = {
 					id: `chatcmpl-${Date.now()}`,
 					object: "chat.completion.chunk",
 					created: Math.floor(Date.now() / 1000),
-					model: responseModel,
+					model: requestedModel,
 					choices: [
 						{
 							index: 0,
@@ -1174,15 +1213,20 @@ export function transformStreamingToOpenai(
 						},
 					],
 					usage: {
-						prompt_tokens: data.usage.inputTokens ?? 0,
+						prompt_tokens: promptTokens,
 						completion_tokens: data.usage.outputTokens ?? 0,
 						total_tokens: data.usage.totalTokens ?? 0,
+						...(cacheReadTokens > 0 && {
+							prompt_tokens_details: {
+								cached_tokens: cacheReadTokens,
+							},
+						}),
 					},
 				};
 			} else {
 				logger.warn("[streaming] Unrecognized AWS Bedrock event type", {
 					provider: usedProvider,
-					model: usedModel,
+					model: requestedModel,
 					eventType,
 					dataKeys: Object.keys(data),
 				});
@@ -1209,12 +1253,11 @@ export function transformStreamingToOpenai(
 		case "nanogpt":
 		case "bytedance":
 		case "minimax":
+		case "embercloud":
 		case "llmgateway": {
 			// Transform standard OpenAI streaming format with finish reason mapping
-			transformedData = transformOpenaiStreaming(
-				data,
-				usedModel,
-				responseModel,
+			transformedData = transformOpenaiStreaming(data, requestedModel,
+				supportsReasoning,
 			);
 
 			// Map non-standard finish reasons to OpenAI-compatible values
@@ -1231,13 +1274,11 @@ export function transformStreamingToOpenai(
 		default: {
 			logger.warn("[streaming] Unknown provider using OpenAI fallback", {
 				provider: usedProvider,
-				model: usedModel,
+				model: requestedModel,
 				dataKeys: Object.keys(data),
 			});
-			transformedData = transformOpenaiStreaming(
-				data,
-				usedModel,
-				responseModel,
+			transformedData = transformOpenaiStreaming(data, requestedModel,
+				supportsReasoning,
 			);
 			break;
 		}
