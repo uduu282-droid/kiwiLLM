@@ -60,6 +60,32 @@ interface DashboardClientProps {
 	initialActivityData?: ActivitT;
 }
 
+function formatDashboardUsd(value: number) {
+	if (value === 0) {
+		return "$0.00";
+	}
+	if (value < 0.0001) {
+		return "<$0.0001";
+	}
+	if (value < 0.01) {
+		return `$${value.toFixed(4)}`;
+	}
+	return `$${value.toFixed(2)}`;
+}
+
+function formatExactDashboardUsd(value: number) {
+	if (value === 0) {
+		return "$0.0000";
+	}
+	if (value < 0.0001) {
+		return "<$0.0001";
+	}
+	if (value < 1) {
+		return `$${value.toFixed(4)}`;
+	}
+	return `$${value.toFixed(2)}`;
+}
+
 export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
@@ -411,19 +437,19 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 						/>
 						<MetricCard
 							label="Total Cost"
-							value={isLoading ? "Loading..." : `$${totalCost.toFixed(2)}`}
+							value={isLoading ? "Loading..." : formatDashboardUsd(totalCost)}
 							subtitle={
 								isLoading
 									? "–"
 									: `${format(from, "MMM d")} - ${format(to, "MMM d")}${
 											totalRequestCost > 0
-												? ` • $${totalRequestCost.toFixed(2)} requests`
+												? ` • ${formatExactDashboardUsd(totalRequestCost)} requests`
 												: ""
 										}${
 											totalDataStorageCost > 0
-												? ` • $${totalDataStorageCost.toFixed(4)} storage`
+												? ` • ${formatExactDashboardUsd(totalDataStorageCost)} storage`
 												: ""
-										}`
+										} • exact ${formatExactDashboardUsd(totalCost)}`
 							}
 							icon={<CircleDollarSign className="h-4 w-4" />}
 							accent="purple"
@@ -433,9 +459,13 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 							value={
 								isLoading
 									? "Loading..."
-									: `${formatTokens(totalInputTokens)} • $${totalInputCost.toFixed(2)}`
+									: `${formatTokens(totalInputTokens)} • ${formatDashboardUsd(totalInputCost)}`
 							}
-							subtitle={isLoading ? "–" : "Prompt tokens and associated cost"}
+							subtitle={
+								isLoading
+									? "–"
+									: `Prompt tokens and associated cost • exact ${formatExactDashboardUsd(totalInputCost)}`
+							}
 							icon={<ArrowDownToLine className="h-4 w-4" />}
 							accent="blue"
 						/>
@@ -444,10 +474,12 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 							value={
 								isLoading
 									? "Loading..."
-									: `${formatTokens(totalOutputTokens)} • $${totalOutputCost.toFixed(2)}`
+									: `${formatTokens(totalOutputTokens)} • ${formatDashboardUsd(totalOutputCost)}`
 							}
 							subtitle={
-								isLoading ? "–" : "Completion tokens and associated cost"
+								isLoading
+									? "–"
+									: `Completion tokens and associated cost • exact ${formatExactDashboardUsd(totalOutputCost)}`
 							}
 							icon={<ArrowUpFromLine className="h-4 w-4" />}
 							accent="purple"
@@ -457,12 +489,12 @@ export function DashboardClient({ initialActivityData }: DashboardClientProps) {
 							value={
 								isLoading
 									? "Loading..."
-									: `${formatTokens(totalCachedTokens)} • $${totalCachedInputCost.toFixed(2)}`
+									: `${formatTokens(totalCachedTokens)} • ${formatDashboardUsd(totalCachedInputCost)}`
 							}
 							subtitle={
 								isLoading
 									? "–"
-									: "Tokens and cost served from cache (if supported)"
+									: `Tokens and cost served from cache (if supported) • exact ${formatExactDashboardUsd(totalCachedInputCost)}`
 							}
 							icon={<Server className="h-4 w-4" />}
 							accent="green"

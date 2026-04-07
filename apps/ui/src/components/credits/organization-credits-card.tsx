@@ -49,15 +49,7 @@ export function OrganizationCreditsCard({
 			: "Redeemed credits are used for hosted paid requests once your account needs credit-backed routing.";
 	}, [currentCredits]);
 
-	const detailedBalance = useMemo(() => {
-		if (currentCredits >= 100) {
-			return currentCredits.toFixed(2);
-		}
-		if (currentCredits >= 1) {
-			return currentCredits.toFixed(4);
-		}
-		return currentCredits.toFixed(6);
-	}, [currentCredits]);
+	const detailedBalance = organization?.credits ?? "0";
 
 	const applyCreditsToCache = (nextCredits: string) => {
 		queryClient.setQueryData<{ organizations: Organization[] } | undefined>(

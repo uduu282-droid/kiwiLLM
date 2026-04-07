@@ -522,8 +522,8 @@ function CreditsDisplay({
 	selectedOrganization: Organization | null;
 }) {
 	const creditsBalance = selectedOrganization
-		? Number(selectedOrganization.credits).toFixed(2)
-		: "0.00";
+		? selectedOrganization.credits
+		: "0";
 
 	return (
 		<div className="px-2 py-1.5 group-data-[collapsible=icon]:hidden">
