@@ -6,7 +6,6 @@ import { googleModels } from "./models/google.js";
 import { llmgatewayModels } from "./models/llmgateway.js";
 import { metaModels } from "./models/meta.js";
 import { microsoftModels } from "./models/microsoft.js";
-import { mimoModels } from "./models/mimo.js";
 import { minimaxModels } from "./models/minimax.js";
 import { mistralModels } from "./models/mistral.js";
 import { moonshotModels } from "./models/moonshot.js";
@@ -350,7 +349,7 @@ export interface ModelDefinition {
 	/**
 	 * Output formats supported by the model (defaults to ['text'] if not specified)
 	 */
-	output?: ("text" | "image" | "video")[];
+	output?: ("text" | "image" | "audio" | "video")[];
 	/**
 	 * Whether this model requires an image input to function (e.g. image editing models).
 	 */
@@ -413,7 +412,6 @@ const baseModels: ModelDefinition[] = [
 	...deepseekModels,
 	...mistralModels,
 	...microsoftModels,
-	...mimoModels,
 	...minimaxModels,
 	...moonshotModels,
 	...alibabaModels,

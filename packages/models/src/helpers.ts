@@ -18,7 +18,7 @@ export function getModelStreamingSupport(
 		return modelInfo.providers.some((provider: ProviderModelMapping) => {
 			// Check model-level streaming first, then fall back to provider-level
 			if (provider.streaming !== undefined) {
-				return provider.streaming;
+				return provider.streaming !== false;
 			}
 			// Fall back to provider-level streaming support
 			const providerInfo = providers.find((p) => p.id === provider.providerId);
@@ -36,7 +36,7 @@ export function getModelStreamingSupport(
 
 	// Check model-level streaming first, then fall back to provider-level
 	if (providerMapping.streaming !== undefined) {
-		return providerMapping.streaming;
+		return providerMapping.streaming !== false;
 	}
 
 	// Fall back to provider-level streaming support
