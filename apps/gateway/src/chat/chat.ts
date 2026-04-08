@@ -147,6 +147,45 @@ function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
 	return !getProviderEnvConfig(providerId)?.required.apiKey;
 }
 
+function getAvailableProvidersForProjectMode(
+	projectMode: string,
+	activeProviderIds: string[] = [],
+	excludedProviderIds: string[] = [],
+): string[] {
+	const excluded = new Set(["llmgateway", ...excludedProviderIds]);
+	const supportedProviders = providers
+		.filter((provider) => !excluded.has(provider.id))
+		.filter((provider) => isBackendSupportedProvider(provider.id))
+		.map((provider) => provider.id);
+
+	const hostedNoKeyProviders = supportedProviders.filter((providerId) =>
+		providerCanUseHostedRouteWithoutKey(providerId as Provider),
+	);
+	const envProviders = supportedProviders.filter((providerId) =>
+		hasProviderEnvironmentToken(providerId as Provider),
+	);
+
+	if (projectMode === "api-keys") {
+		return [...new Set([...activeProviderIds, ...hostedNoKeyProviders])];
+	}
+
+	if (projectMode === "credits") {
+		return [...new Set([...envProviders, ...hostedNoKeyProviders])];
+	}
+
+	if (projectMode === "hybrid") {
+		return [
+			...new Set([
+				...activeProviderIds,
+				...envProviders,
+				...hostedNoKeyProviders,
+			]),
+		];
+	}
+
+	return [];
+}
+
 function serializeJsonResponse(data: unknown): string {
 	return JSON.stringify(data, (_key, value) => {
 		if (typeof value === "bigint") {
@@ -833,41 +872,16 @@ chat.openapi(completions, async (c) => {
 
 		if (project.mode === "api-keys") {
 			activeProviderKeys = await findActiveProviderKeys(project.organizationId);
-			availableProviders = [
-				...new Set([
-					...activeProviderKeys.map((key) => key.provider),
-					...providers
-						.filter((p) => p.id !== "llmgateway")
-						.filter((p) => isBackendSupportedProvider(p.id))
-						.filter((p) =>
-							providerCanUseHostedRouteWithoutKey(p.id as Provider),
-						)
-						.map((p) => p.id),
-				]),
-			];
+			availableProviders = getAvailableProvidersForProjectMode(
+				project.mode,
+				activeProviderKeys.map((key) => key.provider),
+			);
 		} else if (project.mode === "credits" || project.mode === "hybrid") {
 			activeProviderKeys = await findActiveProviderKeys(project.organizationId);
-			const databaseProviders = activeProviderKeys.map((key) => key.provider);
-
-			// Check which providers have environment tokens available
-			const envProviders: string[] = [];
-			const supportedProviders = providers
-				.filter((p) => p.id !== "llmgateway")
-				.filter((p) => isBackendSupportedProvider(p.id))
-				.map((p) => p.id);
-			for (const provider of supportedProviders) {
-				if (hasProviderEnvironmentToken(provider as Provider)) {
-					envProviders.push(provider);
-				}
-			}
-
-			if (project.mode === "credits") {
-				availableProviders = envProviders;
-			} else {
-				availableProviders = [
-					...new Set([...databaseProviders, ...envProviders]),
-				];
-			}
+			availableProviders = getAvailableProvidersForProjectMode(
+				project.mode,
+				activeProviderKeys.map((key) => key.provider),
+			);
 		}
 		const activeProviderKeyMap = new Map(
 			activeProviderKeys.map((key) => [key.provider, key]),
@@ -893,11 +907,19 @@ chat.openapi(completions, async (c) => {
 						routingToken = providerKey.token;
 					}
 				} else if (project.mode === "credits") {
-					const envResult = getProviderEnv(providerId);
-					routingToken = envResult.token;
-					routingConfigIndex = envResult.configIndex;
+					if (providerCanUseHostedRouteWithoutKey(providerId)) {
+						routingToken = "";
+						routingConfigIndex = 0;
+					} else {
+						const envResult = getProviderEnv(providerId);
+						routingToken = envResult.token;
+						routingConfigIndex = envResult.configIndex;
+					}
 				} else if (providerKey?.token) {
 					routingToken = providerKey.token;
+				} else if (providerCanUseHostedRouteWithoutKey(providerId)) {
+					routingToken = "";
+					routingConfigIndex = 0;
 				} else {
 					const envResult = getProviderEnv(providerId);
 					routingToken = envResult.token;
@@ -1255,27 +1277,11 @@ chat.openapi(completions, async (c) => {
 					providerIds,
 				);
 
-				const availableProviders =
-					project.mode === "api-keys"
-						? [
-								...new Set([
-									...providerKeys.map((key) => key.provider),
-									...providers
-										.filter(
-											(p) => p.id !== "llmgateway" && p.id !== usedProvider,
-										)
-										.filter((p) => isBackendSupportedProvider(p.id))
-										.filter((p) =>
-											providerCanUseHostedRouteWithoutKey(p.id as Provider),
-										)
-										.map((p) => p.id),
-								]),
-							]
-						: providers
-								.filter((p) => p.id !== "llmgateway" && p.id !== usedProvider)
-								.filter((p) => isBackendSupportedProvider(p.id))
-								.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
-								.map((p) => p.id);
+				const availableProviders = getAvailableProvidersForProjectMode(
+					project.mode,
+					providerKeys.map((key) => key.provider),
+					usedProvider ? [usedProvider] : [],
+				);
 				const providerKeyMap = new Map(
 					providerKeys.map((key) => [key.provider, key]),
 				);
@@ -1342,11 +1348,21 @@ chat.openapi(completions, async (c) => {
 									routingToken = providerKey.token;
 								}
 							} else if (project.mode === "credits") {
-								const envResult = getProviderEnv(provider.providerId);
-								routingToken = envResult.token;
-								routingConfigIndex = envResult.configIndex;
+								if (providerCanUseHostedRouteWithoutKey(provider.providerId)) {
+									routingToken = "";
+									routingConfigIndex = 0;
+								} else {
+									const envResult = getProviderEnv(provider.providerId);
+									routingToken = envResult.token;
+									routingConfigIndex = envResult.configIndex;
+								}
 							} else if (providerKey?.token) {
 								routingToken = providerKey.token;
+							} else if (
+								providerCanUseHostedRouteWithoutKey(provider.providerId)
+							) {
+								routingToken = "";
+								routingConfigIndex = 0;
 							} else {
 								const envResult = getProviderEnv(provider.providerId);
 								routingToken = envResult.token;
@@ -1500,25 +1516,10 @@ chat.openapi(completions, async (c) => {
 				providerIds,
 			);
 
-			const availableProviders =
-				project.mode === "api-keys"
-					? [
-							...new Set([
-								...providerKeys.map((key) => key.provider),
-								...providers
-									.filter((p) => p.id !== "llmgateway")
-									.filter((p) => isBackendSupportedProvider(p.id))
-									.filter((p) =>
-										providerCanUseHostedRouteWithoutKey(p.id as Provider),
-									)
-									.map((p) => p.id),
-							]),
-						]
-					: providers
-							.filter((p) => p.id !== "llmgateway")
-							.filter((p) => isBackendSupportedProvider(p.id))
-							.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
-							.map((p) => p.id);
+			const availableProviders = getAvailableProvidersForProjectMode(
+				project.mode,
+				providerKeys.map((key) => key.provider),
+			);
 			const providerKeyMap = new Map(
 				providerKeys.map((key) => [key.provider, key]),
 			);
@@ -1596,11 +1597,21 @@ chat.openapi(completions, async (c) => {
 								routingToken = providerKey.token;
 							}
 						} else if (project.mode === "credits") {
-							const envResult = getProviderEnv(provider.providerId);
-							routingToken = envResult.token;
-							routingConfigIndex = envResult.configIndex;
+							if (providerCanUseHostedRouteWithoutKey(provider.providerId)) {
+								routingToken = "";
+								routingConfigIndex = 0;
+							} else {
+								const envResult = getProviderEnv(provider.providerId);
+								routingToken = envResult.token;
+								routingConfigIndex = envResult.configIndex;
+							}
 						} else if (providerKey?.token) {
 							routingToken = providerKey.token;
+						} else if (
+							providerCanUseHostedRouteWithoutKey(provider.providerId)
+						) {
+							routingToken = "";
+							routingConfigIndex = 0;
 						} else {
 							const envResult = getProviderEnv(provider.providerId);
 							routingToken = envResult.token;
@@ -1965,10 +1976,15 @@ chat.openapi(completions, async (c) => {
 			});
 		}
 
-		const envResult = getProviderEnv(usedProvider);
-		usedToken = envResult.token;
-		configIndex = envResult.configIndex;
-		envVarName = envResult.envVarName;
+		if (providerCanUseHostedRouteWithoutKey(usedProvider)) {
+			usedToken = "";
+			configIndex = 0;
+		} else {
+			const envResult = getProviderEnv(usedProvider);
+			usedToken = envResult.token;
+			configIndex = envResult.configIndex;
+			envVarName = envResult.envVarName;
+		}
 	} else if (project.mode === "hybrid") {
 		// First try to get the provider key from the database
 		if (usedProvider === "custom" && customProviderName) {
@@ -2021,10 +2037,15 @@ chat.openapi(completions, async (c) => {
 				});
 			}
 
-			const envResult = getProviderEnv(usedProvider);
-			usedToken = envResult.token;
-			configIndex = envResult.configIndex;
-			envVarName = envResult.envVarName;
+			if (providerCanUseHostedRouteWithoutKey(usedProvider)) {
+				usedToken = "";
+				configIndex = 0;
+			} else {
+				const envResult = getProviderEnv(usedProvider);
+				usedToken = envResult.token;
+				configIndex = envResult.configIndex;
+				envVarName = envResult.envVarName;
+			}
 		}
 	} else {
 		throw new HTTPException(400, {
