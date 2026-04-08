@@ -1,6 +1,14 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 
+import {
+	findActiveProviderKeys,
+	findApiKeyByToken,
+	findProjectById,
+} from "@/lib/cached-queries.js";
+import { isBackendSupportedProvider } from "@/lib/backend-provider-support.js";
+import { validateModelAccess } from "@/lib/iam.js";
+
 import { getProviderEndpoint } from "@llmgateway/actions";
 import { logger } from "@llmgateway/logger";
 import {
@@ -14,6 +22,7 @@ import {
 } from "@llmgateway/models";
 
 import type { ServerTypes } from "@/vars.js";
+import type { Context } from "hono";
 
 export const modelsApi = new OpenAPIHono<ServerTypes>();
 
@@ -25,6 +34,9 @@ function canPubliclyRouteProviderMapping(
 	provider: ProviderModelMapping,
 ): boolean {
 	const providerId = provider.providerId as Provider;
+	if (!isBackendSupportedProvider(providerId)) {
+		return false;
+	}
 	if (
 		!providerCanUseHostedRouteWithoutKey(providerId) &&
 		!hasProviderEnvironmentToken(providerId)
@@ -50,6 +62,85 @@ function canPubliclyRouteProviderMapping(
 	} catch {
 		return false;
 	}
+}
+
+function getRequestToken(c: Context<ServerTypes>): string | undefined {
+	const auth = c.req.header("Authorization");
+	if (auth?.startsWith("Bearer ")) {
+		return auth.slice("Bearer ".length).trim();
+	}
+
+	const apiKeyHeader = c.req.header("x-api-key");
+	const trimmedApiKeyHeader = apiKeyHeader?.trim();
+	return trimmedApiKeyHeader ?? undefined;
+}
+
+async function getAuthenticatedProjectContext(c: Context<ServerTypes>) {
+	const token = getRequestToken(c);
+	if (!token) {
+		return null;
+	}
+
+	const apiKey = await findApiKeyByToken(token);
+	if (!apiKey || apiKey.status === "deleted" || apiKey.status === "inactive") {
+		return null;
+	}
+
+	const project = await findProjectById(apiKey.projectId);
+	if (
+		!project ||
+		project.status === "deleted" ||
+		project.status === "inactive"
+	) {
+		return null;
+	}
+
+	const activeProviderKeys = await findActiveProviderKeys(
+		project.organizationId,
+	);
+	const databaseProviders = activeProviderKeys.map((key) => key.provider);
+	let availableProviders: string[];
+
+	if (project.mode === "api-keys") {
+		availableProviders = [
+			...new Set([
+				...databaseProviders,
+				...providers
+					.filter((provider) => provider.id !== "llmgateway")
+					.filter((provider) => isBackendSupportedProvider(provider.id))
+					.filter((provider) =>
+						providerCanUseHostedRouteWithoutKey(provider.id as Provider),
+					)
+					.map((provider) => provider.id),
+			]),
+		];
+	} else if (project.mode === "credits") {
+		availableProviders = providers
+			.filter((provider) => provider.id !== "llmgateway")
+			.filter((provider) => isBackendSupportedProvider(provider.id))
+			.filter((provider) =>
+				hasProviderEnvironmentToken(provider.id as Provider),
+			)
+			.map((provider) => provider.id);
+	} else {
+		availableProviders = [
+			...new Set([
+				...databaseProviders,
+				...providers
+					.filter((provider) => provider.id !== "llmgateway")
+					.filter((provider) => isBackendSupportedProvider(provider.id))
+					.filter((provider) =>
+						hasProviderEnvironmentToken(provider.id as Provider),
+					)
+					.map((provider) => provider.id),
+			]),
+		];
+	}
+
+	return {
+		apiKey,
+		availableProviders,
+	};
 }
 
 const modelSchema = z.object({
@@ -154,41 +245,69 @@ modelsApi.openapi(listModels, async (c) => {
 		const includeDeactivated = query.include_deactivated || false;
 		const excludeDeprecated = query.exclude_deprecated || false;
 		const currentDate = new Date();
+		const projectContext = await getAuthenticatedProjectContext(c);
 
-		const filteredModels = modelsList
-			.map((model: ModelDefinition) => {
-				const routeableProviders = model.providers.filter((provider) => {
-					const providerMapping = provider as ProviderModelMapping;
+		const filteredModels = (
+			await Promise.all(
+				modelsList.map(async (model: ModelDefinition) => {
+					let routeableProviders = model.providers.filter((provider) => {
+						const providerMapping = provider as ProviderModelMapping;
 
-					if (
-						!includeDeactivated &&
-						providerMapping.deactivatedAt &&
-						currentDate > providerMapping.deactivatedAt
-					) {
-						return false;
+						if (
+							!includeDeactivated &&
+							providerMapping.deactivatedAt &&
+							currentDate > providerMapping.deactivatedAt
+						) {
+							return false;
+						}
+
+						if (
+							excludeDeprecated &&
+							providerMapping.deprecatedAt &&
+							currentDate > providerMapping.deprecatedAt
+						) {
+							return false;
+						}
+
+						return canPubliclyRouteProviderMapping(providerMapping);
+					}) as ProviderModelMapping[];
+
+					if (projectContext) {
+						const iamValidation = await validateModelAccess(
+							projectContext.apiKey.id,
+							model.id,
+							undefined,
+							{
+								...model,
+								providers: routeableProviders,
+							},
+						);
+
+						if (!iamValidation.allowed) {
+							return undefined;
+						}
+
+						routeableProviders = routeableProviders.filter(
+							(provider) =>
+								projectContext.availableProviders.includes(
+									provider.providerId,
+								) &&
+								(!iamValidation.allowedProviders ||
+									iamValidation.allowedProviders.includes(provider.providerId)),
+						);
 					}
 
-					if (
-						excludeDeprecated &&
-						providerMapping.deprecatedAt &&
-						currentDate > providerMapping.deprecatedAt
-					) {
-						return false;
+					if (routeableProviders.length === 0) {
+						return undefined;
 					}
 
-					return canPubliclyRouteProviderMapping(providerMapping);
-				});
-
-				if (routeableProviders.length === 0) {
-					return undefined;
-				}
-
-				return {
-					...model,
-					providers: routeableProviders,
-				} satisfies ModelDefinition;
-			})
-			.filter((model): model is ModelDefinition => model !== undefined);
+					return {
+						...model,
+						providers: routeableProviders,
+					} satisfies ModelDefinition;
+				}),
+			)
+		).filter((model): model is ModelDefinition => model !== undefined);
 
 		const modelData = filteredModels.map((model: ModelDefinition) => {
 			// Determine input modalities (if model supports images)

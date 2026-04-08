@@ -1,5 +1,7 @@
 import { HTTPException } from "hono/http-exception";
 
+import { isBackendSupportedProvider } from "@/lib/backend-provider-support.js";
+
 import {
 	type Model,
 	type ModelDefinition,
@@ -87,16 +89,17 @@ export function resolveModelInfo(
 	const now = new Date();
 	const activeProviders = modelInfo.providers.filter(
 		(provider) =>
+			isBackendSupportedProvider(provider.providerId) &&
 			!(
 				(provider as ProviderModelMapping).deactivatedAt &&
 				now > (provider as ProviderModelMapping).deactivatedAt!
 			),
 	);
 
-	// Check if all providers are deactivated
+	// Check if no backend-supported providers remain
 	if (activeProviders.length === 0) {
-		throw new HTTPException(410, {
-			message: `Model ${requestedModel} has been deactivated and is no longer available`,
+		throw new HTTPException(400, {
+			message: `Model ${requestedModel} is not available on the current KiwiLLM backend provider stack`,
 		});
 	}
 

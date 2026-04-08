@@ -5,6 +5,7 @@ import { streamSSE } from "hono/streaming";
 
 import { validateSource } from "@/chat/tools/validate-source.js";
 import { reportKeyError, reportKeySuccess } from "@/lib/api-key-health.js";
+import { isBackendSupportedProvider } from "@/lib/backend-provider-support.js";
 import {
 	findApiKeyByToken,
 	findProjectById,
@@ -832,7 +833,18 @@ chat.openapi(completions, async (c) => {
 
 		if (project.mode === "api-keys") {
 			activeProviderKeys = await findActiveProviderKeys(project.organizationId);
-			availableProviders = activeProviderKeys.map((key) => key.provider);
+			availableProviders = [
+				...new Set([
+					...activeProviderKeys.map((key) => key.provider),
+					...providers
+						.filter((p) => p.id !== "llmgateway")
+						.filter((p) => isBackendSupportedProvider(p.id))
+						.filter((p) =>
+							providerCanUseHostedRouteWithoutKey(p.id as Provider),
+						)
+						.map((p) => p.id),
+				]),
+			];
 		} else if (project.mode === "credits" || project.mode === "hybrid") {
 			activeProviderKeys = await findActiveProviderKeys(project.organizationId);
 			const databaseProviders = activeProviderKeys.map((key) => key.provider);
@@ -841,6 +853,7 @@ chat.openapi(completions, async (c) => {
 			const envProviders: string[] = [];
 			const supportedProviders = providers
 				.filter((p) => p.id !== "llmgateway")
+				.filter((p) => isBackendSupportedProvider(p.id))
 				.map((p) => p.id);
 			for (const provider of supportedProviders) {
 				if (hasProviderEnvironmentToken(provider as Provider)) {
@@ -871,9 +884,14 @@ chat.openapi(completions, async (c) => {
 			try {
 				if (project.mode === "api-keys") {
 					if (!providerKey?.token) {
-						return false;
+						if (!providerCanUseHostedRouteWithoutKey(providerId)) {
+							return false;
+						}
+						routingToken = "";
+						routingConfigIndex = 0;
+					} else {
+						routingToken = providerKey.token;
 					}
-					routingToken = providerKey.token;
 				} else if (project.mode === "credits") {
 					const envResult = getProviderEnv(providerId);
 					routingToken = envResult.token;
@@ -1246,6 +1264,7 @@ chat.openapi(completions, async (c) => {
 										.filter(
 											(p) => p.id !== "llmgateway" && p.id !== usedProvider,
 										)
+										.filter((p) => isBackendSupportedProvider(p.id))
 										.filter((p) =>
 											providerCanUseHostedRouteWithoutKey(p.id as Provider),
 										)
@@ -1254,6 +1273,7 @@ chat.openapi(completions, async (c) => {
 							]
 						: providers
 								.filter((p) => p.id !== "llmgateway" && p.id !== usedProvider)
+								.filter((p) => isBackendSupportedProvider(p.id))
 								.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
 								.map((p) => p.id);
 				const providerKeyMap = new Map(
@@ -1487,6 +1507,7 @@ chat.openapi(completions, async (c) => {
 								...providerKeys.map((key) => key.provider),
 								...providers
 									.filter((p) => p.id !== "llmgateway")
+									.filter((p) => isBackendSupportedProvider(p.id))
 									.filter((p) =>
 										providerCanUseHostedRouteWithoutKey(p.id as Provider),
 									)
@@ -1495,6 +1516,7 @@ chat.openapi(completions, async (c) => {
 						]
 					: providers
 							.filter((p) => p.id !== "llmgateway")
+							.filter((p) => isBackendSupportedProvider(p.id))
 							.filter((p) => hasProviderEnvironmentToken(p.id as Provider))
 							.map((p) => p.id);
 			const providerKeyMap = new Map(
