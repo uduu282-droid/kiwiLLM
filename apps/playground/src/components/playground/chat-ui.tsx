@@ -143,6 +143,8 @@ interface ChatUIProps {
 	isLoading?: boolean;
 	error?: string | null;
 	floatingInput?: boolean;
+	canSend?: boolean;
+	lockReason?: string | null;
 }
 
 const suggestions = [
