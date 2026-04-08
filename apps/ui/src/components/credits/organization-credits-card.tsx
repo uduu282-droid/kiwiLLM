@@ -9,7 +9,7 @@ import { Button } from "@/lib/components/button";
 import { Card, CardContent } from "@/lib/components/card";
 import { Input } from "@/lib/components/input";
 import { useToast } from "@/lib/components/use-toast";
-import { useFetchClient } from "@/lib/fetch-client";
+import { useAppConfig } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
 import type { BillingAccount, Organization } from "@/lib/types";
@@ -21,7 +21,7 @@ interface OrganizationCreditsCardProps {
 export function OrganizationCreditsCard({
 	organization,
 }: OrganizationCreditsCardProps) {
-	const fetchClient = useFetchClient();
+	const config = useAppConfig();
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const [isRedeemOpen, setIsRedeemOpen] = useState(false);
@@ -68,6 +68,15 @@ export function OrganizationCreditsCard({
 	};
 
 	const handleRedeem = async () => {
+		interface RedeemCouponResponse {
+			message: string;
+			credits: string;
+			creditAmount: string;
+			coupon: {
+				code: string;
+			};
+		}
+
 		if (!organization?.id) {
 			return;
 		}
@@ -84,23 +93,25 @@ export function OrganizationCreditsCard({
 
 		try {
 			setIsRedeeming(true);
-			const { data, error } = await fetchClient.POST(
-				"/orgs/{id}/redeem-coupon",
+			const response = await fetch(
+				`${config.apiUrl}/orgs/${organization.id}/redeem-coupon`,
 				{
-					params: {
-						path: {
-							id: organization.id,
-						},
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
 					},
-					body: {
+					credentials: "include",
+					body: JSON.stringify({
 						code: normalizedCode,
-					},
+					}),
 				},
 			);
 
-			if (error || !data) {
+			if (!response.ok) {
 				throw new Error("Failed to redeem coupon");
 			}
+
+			const data = (await response.json()) as RedeemCouponResponse;
 
 			applyCreditsToCache(data.credits);
 			setHighlightIncrease(Number(data.creditAmount));
