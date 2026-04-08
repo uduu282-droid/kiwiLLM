@@ -60,25 +60,6 @@ export const providers = [
 		announcement: null,
 	},
 	{
-		id: "kiwillm-completions-me",
-		name: "KiwiLLM Completions.me",
-		description:
-			"KiwiLLM-hosted completions.me proxy exposing OpenAI-compatible chat models.",
-		env: {
-			required: {
-				apiKey: "LLM_KIWILLM_COMPLETIONS_ME_API_KEY",
-			},
-			optional: {
-				baseUrl: "LLM_KIWILLM_COMPLETIONS_ME_BASE_URL",
-			},
-		},
-		streaming: true,
-		cancellation: true,
-		color: "#2563eb",
-		website: siteUrl,
-		announcement: null,
-	},
-	{
 		id: "kiwillm-ish-chat-proxy",
 		name: "KiwiLLM Ish Chat Proxy",
 		description:
@@ -449,6 +430,40 @@ export const providers = [
 		streaming: true,
 		cancellation: true,
 		color: "#2563eb",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-nvidia-worker",
+		name: "KiwiLLM NVIDIA Worker",
+		description:
+			"KiwiLLM-hosted NVIDIA worker exposing OpenAI-compatible chat models.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_NVIDIA_WORKER_BASE_URL",
+			},
+		},
+		streaming: true,
+		cancellation: true,
+		color: "#76b900",
+		website: siteUrl,
+		announcement: null,
+	},
+	{
+		id: "kiwillm-swift-sora-video",
+		name: "KiwiLLM Swift Sora Video",
+		description:
+			"KiwiLLM-hosted Swift Sora worker exposing OpenAI-compatible video generation.",
+		env: {
+			required: {},
+			optional: {
+				baseUrl: "LLM_KIWILLM_SWIFT_SORA_VIDEO_BASE_URL",
+			},
+		},
+		streaming: false,
+		cancellation: false,
+		color: "#0f766e",
 		website: siteUrl,
 		announcement: null,
 	},

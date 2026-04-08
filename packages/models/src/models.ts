@@ -5,10 +5,6 @@ import {
 	chataiProxyModels,
 	chataiProxyProviderAugments,
 } from "./models/chatai-proxy.js";
-import {
-	completionsMeModels,
-	completionsMeProviderAugments,
-} from "./models/completions-me.js";
 import { deepseekModels } from "./models/deepseek.js";
 import {
 	freecfmodelsModels,
@@ -639,7 +635,6 @@ export const models: ModelDefinition[] = [
 	...[
 		...baseModels,
 		...chataiProxyModels,
-		...completionsMeModels,
 		...ishChatProxyModels,
 		...literouterProxyModels,
 		...freecfmodelsModels,
@@ -650,8 +645,6 @@ export const models: ModelDefinition[] = [
 		...swiftSoraVideoModels,
 	].map((model) => {
 		const chataiProviders = chataiProxyProviderAugments[model.id] ?? [];
-		const completionsMeProviders =
-			completionsMeProviderAugments[model.id] ?? [];
 		const ishChatProxyProviders = ishChatProxyProviderAugments[model.id] ?? [];
 		const literouterProviders = literouterProxyProviderAugments[model.id] ?? [];
 		const freecfmodelsProviders = freecfmodelsProviderAugments[model.id] ?? [];
@@ -663,7 +656,6 @@ export const models: ModelDefinition[] = [
 			svelteAiEnhancedProviderAugments[model.id] ?? [];
 		if (
 			chataiProviders.length === 0 &&
-			completionsMeProviders.length === 0 &&
 			ishChatProxyProviders.length === 0 &&
 			literouterProviders.length === 0 &&
 			freecfmodelsProviders.length === 0 &&
@@ -687,7 +679,6 @@ export const models: ModelDefinition[] = [
 			providers: [
 				...model.providers,
 				...chataiProviders,
-				...completionsMeProviders,
 				...ishChatProxyProviders,
 				...literouterProviders,
 				...freecfmodelsProviders,
