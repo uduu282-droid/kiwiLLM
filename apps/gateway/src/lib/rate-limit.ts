@@ -32,6 +32,22 @@ const FREE_MODEL_RATE_LIMITS = {
 	},
 };
 
+const FREE_USER_REQUEST_LIMITS = {
+	PER_MINUTE: {
+		limit: 10,
+		window: 60,
+	},
+	PER_DAY: {
+		limit: 200,
+		window: 86_400,
+	},
+} as const;
+
+interface OrganizationRateLimitInfo {
+	plan?: string | null;
+	devPlan?: string | null;
+}
+
 /**
  * Check if a model is free based on model definition
  */
@@ -46,6 +62,19 @@ export function isFreeModel(
  */
 function getRateLimitKey(organizationId: string, model: string): string {
 	return `rate_limit:free_model:${organizationId}:${model}`;
+}
+
+function getFreeUserRateLimitKey(
+	organizationId: string,
+	period: "minute" | "day",
+): string {
+	return `rate_limit:free_user:${organizationId}:${period}`;
+}
+
+export function isFreeUserOrganization(
+	org: OrganizationRateLimitInfo | null | undefined,
+): boolean {
+	return org?.plan === "free" && (org.devPlan ?? "none") === "none";
 }
 
 /**
@@ -152,5 +181,123 @@ export async function checkFreeModelRateLimit(
 		logger.error("Error checking free model rate limit:", error as Error);
 		// Allow request on error to avoid blocking users due to Redis issues
 		return { allowed: true, remaining: 0, limit: 0 };
+	}
+}
+
+export async function checkFreeUserRequestRateLimit(
+	organizationId: string,
+): Promise<{
+	allowed: boolean;
+	retryAfter?: number;
+	minute: { remaining: number; limit: number };
+	day: { remaining: number; limit: number };
+}> {
+	try {
+		const now = Date.now();
+		const minuteKey = getFreeUserRateLimitKey(organizationId, "minute");
+		const dayKey = getFreeUserRateLimitKey(organizationId, "day");
+		const minuteWindowStart =
+			now - FREE_USER_REQUEST_LIMITS.PER_MINUTE.window * 1000;
+		const dayWindowStart = now - FREE_USER_REQUEST_LIMITS.PER_DAY.window * 1000;
+
+		await Promise.all([
+			redisClient.zremrangebyscore(minuteKey, "-inf", minuteWindowStart),
+			redisClient.zremrangebyscore(dayKey, "-inf", dayWindowStart),
+		]);
+
+		const [minuteCount, dayCount] = await Promise.all([
+			redisClient.zcard(minuteKey),
+			redisClient.zcard(dayKey),
+		]);
+
+		const minuteExceeded =
+			minuteCount >= FREE_USER_REQUEST_LIMITS.PER_MINUTE.limit;
+		const dayExceeded = dayCount >= FREE_USER_REQUEST_LIMITS.PER_DAY.limit;
+
+		if (minuteExceeded || dayExceeded) {
+			const blockedPeriod = minuteExceeded ? "minute" : "day";
+			const blockedKey = blockedPeriod === "minute" ? minuteKey : dayKey;
+			const blockedWindow =
+				blockedPeriod === "minute"
+					? FREE_USER_REQUEST_LIMITS.PER_MINUTE.window
+					: FREE_USER_REQUEST_LIMITS.PER_DAY.window;
+			const oldestEntry = await redisClient.zrange(
+				blockedKey,
+				0,
+				0,
+				"WITHSCORES",
+			);
+			const retryAfter =
+				oldestEntry.length > 1
+					? Math.ceil(
+							(parseInt(oldestEntry[1], 10) + blockedWindow * 1000 - now) /
+								1000,
+						)
+					: blockedWindow;
+
+			return {
+				allowed: false,
+				retryAfter,
+				minute: {
+					remaining: Math.max(
+						0,
+						FREE_USER_REQUEST_LIMITS.PER_MINUTE.limit - minuteCount,
+					),
+					limit: FREE_USER_REQUEST_LIMITS.PER_MINUTE.limit,
+				},
+				day: {
+					remaining: Math.max(
+						0,
+						FREE_USER_REQUEST_LIMITS.PER_DAY.limit - dayCount,
+					),
+					limit: FREE_USER_REQUEST_LIMITS.PER_DAY.limit,
+				},
+			};
+		}
+
+		const member = `${now}:${randomUUID()}`;
+		await Promise.all([
+			redisClient.zadd(minuteKey, now, member),
+			redisClient.zadd(dayKey, now, member),
+			redisClient.expire(
+				minuteKey,
+				FREE_USER_REQUEST_LIMITS.PER_MINUTE.window * 2,
+			),
+			redisClient.expire(dayKey, FREE_USER_REQUEST_LIMITS.PER_DAY.window * 2),
+		]);
+
+		return {
+			allowed: true,
+			minute: {
+				remaining: Math.max(
+					0,
+					FREE_USER_REQUEST_LIMITS.PER_MINUTE.limit - minuteCount - 1,
+				),
+				limit: FREE_USER_REQUEST_LIMITS.PER_MINUTE.limit,
+			},
+			day: {
+				remaining: Math.max(
+					0,
+					FREE_USER_REQUEST_LIMITS.PER_DAY.limit - dayCount - 1,
+				),
+				limit: FREE_USER_REQUEST_LIMITS.PER_DAY.limit,
+			},
+		};
+	} catch (error) {
+		logger.error(
+			"Error checking free user request rate limit:",
+			error as Error,
+		);
+		return {
+			allowed: true,
+			minute: {
+				remaining: FREE_USER_REQUEST_LIMITS.PER_MINUTE.limit,
+				limit: FREE_USER_REQUEST_LIMITS.PER_MINUTE.limit,
+			},
+			day: {
+				remaining: FREE_USER_REQUEST_LIMITS.PER_DAY.limit,
+				limit: FREE_USER_REQUEST_LIMITS.PER_DAY.limit,
+			},
+		};
 	}
 }

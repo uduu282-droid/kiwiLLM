@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { checkFreeModelRateLimit, isFreeModel } from "./rate-limit.js";
+import {
+	checkFreeModelRateLimit,
+	checkFreeUserRequestRateLimit,
+	isFreeModel,
+	isFreeUserOrganization,
+} from "./rate-limit.js";
 
 // Mock dependencies
 vi.mock("@llmgateway/cache", () => ({
@@ -33,6 +38,11 @@ const redis = mockCache.redisClient;
 describe("Rate Limiting", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(redis.zremrangebyscore).mockResolvedValue(0);
+		vi.mocked(redis.zcard).mockResolvedValue(0);
+		vi.mocked(redis.zrange).mockResolvedValue([]);
+		vi.mocked(redis.zadd).mockResolvedValue("1");
+		vi.mocked(redis.expire).mockResolvedValue(1);
 	});
 
 	describe("isFreeModel", () => {
@@ -49,6 +59,23 @@ describe("Rate Limiting", () => {
 		it("should return false for models without free property", () => {
 			const model = {};
 			expect(isFreeModel(model)).toBe(false);
+		});
+	});
+
+	describe("isFreeUserOrganization", () => {
+		it("should return true for free orgs without a dev plan", () => {
+			expect(isFreeUserOrganization({ plan: "free", devPlan: "none" })).toBe(
+				true,
+			);
+		});
+
+		it("should return false for paid or dev plan orgs", () => {
+			expect(isFreeUserOrganization({ plan: "pro", devPlan: "none" })).toBe(
+				false,
+			);
+			expect(isFreeUserOrganization({ plan: "free", devPlan: "lite" })).toBe(
+				false,
+			);
 		});
 	});
 
@@ -407,6 +434,54 @@ describe("Rate Limiting", () => {
 			);
 
 			expect(result.allowed).toBe(true);
+		});
+	});
+
+	describe("checkFreeUserRequestRateLimit", () => {
+		const organizationId = "free-org";
+
+		it("should allow requests under both minute and daily limits", async () => {
+			vi.mocked(redis.zcard).mockResolvedValueOnce(3).mockResolvedValueOnce(25);
+
+			const result = await checkFreeUserRequestRateLimit(organizationId);
+
+			expect(result.allowed).toBe(true);
+			expect(result.minute.limit).toBe(10);
+			expect(result.day.limit).toBe(200);
+			expect(redis.zadd).toHaveBeenCalledTimes(2);
+			expect(redis.expire).toHaveBeenCalledTimes(2);
+		});
+
+		it("should block when the per-minute limit is exceeded", async () => {
+			vi.mocked(redis.zcard)
+				.mockResolvedValueOnce(10)
+				.mockResolvedValueOnce(50);
+			vi.mocked(redis.zrange).mockResolvedValueOnce([
+				"123",
+				(Date.now() + 15_000).toString(),
+			]);
+
+			const result = await checkFreeUserRequestRateLimit(organizationId);
+
+			expect(result.allowed).toBe(false);
+			expect(result.retryAfter).toBeGreaterThan(0);
+			expect(result.minute.remaining).toBe(0);
+		});
+
+		it("should block when the daily limit is exceeded", async () => {
+			vi.mocked(redis.zcard)
+				.mockResolvedValueOnce(4)
+				.mockResolvedValueOnce(200);
+			vi.mocked(redis.zrange).mockResolvedValueOnce([
+				"123",
+				(Date.now() + 60_000).toString(),
+			]);
+
+			const result = await checkFreeUserRequestRateLimit(organizationId);
+
+			expect(result.allowed).toBe(false);
+			expect(result.day.remaining).toBe(0);
+			expect(result.day.limit).toBe(200);
 		});
 	});
 });
