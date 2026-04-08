@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { z } from "zod";
 
 import { desc, db, modelStatusCheck, sql } from "@llmgateway/db";
+import { logger } from "@llmgateway/logger";
 
 import type { ServerTypes } from "@/vars.js";
 
@@ -72,23 +73,33 @@ publicStatus.openapi(getPublicStatusRoute, async (c) => {
 		Date.now() - STATUS_WINDOW_DAYS * 24 * 60 * 60 * 1000,
 	);
 
-	const [models, checks] = await Promise.all([
-		db.query.model.findMany({
-			where: {
-				status: { eq: "active" },
-			},
-			with: {
-				modelProviderMappings: {
-					where: {
-						status: { eq: "active" },
-					},
+	const models = await db.query.model.findMany({
+		where: {
+			status: { eq: "active" },
+		},
+		with: {
+			modelProviderMappings: {
+				where: {
+					status: { eq: "active" },
 				},
 			},
-			orderBy: {
-				name: "asc",
-			},
-		}),
-		db
+		},
+		orderBy: {
+			name: "asc",
+		},
+	});
+
+	let checks: Array<{
+		modelId: string;
+		checkedAt: Date;
+		success: boolean;
+		responseTimeMs: number | null;
+		statusCode: number | null;
+		errorMessage: string | null;
+	}> = [];
+
+	try {
+		checks = await db
 			.select({
 				modelId: modelStatusCheck.modelId,
 				checkedAt: modelStatusCheck.checkedAt,
@@ -99,8 +110,12 @@ publicStatus.openapi(getPublicStatusRoute, async (c) => {
 			})
 			.from(modelStatusCheck)
 			.where(sql`${modelStatusCheck.checkedAt} >= ${windowStart}`)
-			.orderBy(desc(modelStatusCheck.checkedAt)),
-	]);
+			.orderBy(desc(modelStatusCheck.checkedAt));
+	} catch (error) {
+		logger.warn("Public status route is falling back to unknown checks", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
 
 	const publicChatModels = models.filter(
 		(model) =>
