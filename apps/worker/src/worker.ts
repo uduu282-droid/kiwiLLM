@@ -33,6 +33,7 @@ import {
 } from "@llmgateway/shared/email";
 
 import { runFollowUpEmailsLoop } from "./services/follow-up-emails.js";
+import { runModelStatusMonitorLoop } from "./services/model-status-monitor.js";
 import {
 	PROJECT_STATS_REFRESH_INTERVAL_SECONDS,
 	refreshProjectHourlyStats,
@@ -1528,6 +1529,7 @@ export async function startWorker() {
 	logger.info(
 		"- Follow-up emails: runs every hour to check for lifecycle emails",
 	);
+	logger.info("- Model status monitor: checks Kiwi chat models every 12 hours");
 
 	void runMinutelyHistoryLoop();
 	void runCurrentMinuteHistoryLoop();
@@ -1537,6 +1539,18 @@ export async function startWorker() {
 	void runAutoTopUpLoop();
 	void runBatchProcessLoop();
 	void runDataRetentionLoop();
+	void runModelStatusMonitorLoop({
+		shouldStop: () => shouldStop,
+		acquireLock,
+		releaseLock,
+		interruptibleSleep,
+		registerLoop: () => {
+			activeLoops++;
+		},
+		unregisterLoop: () => {
+			activeLoops--;
+		},
+	});
 	void runFollowUpEmailsLoop({
 		shouldStop: () => shouldStop,
 		acquireLock,

@@ -904,6 +904,33 @@ export const modelProviderMappingHistory = pgTable(
 	],
 );
 
+export const modelStatusCheck = pgTable(
+	"model_status_check",
+	{
+		id: text().primaryKey().$defaultFn(shortid),
+		createdAt: timestamp().notNull().defaultNow(),
+		updatedAt: timestamp()
+			.notNull()
+			.defaultNow()
+			.$onUpdate(() => new Date()),
+		modelId: text()
+			.notNull()
+			.references(() => model.id, { onDelete: "cascade" }),
+		checkedAt: timestamp().notNull().defaultNow(),
+		success: boolean().notNull(),
+		responseTimeMs: integer(),
+		statusCode: integer(),
+		errorMessage: text(),
+	},
+	(table) => [
+		index("model_status_check_checked_at_idx").on(table.checkedAt),
+		index("model_status_check_model_id_checked_at_idx").on(
+			table.modelId,
+			table.checkedAt,
+		),
+	],
+);
+
 export const modelHistory = pgTable(
 	"model_history",
 	{
