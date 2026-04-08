@@ -56,7 +56,6 @@ export function getProviderHeaders(
 			return {
 				"api-key": token,
 			};
-		case "kiwillm-completions-me":
 		case "openai":
 		case "inference.net":
 		case "xai":

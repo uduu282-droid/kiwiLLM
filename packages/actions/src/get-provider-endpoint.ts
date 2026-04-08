@@ -70,15 +70,6 @@ export function getProviderEndpoint(
 						"https://chatai-proxy.revai.workers.dev",
 					) ?? "https://chatai-proxy.revai.workers.dev";
 				break;
-			case "kiwillm-completions-me":
-				url =
-					getProviderEnvValue(
-						"kiwillm-completions-me",
-						"baseUrl",
-						configIndex,
-						"https://completions.me/api/v1",
-					) ?? "https://completions.me/api/v1";
-				break;
 			case "kiwillm-ish-chat-proxy":
 				url =
 					getProviderEnvValue(
@@ -561,8 +552,6 @@ export function getProviderEndpoint(
 		case "kiwillm-swift-sora-video":
 		case "kiwillm-claude-v3xg":
 			return `${url}/v1/chat/completions`;
-		case "kiwillm-completions-me":
-			return `${url}/chat/completions`;
 		case "alibaba":
 			if (imageGenerations) {
 				return `${url}/api/v1/services/aigc/multimodal-generation/generation`;
