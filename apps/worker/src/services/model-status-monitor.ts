@@ -128,16 +128,23 @@ async function getMonitoredModels(): Promise<MonitoredModel[]> {
 }
 
 async function getLatestStatusCheckTime(): Promise<Date | null> {
-	const latestCheck = await db
-		.select({
-			checkedAt: modelStatusCheck.checkedAt,
-		})
-		.from(modelStatusCheck)
-		.orderBy(desc(modelStatusCheck.checkedAt))
-		.limit(1)
-		.then((rows) => rows[0] ?? null);
+	try {
+		const latestCheck = await db
+			.select({
+				checkedAt: modelStatusCheck.checkedAt,
+			})
+			.from(modelStatusCheck)
+			.orderBy(desc(modelStatusCheck.checkedAt))
+			.limit(1)
+			.then((rows) => rows[0] ?? null);
 
-	return latestCheck?.checkedAt ?? null;
+		return latestCheck?.checkedAt ?? null;
+	} catch (error) {
+		logger.warn("Model status monitor could not read status history", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+		return null;
+	}
 }
 
 function extractErrorMessage(payload: unknown): string | null {
@@ -256,16 +263,22 @@ async function persistStatusChecks(results: StatusCheckResult[]): Promise<void> 
 		return;
 	}
 
-	await db.insert(modelStatusCheck).values(
-		results.map((result) => ({
-			modelId: result.modelId,
-			checkedAt: new Date(),
-			success: result.success,
-			responseTimeMs: result.responseTimeMs,
-			statusCode: result.statusCode,
-			errorMessage: result.errorMessage,
-		})),
-	);
+	try {
+		await db.insert(modelStatusCheck).values(
+			results.map((result) => ({
+				modelId: result.modelId,
+				checkedAt: new Date(),
+				success: result.success,
+				responseTimeMs: result.responseTimeMs,
+				statusCode: result.statusCode,
+				errorMessage: result.errorMessage,
+			})),
+		);
+	} catch (error) {
+		logger.warn("Model status monitor could not persist status history", {
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
 }
 
 async function runStatusChecksOnce(): Promise<void> {
