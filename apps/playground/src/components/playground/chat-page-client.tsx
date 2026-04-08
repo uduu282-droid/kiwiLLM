@@ -698,8 +698,8 @@ export default function ChatPageClient({
 		data: currentChatData,
 		isLoading: isChatLoading,
 		error: currentChatError,
-	} = useDataChat(currentChatId ?? "", canPersistChats);
-	useChats(canPersistChats);
+	} = useDataChat(canPersistChats ? (currentChatId ?? "") : "");
+	useChats();
 
 	const clearCurrentChatState = useCallback(
 		(showToast = false) => {
