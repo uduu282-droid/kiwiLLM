@@ -9,6 +9,7 @@ import {
 } from "@/lib/components/card";
 import { fetchPublicStatus } from "@/lib/fetch-status";
 
+import type { PublicStatusModel } from "@/lib/fetch-status";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -22,9 +23,70 @@ export const metadata: Metadata = {
 	},
 };
 
+type ModelStatus = "operational" | "degraded" | "down" | "unknown";
+
+interface BrandGroup {
+	id: string;
+	label: string;
+	status: ModelStatus;
+	models: PublicStatusModel[];
+	modelCount: number;
+	averageUptimePercent: number | null;
+	averageLatencyMs: number | null;
+}
+
+const statusOrder: Record<ModelStatus, number> = {
+	down: 0,
+	degraded: 1,
+	unknown: 2,
+	operational: 3,
+};
+
+const familyLabelMap: Record<string, string> = {
+	alibaba: "Qwen",
+	anthropic: "Anthropic",
+	aws: "AWS",
+	baichuan: "Baichuan",
+	bytedance: "ByteDance",
+	cohere: "Cohere",
+	databricks: "Databricks",
+	deepseek: "DeepSeek",
+	glm: "GLM",
+	google: "Google",
+	ibm: "IBM",
+	meta: "Meta",
+	microsoft: "Microsoft",
+	minimax: "MiniMax",
+	mistral: "Mistral",
+	moonshot: "Moonshot",
+	nvidia: "NVIDIA",
+	openai: "OpenAI",
+	openrouter: "OpenRouter",
+	perplexity: "Perplexity",
+	qwen: "Qwen",
+	reka: "Reka",
+	sarvam: "Sarvam",
+	stepfun: "StepFun",
+	upstage: "Upstage",
+	xai: "xAI",
+	zai: "Z AI",
+};
+
+function titleCase(value: string): string {
+	return value
+		.split(/[-_.\s]+/)
+		.filter(Boolean)
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(" ");
+}
+
+function getBrandLabel(family: string): string {
+	return familyLabelMap[family] ?? titleCase(family);
+}
+
 function formatPercent(value: number | null): string {
 	if (value === null) {
-		return "No data";
+		return "Awaiting checks";
 	}
 
 	return `${value.toFixed(1)}%`;
@@ -32,7 +94,7 @@ function formatPercent(value: number | null): string {
 
 function formatDateTime(value: string | null): string {
 	if (!value) {
-		return "Never";
+		return "No checks yet";
 	}
 
 	return new Intl.DateTimeFormat("en-US", {
@@ -61,13 +123,10 @@ function formatRelativeTime(value: string | null): string {
 		return `${diffHours}h ago`;
 	}
 
-	const diffDays = Math.round(diffHours / 24);
-	return `${diffDays}d ago`;
+	return `${Math.round(diffHours / 24)}d ago`;
 }
 
-function getStatusBadgeClassName(
-	status: "operational" | "degraded" | "down" | "unknown",
-): string {
+function getStatusBadgeClassName(status: ModelStatus): string {
 	switch (status) {
 		case "operational":
 			return "border-emerald-500/30 bg-emerald-500/10 text-emerald-400";
@@ -81,23 +140,73 @@ function getStatusBadgeClassName(
 	}
 }
 
+function getAggregateStatus(models: PublicStatusModel[]): ModelStatus {
+	return (
+		[...models].sort((a, b) => statusOrder[a.status] - statusOrder[b.status])[0]
+			?.status ?? "unknown"
+	);
+}
+
+function averageNumber(values: Array<number | null>): number | null {
+	const numbers = values.filter((value): value is number => value !== null);
+	if (numbers.length === 0) {
+		return null;
+	}
+
+	return numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
+}
+
+function buildBrandGroups(models: PublicStatusModel[]): BrandGroup[] {
+	const groups = new Map<string, PublicStatusModel[]>();
+
+	for (const model of models) {
+		const key = model.family;
+		const existing = groups.get(key) ?? [];
+		existing.push(model);
+		groups.set(key, existing);
+	}
+
+	return Array.from(groups.entries())
+		.map(([family, brandModels]) => {
+			const sortedModels = [...brandModels].sort((a, b) => {
+				const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+				if (statusDiff !== 0) {
+					return statusDiff;
+				}
+
+				return a.name.localeCompare(b.name);
+			});
+
+			return {
+				id: family,
+				label: getBrandLabel(family),
+				status: getAggregateStatus(sortedModels),
+				models: sortedModels,
+				modelCount: sortedModels.length,
+				averageUptimePercent: averageNumber(
+					sortedModels.map((model) => model.uptimePercent),
+				),
+				averageLatencyMs: averageNumber(
+					sortedModels.map((model) => model.lastResponseTimeMs),
+				),
+			};
+		})
+		.sort((a, b) => {
+			const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+			if (statusDiff !== 0) {
+				return statusDiff;
+			}
+
+			return a.label.localeCompare(b.label);
+		});
+}
+
 export default async function StatusPage() {
 	const status = await fetchPublicStatus();
-	const models = [...status.models].sort((a, b) => {
-		const order = {
-			down: 0,
-			degraded: 1,
-			unknown: 2,
-			operational: 3,
-		} satisfies Record<"operational" | "degraded" | "down" | "unknown", number>;
-
-		const diff = order[a.status] - order[b.status];
-		if (diff !== 0) {
-			return diff;
-		}
-
-		return a.name.localeCompare(b.name);
-	});
+	const brandGroups = buildBrandGroups(status.models);
+	const allUnknown =
+		status.summary.totalModels > 0 &&
+		status.summary.unknown === status.summary.totalModels;
 
 	return (
 		<div className="min-h-screen bg-white text-black dark:bg-black dark:text-white">
@@ -105,7 +214,7 @@ export default async function StatusPage() {
 				<HeroRSC navbarOnly />
 
 				<section className="container mx-auto px-4 pt-40 pb-16">
-					<div className="mx-auto max-w-6xl space-y-8">
+					<div className="mx-auto max-w-7xl space-y-8">
 						<div className="space-y-4">
 							<Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
 								Live Status
@@ -116,15 +225,37 @@ export default async function StatusPage() {
 								</h1>
 								<p className="max-w-3xl text-base text-zinc-600 dark:text-zinc-400 md:text-lg">
 									Hosted chat models are probed every {status.checkedEveryHours}{" "}
-									hours. Uptime is calculated over the last {status.windowDays}{" "}
-									days of health checks so we can see which models are currently
-									healthy and which need attention.
+									hours. Brand cards below roll model health into a single
+									system view so we can spot healthy brands, degraded families,
+									and individual model issues quickly.
 								</p>
 							</div>
 							<p className="text-sm text-zinc-500 dark:text-zinc-500">
 								Last generated {formatDateTime(status.generatedAt)}
 							</p>
 						</div>
+
+						{allUnknown ? (
+							<Card className="border-amber-500/20 bg-amber-500/5 text-white">
+								<CardHeader>
+									<CardTitle className="text-lg text-amber-200">
+										Awaiting first health checks
+									</CardTitle>
+								</CardHeader>
+								<CardContent className="space-y-2 text-sm text-zinc-300">
+									<p>
+										The status board can already see all hosted chat models, but
+										no probe results have been written yet, so every model is
+										still <code>unknown</code>.
+									</p>
+									<p>
+										Once the worker writes the first probe batch, this page will
+										show real uptime, latency, and operational/degraded/down
+										states.
+									</p>
+								</CardContent>
+							</Card>
+						) : null}
 
 						<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
 							{[
@@ -172,90 +303,130 @@ export default async function StatusPage() {
 							))}
 						</div>
 
-						<Card className="border-zinc-800 bg-zinc-950 text-white">
-							<CardHeader className="space-y-2">
-								<CardTitle className="text-xl">Chat model uptime</CardTitle>
-								<p className="text-sm text-zinc-400">
-									Only Kiwi-backed chat models are listed here. The latest probe
-									sets current status, and the trailing success rate shows
-									historical uptime.
+						<div className="space-y-4">
+							<div className="flex items-center justify-between">
+								<h2 className="text-xl font-semibold text-white">
+									Models by brand
+								</h2>
+								<p className="text-sm text-zinc-500">
+									{brandGroups.length} brands
 								</p>
-							</CardHeader>
-							<CardContent>
-								<div className="overflow-x-auto">
-									<table className="min-w-full text-sm">
-										<thead>
-											<tr className="border-b border-zinc-800 text-left text-zinc-400">
-												<th className="px-3 py-3 font-medium">Model</th>
-												<th className="px-3 py-3 font-medium">Status</th>
-												<th className="px-3 py-3 font-medium">Uptime</th>
-												<th className="px-3 py-3 font-medium">Checks</th>
-												<th className="px-3 py-3 font-medium">Latency</th>
-												<th className="px-3 py-3 font-medium">Last checked</th>
-												<th className="px-3 py-3 font-medium">Last error</th>
-											</tr>
-										</thead>
-										<tbody>
-											{models.map((model) => (
-												<tr
+							</div>
+
+							<div className="space-y-4">
+								{brandGroups.map((group) => (
+									<details
+										key={group.id}
+										open
+										className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 text-white"
+									>
+										<summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5">
+											<div className="flex items-center gap-3">
+												<div className="text-2xl leading-none text-zinc-500">
+													▾
+												</div>
+												<div>
+													<div className="flex items-center gap-3">
+														<h3 className="text-2xl font-semibold">
+															{group.label}
+														</h3>
+														<span className="rounded-full border border-zinc-800 px-2.5 py-1 text-xs text-zinc-400">
+															{group.modelCount}
+														</span>
+													</div>
+													<div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-zinc-400">
+														<span>
+															Average uptime{" "}
+															{formatPercent(group.averageUptimePercent)}
+														</span>
+														<span>
+															Average latency{" "}
+															{group.averageLatencyMs !== null
+																? `${Math.round(group.averageLatencyMs)} ms`
+																: "Awaiting checks"}
+														</span>
+													</div>
+												</div>
+											</div>
+											<Badge className={getStatusBadgeClassName(group.status)}>
+												{group.status}
+											</Badge>
+										</summary>
+
+										<div className="grid gap-0 border-t border-zinc-900 lg:grid-cols-2">
+											{group.models.map((model, index) => (
+												<div
 													key={model.modelId}
-													className="border-b border-zinc-900 align-top"
+													className={[
+														"flex items-start justify-between gap-6 px-6 py-5",
+														index % 2 === 1
+															? "lg:border-l lg:border-zinc-900"
+															: "",
+														index >= 2 ? "border-t border-zinc-900" : "",
+													]
+														.filter(Boolean)
+														.join(" ")}
 												>
-													<td className="px-3 py-4">
-														<div className="font-medium text-white">
+													<div className="min-w-0 space-y-2">
+														<div className="text-lg font-semibold text-white">
 															{model.name}
 														</div>
-														<div className="mt-1 text-xs text-zinc-500">
-															{model.modelId} • {model.family}
+														<div className="flex flex-wrap items-center gap-3 text-sm">
+															<span
+																className={[
+																	"font-medium uppercase tracking-wide",
+																	model.status === "operational"
+																		? "text-emerald-400"
+																		: model.status === "degraded"
+																			? "text-amber-300"
+																			: model.status === "down"
+																				? "text-red-300"
+																				: "text-zinc-400",
+																].join(" ")}
+															>
+																{model.status}
+															</span>
+															<span className="text-zinc-600">|</span>
+															<span className="text-zinc-400">
+																{formatPercent(model.uptimePercent)} uptime
+															</span>
+															<span className="text-zinc-600">|</span>
+															<span className="text-zinc-500">
+																{model.checkCount} checks
+															</span>
 														</div>
-													</td>
-													<td className="px-3 py-4">
-														<Badge
-															className={getStatusBadgeClassName(model.status)}
-														>
-															{model.status}
-														</Badge>
-													</td>
-													<td className="px-3 py-4">
-														<div className="font-medium text-white">
-															{formatPercent(model.uptimePercent)}
+														<div className="text-xs text-zinc-500">
+															{model.modelId}
 														</div>
-													</td>
-													<td className="px-3 py-4 text-zinc-300">
-														{model.checkCount}
-													</td>
-													<td className="px-3 py-4 text-zinc-300">
-														{model.lastResponseTimeMs !== null
-															? `${model.lastResponseTimeMs} ms`
-															: "—"}
-													</td>
-													<td className="px-3 py-4">
-														<div className="text-zinc-200">
-															{formatRelativeTime(model.lastCheckedAt)}
-														</div>
-														<div className="mt-1 text-xs text-zinc-500">
-															{formatDateTime(model.lastCheckedAt)}
-														</div>
-													</td>
-													<td className="px-3 py-4 text-zinc-400">
 														{model.lastErrorMessage ? (
-															<div className="max-w-xs text-xs leading-5 text-red-200">
+															<div className="max-w-xl text-xs leading-5 text-red-200">
 																{model.lastErrorMessage}
 																{model.lastStatusCode !== null
 																	? ` (${model.lastStatusCode})`
 																	: ""}
 															</div>
-														) : (
-															<span className="text-zinc-500">—</span>
-														)}
-													</td>
-												</tr>
+														) : null}
+													</div>
+													<div className="shrink-0 space-y-2 text-right">
+														<div className="rounded-full border border-zinc-800 px-3 py-1 text-xs text-zinc-300">
+															{model.lastResponseTimeMs !== null
+																? `${model.lastResponseTimeMs} ms`
+																: "Awaiting checks"}
+														</div>
+														<div className="text-sm text-zinc-300">
+															{formatRelativeTime(model.lastCheckedAt)}
+														</div>
+														<div className="text-xs text-zinc-500">
+															{formatDateTime(model.lastCheckedAt)}
+														</div>
+													</div>
+												</div>
 											))}
-										</tbody>
-									</table>
-								</div>
-							</CardContent>
-						</Card>
+										</div>
+									</details>
+								))}
+							</div>
+						</div>
 					</div>
 				</section>
 			</main>
