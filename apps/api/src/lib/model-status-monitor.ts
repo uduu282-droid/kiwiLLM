@@ -18,6 +18,7 @@ const DEFAULT_STATUS_MONITOR_LOOP_INTERVAL_MS = 60_000;
 const LOCK_DURATION_MINUTES = 5;
 const DEV_MONITOR_API_KEY = "test-token";
 const STATUS_MONITOR_LOCK_KEY = "model_status_monitor";
+const MIN_TRIGGER_SPACING_MS = 30_000;
 
 interface MonitoredModel {
 	id: string;
@@ -37,6 +38,8 @@ let isRunning = false;
 let shouldStop = false;
 let currentSleepTimer: NodeJS.Timeout | null = null;
 let currentLoop: Promise<void> | null = null;
+let currentTriggerPromise: Promise<boolean> | null = null;
+let lastTriggerStartedAt = 0;
 
 function getStatusMonitorIntervalHours(): number {
 	return Number(
@@ -406,6 +409,54 @@ async function runStatusChecksOnce(): Promise<void> {
 	});
 }
 
+async function triggerStatusChecksNow(reason: string): Promise<boolean> {
+	const now = Date.now();
+
+	if (currentTriggerPromise) {
+		return false;
+	}
+
+	if (now - lastTriggerStartedAt < MIN_TRIGGER_SPACING_MS) {
+		return false;
+	}
+
+	lastTriggerStartedAt = now;
+	currentTriggerPromise = (async () => {
+		let lockAcquired = false;
+
+		try {
+			lockAcquired = await acquireLock(STATUS_MONITOR_LOCK_KEY);
+			if (!lockAcquired) {
+				return false;
+			}
+
+			logger.info("Triggering model status checks on demand", { reason });
+			await runStatusChecksOnce();
+			return true;
+		} catch (error) {
+			logger.error(
+				"On-demand model status checks failed",
+				error instanceof Error ? error : new Error(String(error)),
+			);
+			return false;
+		} finally {
+			if (lockAcquired) {
+				try {
+					await releaseLock(STATUS_MONITOR_LOCK_KEY);
+				} catch (error) {
+					logger.warn("Failed to release model status monitor lock", {
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
+			}
+		}
+	})().finally(() => {
+		currentTriggerPromise = null;
+	});
+
+	return await currentTriggerPromise;
+}
+
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => {
 		currentSleepTimer = setTimeout(() => {
@@ -493,4 +544,8 @@ export async function stopModelStatusMonitor(): Promise<void> {
 	if (currentLoop) {
 		await currentLoop;
 	}
+}
+
+export function scheduleStatusChecksNow(reason: string): void {
+	void triggerStatusChecksNow(reason);
 }

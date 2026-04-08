@@ -1,6 +1,8 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 import { z } from "zod";
 
+import { scheduleStatusChecksNow } from "@/lib/model-status-monitor.js";
+
 import { desc, db, modelStatusCheck, sql } from "@llmgateway/db";
 import { logger } from "@llmgateway/logger";
 
@@ -206,14 +208,23 @@ const getPublicStatusRoute = createRoute({
 
 publicStatus.openapi(getPublicStatusRoute, async (c) => {
 	const windowStart = new Date(
-		Date.now() - STATUS_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+		Date.now() - (STATUS_WINDOW_DAYS * 24 * 60 * 60 * 1000),
 	);
 	const [models, checks] = await Promise.all([
 		getPublicChatModels(),
 		getStatusChecks(windowStart),
 	]);
 
-	return c.json(buildStatusResponse(models, checks));
+	const response = buildStatusResponse(models, checks);
+	const allUnknown =
+		response.summary.totalModels > 0 &&
+		response.summary.unknown === response.summary.totalModels;
+
+	if (allUnknown) {
+		scheduleStatusChecksNow("public-status-bootstrap");
+	}
+
+	return c.json(response);
 });
 
 export { publicStatus };
