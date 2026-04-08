@@ -9,6 +9,8 @@ import {
 } from "@/lib/components/card";
 import { fetchPublicStatus } from "@/lib/fetch-status";
 
+import { StatusControls } from "./status-controls";
+
 import type { PublicStatusModel } from "@/lib/fetch-status";
 import type { Metadata } from "next";
 
@@ -233,6 +235,7 @@ export default async function StatusPage() {
 							<p className="text-sm text-zinc-500 dark:text-zinc-500">
 								Last generated {formatDateTime(status.generatedAt)}
 							</p>
+							<StatusControls allUnknown={allUnknown} />
 						</div>
 
 						{allUnknown ? (
