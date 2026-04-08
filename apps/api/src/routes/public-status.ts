@@ -12,13 +12,6 @@ const STATUS_WINDOW_DAYS = Number(
 const STATUS_CHECK_INTERVAL_HOURS = Number(
 	process.env.MODEL_STATUS_CHECK_INTERVAL_HOURS ?? "12",
 );
-const STATUS_RUN_TIMEOUT_MS = Number(
-	process.env.STATUS_MONITOR_TIMEOUT_MS ?? "8000",
-);
-const STATUS_RUN_CONCURRENCY = Math.max(
-	1,
-	Number(process.env.STATUS_MONITOR_RUN_CONCURRENCY ?? "16"),
-);
 
 const statusEntrySchema = z.object({
 	modelId: z.string(),
@@ -49,10 +42,6 @@ const responseSchema = z.object({
 	models: z.array(statusEntrySchema),
 });
 
-const runResponseSchema = responseSchema.extend({
-	triggeredAt: z.string(),
-});
-
 const publicStatus = new OpenAPIHono<ServerTypes>();
 
 interface StatusCheckRow {
@@ -76,32 +65,6 @@ function isChatModelOutput(output: string[] | null | undefined): boolean {
 
 function toIsoString(value: Date | null | undefined): string | null {
 	return value ? value.toISOString() : null;
-}
-
-function getStatusMonitorGatewayUrl(): string {
-	if (process.env.STATUS_MONITOR_GATEWAY_URL) {
-		return process.env.STATUS_MONITOR_GATEWAY_URL;
-	}
-
-	if (process.env.GATEWAY_URL) {
-		return process.env.GATEWAY_URL;
-	}
-
-	return process.env.HOSTED === "true"
-		? "https://api.kiwillm.in"
-		: "http://localhost:4001";
-}
-
-function getStatusMonitorApiKey(): string | null {
-	if (process.env.STATUS_MONITOR_API_KEY) {
-		return process.env.STATUS_MONITOR_API_KEY;
-	}
-
-	if (process.env.NODE_ENV !== "production") {
-		return "test-token";
-	}
-
-	return null;
 }
 
 async function getPublicChatModels(): Promise<MonitoredModel[]> {
@@ -225,143 +188,6 @@ function buildStatusResponse(models: MonitoredModel[], checks: StatusCheckRow[])
 	};
 }
 
-function extractErrorMessage(payload: unknown): string | null {
-	if (!payload || typeof payload !== "object") {
-		return null;
-	}
-
-	if (
-		"message" in payload &&
-		typeof payload.message === "string" &&
-		payload.message.trim().length > 0
-	) {
-		return payload.message.slice(0, 500);
-	}
-
-	if (
-		"error" in payload &&
-		payload.error &&
-		typeof payload.error === "object" &&
-		"message" in payload.error &&
-		typeof payload.error.message === "string"
-	) {
-		return payload.error.message.slice(0, 500);
-	}
-
-	return null;
-}
-
-async function probeModel(model: MonitoredModel): Promise<StatusCheckRow> {
-	const apiKey = getStatusMonitorApiKey();
-	const startedAt = Date.now();
-
-	if (!apiKey) {
-		return {
-			modelId: model.id,
-			checkedAt: new Date(),
-			success: false,
-			responseTimeMs: 0,
-			statusCode: null,
-			errorMessage:
-				"STATUS_MONITOR_API_KEY is not configured for production monitoring.",
-		};
-	}
-
-	try {
-		const response = await fetch(
-			`${getStatusMonitorGatewayUrl()}/v1/chat/completions`,
-			{
-				method: "POST",
-				headers: {
-					authorization: `Bearer ${apiKey}`,
-					"content-type": "application/json",
-					"x-kiwillm-status-monitor": "true",
-				},
-				body: JSON.stringify({
-					model: model.id,
-					messages: [
-						{
-							role: "user",
-							content: "Reply with exactly OK.",
-						},
-					],
-					max_tokens: 8,
-					temperature: 0,
-					stream: false,
-				}),
-				signal: AbortSignal.timeout(STATUS_RUN_TIMEOUT_MS),
-			},
-		);
-
-		let payload: unknown = null;
-		try {
-			payload = await response.json();
-		} catch {
-			payload = null;
-		}
-
-		return {
-			modelId: model.id,
-			checkedAt: new Date(),
-			success: response.ok,
-			responseTimeMs: Date.now() - startedAt,
-			statusCode: response.status,
-			errorMessage: response.ok
-				? null
-				: extractErrorMessage(payload) ??
-					`Probe failed with HTTP ${response.status}`,
-		};
-	} catch (error) {
-		return {
-			modelId: model.id,
-			checkedAt: new Date(),
-			success: false,
-			responseTimeMs: Date.now() - startedAt,
-			statusCode: null,
-			errorMessage:
-				error instanceof Error
-					? error.message.slice(0, 500)
-					: "Unknown probe error",
-		};
-	}
-}
-
-async function persistStatusChecks(checks: StatusCheckRow[]): Promise<void> {
-	if (checks.length === 0) {
-		return;
-	}
-
-	try {
-		await db.insert(modelStatusCheck).values(
-			checks.map((check) => ({
-				modelId: check.modelId,
-				checkedAt: check.checkedAt,
-				success: check.success,
-				responseTimeMs: check.responseTimeMs,
-				statusCode: check.statusCode,
-				errorMessage: check.errorMessage,
-			})),
-		);
-	} catch (error) {
-		logger.warn("Public status route could not persist checks", {
-			error: error instanceof Error ? error.message : String(error),
-		});
-	}
-}
-
-async function runStatusChecksNow(models: MonitoredModel[]): Promise<StatusCheckRow[]> {
-	const results: StatusCheckRow[] = [];
-
-	for (let index = 0; index < models.length; index += STATUS_RUN_CONCURRENCY) {
-		const batch = models.slice(index, index + STATUS_RUN_CONCURRENCY);
-		const batchResults = await Promise.all(batch.map((model) => probeModel(model)));
-		results.push(...batchResults);
-	}
-
-	await persistStatusChecks(results);
-	return results;
-}
-
 const getPublicStatusRoute = createRoute({
 	method: "get",
 	path: "/",
@@ -378,22 +204,6 @@ const getPublicStatusRoute = createRoute({
 	},
 });
 
-const runPublicStatusRoute = createRoute({
-	method: "post",
-	path: "/run",
-	request: {},
-	responses: {
-		200: {
-			content: {
-				"application/json": {
-					schema: runResponseSchema,
-				},
-			},
-			description: "Run status probes now and return the refreshed status board.",
-		},
-	},
-});
-
 publicStatus.openapi(getPublicStatusRoute, async (c) => {
 	const windowStart = new Date(
 		Date.now() - STATUS_WINDOW_DAYS * 24 * 60 * 60 * 1000,
@@ -404,29 +214,6 @@ publicStatus.openapi(getPublicStatusRoute, async (c) => {
 	]);
 
 	return c.json(buildStatusResponse(models, checks));
-});
-
-publicStatus.openapi(runPublicStatusRoute, async (c) => {
-	const windowStart = new Date(
-		Date.now() - STATUS_WINDOW_DAYS * 24 * 60 * 60 * 1000,
-	);
-	const models = await getPublicChatModels();
-	const checks = await runStatusChecksNow(models);
-	const allChecks = [...checks, ...(await getStatusChecks(windowStart))];
-	const latestByModel = new Map<string, StatusCheckRow>();
-
-	for (const check of allChecks) {
-		const existing = latestByModel.get(check.modelId);
-		if (!existing || existing.checkedAt < check.checkedAt) {
-			latestByModel.set(check.modelId, check);
-		}
-	}
-
-	const mergedChecks = Array.from(latestByModel.values());
-	return c.json({
-		...buildStatusResponse(models, mergedChecks),
-		triggeredAt: new Date().toISOString(),
-	});
 });
 
 export { publicStatus };

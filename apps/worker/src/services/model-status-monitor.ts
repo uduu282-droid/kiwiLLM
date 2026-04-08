@@ -5,6 +5,8 @@ const DEFAULT_STATUS_MONITOR_INTERVAL_HOURS = 12;
 const DEFAULT_STATUS_MONITOR_TIMEOUT_MS = 45_000;
 const DEFAULT_STATUS_MONITOR_CONCURRENCY = 4;
 const DEFAULT_STATUS_MONITOR_WINDOW_DAYS = 30;
+const DEFAULT_STATUS_MONITOR_BATCH_SIZE = 10;
+const DEFAULT_STATUS_MONITOR_LOOP_INTERVAL_MS = 60_000;
 const DEV_MONITOR_API_KEY = "test-token";
 
 interface MonitoredModel {
@@ -17,6 +19,15 @@ interface StatusCheckResult {
 	modelId: string;
 	success: boolean;
 	responseTimeMs: number;
+	statusCode: number | null;
+	errorMessage: string | null;
+}
+
+interface StatusCheckRow {
+	modelId: string;
+	checkedAt: Date;
+	success: boolean;
+	responseTimeMs: number | null;
 	statusCode: number | null;
 	errorMessage: string | null;
 }
@@ -59,6 +70,16 @@ function getStatusMonitorConcurrency(): number {
 		Number(
 			process.env.MODEL_STATUS_CHECK_CONCURRENCY ??
 				DEFAULT_STATUS_MONITOR_CONCURRENCY,
+		),
+	);
+}
+
+function getStatusMonitorBatchSize(): number {
+	return Math.max(
+		1,
+		Number(
+			process.env.MODEL_STATUS_CHECK_BATCH_SIZE ??
+				DEFAULT_STATUS_MONITOR_BATCH_SIZE,
 		),
 	);
 }
@@ -127,23 +148,33 @@ async function getMonitoredModels(): Promise<MonitoredModel[]> {
 		}));
 }
 
-async function getLatestStatusCheckTime(): Promise<Date | null> {
+async function getLatestStatusChecks(): Promise<Map<string, StatusCheckRow>> {
 	try {
-		const latestCheck = await db
+		const rows = await db
 			.select({
+				modelId: modelStatusCheck.modelId,
 				checkedAt: modelStatusCheck.checkedAt,
+				success: modelStatusCheck.success,
+				responseTimeMs: modelStatusCheck.responseTimeMs,
+				statusCode: modelStatusCheck.statusCode,
+				errorMessage: modelStatusCheck.errorMessage,
 			})
 			.from(modelStatusCheck)
-			.orderBy(desc(modelStatusCheck.checkedAt))
-			.limit(1)
-			.then((rows) => rows[0] ?? null);
+			.orderBy(desc(modelStatusCheck.checkedAt));
 
-		return latestCheck?.checkedAt ?? null;
+		const latestByModel = new Map<string, StatusCheckRow>();
+		for (const row of rows) {
+			if (!latestByModel.has(row.modelId)) {
+				latestByModel.set(row.modelId, row);
+			}
+		}
+
+		return latestByModel;
 	} catch (error) {
-		logger.warn("Model status monitor could not read status history", {
+		logger.warn("Model status monitor could not load latest model checks", {
 			error: error instanceof Error ? error.message : String(error),
 		});
-		return null;
+		return new Map();
 	}
 }
 
@@ -281,14 +312,49 @@ async function persistStatusChecks(results: StatusCheckResult[]): Promise<void> 
 	}
 }
 
-async function runStatusChecksOnce(): Promise<void> {
+async function getModelsDueForCheck(limit: number): Promise<MonitoredModel[]> {
 	const models = await getMonitoredModels();
 	if (models.length === 0) {
-		logger.warn("Model status monitoring found no Kiwi-backed chat models.");
+		return [];
+	}
+
+	const latestChecks = await getLatestStatusChecks();
+	const dueBefore = new Date(
+		Date.now() - getStatusMonitorIntervalHours() * 60 * 60 * 1000,
+	);
+
+	return models
+		.map((model) => ({
+			model,
+			lastCheckedAt: latestChecks.get(model.id)?.checkedAt ?? null,
+		}))
+		.filter(
+			({ lastCheckedAt }) =>
+				lastCheckedAt === null || lastCheckedAt.getTime() <= dueBefore.getTime(),
+		)
+		.sort((a, b) => {
+			if (a.lastCheckedAt === null && b.lastCheckedAt === null) {
+				return a.model.name.localeCompare(b.model.name);
+			}
+			if (a.lastCheckedAt === null) {
+				return -1;
+			}
+			if (b.lastCheckedAt === null) {
+				return 1;
+			}
+			return a.lastCheckedAt.getTime() - b.lastCheckedAt.getTime();
+		})
+		.slice(0, limit)
+		.map(({ model }) => model);
+}
+
+async function runStatusChecksOnce(): Promise<void> {
+	const models = await getModelsDueForCheck(getStatusMonitorBatchSize());
+	if (models.length === 0) {
 		return;
 	}
 
-	logger.info(`Running model status checks for ${models.length} chat models...`);
+	logger.info(`Running model status checks for ${models.length} due chat models...`);
 
 	const concurrency = getStatusMonitorConcurrency();
 	const results: StatusCheckResult[] = [];
@@ -312,16 +378,6 @@ async function runStatusChecksOnce(): Promise<void> {
 }
 
 async function runStatusChecksIfDue(): Promise<void> {
-	const latestCheckAt = await getLatestStatusCheckTime();
-	const intervalMs = getStatusMonitorIntervalHours() * 60 * 60 * 1000;
-
-	if (
-		latestCheckAt &&
-		Date.now() - latestCheckAt.getTime() < intervalMs
-	) {
-		return;
-	}
-
 	await runStatusChecksOnce();
 }
 
@@ -382,7 +438,7 @@ export async function runModelStatusMonitorLoop({
 }: MonitorLoopOptions): Promise<void> {
 	registerLoop();
 	logger.info(
-		`Starting model status monitor loop (interval: ${getStatusMonitorIntervalHours()} hours)...`,
+		`Starting model status monitor loop (${getStatusMonitorBatchSize()} models per minute, refresh threshold ${getStatusMonitorIntervalHours()} hours)...`,
 	);
 
 	try {
@@ -406,7 +462,7 @@ export async function runModelStatusMonitorLoop({
 				break;
 			}
 
-			await interruptibleSleep(15 * 60 * 1000);
+			await interruptibleSleep(DEFAULT_STATUS_MONITOR_LOOP_INTERVAL_MS);
 		}
 	} finally {
 		unregisterLoop();

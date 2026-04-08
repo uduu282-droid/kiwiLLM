@@ -1529,7 +1529,9 @@ export async function startWorker() {
 	logger.info(
 		"- Follow-up emails: runs every hour to check for lifecycle emails",
 	);
-	logger.info("- Model status monitor: checks Kiwi chat models every 12 hours");
+	logger.info(
+		"- Model status monitor: checks 10 due Kiwi chat models per minute and refreshes each model every 12 hours",
+	);
 
 	void runMinutelyHistoryLoop();
 	void runCurrentMinuteHistoryLoop();
