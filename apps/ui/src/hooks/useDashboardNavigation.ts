@@ -16,7 +16,8 @@ export function useDashboardNavigation() {
 	const pathname = usePathname();
 
 	// Get the dashboard state from context (shared across all components)
-	const { selectedOrganization, selectedProject } = useDashboardContext();
+	const { selectedOrganization, selectedProject, billingAccount } =
+		useDashboardContext();
 
 	// Extract org and project IDs from current path
 	const { orgId, projectId } = useMemo(() => {
@@ -44,6 +45,7 @@ export function useDashboardNavigation() {
 		buildUrl,
 		buildOrgUrl,
 		selectedOrganization,
+		billingAccount,
 		selectedProject,
 	};
 }

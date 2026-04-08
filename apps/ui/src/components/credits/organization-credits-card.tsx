@@ -9,7 +9,7 @@ import { Button } from "@/lib/components/button";
 import { Card, CardContent } from "@/lib/components/card";
 import { Input } from "@/lib/components/input";
 import { useToast } from "@/lib/components/use-toast";
-import { useApi } from "@/lib/fetch-client";
+import { useFetchClient } from "@/lib/fetch-client";
 import { cn } from "@/lib/utils";
 
 import type { BillingAccount, Organization } from "@/lib/types";
@@ -21,10 +21,11 @@ interface OrganizationCreditsCardProps {
 export function OrganizationCreditsCard({
 	organization,
 }: OrganizationCreditsCardProps) {
-	const api = useApi();
+	const fetchClient = useFetchClient();
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const [isRedeemOpen, setIsRedeemOpen] = useState(false);
+	const [isRedeeming, setIsRedeeming] = useState(false);
 	const [couponCode, setCouponCode] = useState("");
 	const [highlightIncrease, setHighlightIncrease] = useState<number | null>(
 		null,
@@ -34,8 +35,7 @@ export function OrganizationCreditsCard({
 	const countFrom = previousCreditsRef.current;
 	const countTo = currentCredits;
 
-	const organizationsQueryKey = api.queryOptions("get", "/orgs", {}).queryKey;
-	const redeemCoupon = api.useMutation("post", "/orgs/{id}/redeem-coupon");
+	const organizationsQueryKey = [["get", "/orgs", {}]];
 
 	useEffect(() => {
 		previousCreditsRef.current = currentCredits;
@@ -83,19 +83,27 @@ export function OrganizationCreditsCard({
 		}
 
 		try {
-			const response = await redeemCoupon.mutateAsync({
-				params: {
-					path: {
-						id: organization.id,
+			setIsRedeeming(true);
+			const { data, error } = await fetchClient.POST(
+				"/orgs/{id}/redeem-coupon",
+				{
+					params: {
+						path: {
+							id: organization.id,
+						},
+					},
+					body: {
+						code: normalizedCode,
 					},
 				},
-				body: {
-					code: normalizedCode,
-				},
-			});
+			);
 
-			applyCreditsToCache(response.credits);
-			setHighlightIncrease(Number(response.creditAmount));
+			if (error || !data) {
+				throw new Error("Failed to redeem coupon");
+			}
+
+			applyCreditsToCache(data.credits);
+			setHighlightIncrease(Number(data.creditAmount));
 			setCouponCode("");
 			setIsRedeemOpen(false);
 
@@ -103,7 +111,7 @@ export function OrganizationCreditsCard({
 
 			toast({
 				title: "Credits added",
-				description: `${response.creditAmount} credits were added from coupon ${response.coupon.code}.`,
+				description: `${data.creditAmount} credits were added from coupon ${data.coupon.code}.`,
 			});
 
 			window.setTimeout(() => {
@@ -117,6 +125,8 @@ export function OrganizationCreditsCard({
 				description: message,
 				variant: "destructive",
 			});
+		} finally {
+			setIsRedeeming(false);
 		}
 	};
 
@@ -217,13 +227,13 @@ export function OrganizationCreditsCard({
 								<Button
 									type="button"
 									onClick={handleRedeem}
-									disabled={redeemCoupon.isPending}
+									disabled={isRedeeming}
 									className={cn(
 										"min-w-28 bg-emerald-500 text-black hover:bg-emerald-400",
-										redeemCoupon.isPending && "opacity-80",
+										isRedeeming && "opacity-80",
 									)}
 								>
-									{redeemCoupon.isPending ? "Redeeming..." : "Apply coupon"}
+									{isRedeeming ? "Redeeming..." : "Apply coupon"}
 								</Button>
 							</div>
 						</div>

@@ -53,8 +53,35 @@ interface PricingTier {
 	outputPrice: number;
 }
 
-interface ProviderWithInfo extends Omit<ApiModelProviderMapping, "discount"> {
+interface ProviderWithInfo {
+	id?: string;
+	createdAt?: string;
+	modelId?: string;
+	providerId: string;
+	modelName?: string | null;
+	inputPrice?: string | number | null;
+	outputPrice?: string | number | null;
+	cachedInputPrice?: string | number | null;
+	imageInputPrice?: string | number | null;
+	requestPrice?: string | number | null;
+	contextSize?: number | null;
+	maxOutput?: number | null;
+	streaming?: boolean | null;
+	vision?: boolean | null;
+	reasoning?: boolean | null;
+	reasoningOutput?: string | null;
+	reasoningMaxTokens?: boolean | null;
+	tools?: boolean | null;
+	jsonOutput?: boolean | null;
+	jsonOutputSchema?: boolean | null;
+	webSearch?: boolean | null;
+	webSearchPrice?: string | number | null;
 	discount?: string | number | null;
+	stability?: ApiModelProviderMapping["stability"];
+	supportedParameters?: string[] | null;
+	deprecatedAt?: string | Date | null;
+	deactivatedAt?: string | Date | null;
+	status?: ApiModelProviderMapping["status"];
 	providerInfo?: Pick<ApiProvider, "name">;
 	imageInputTokensByResolution?: Record<string, number>;
 	imageOutputTokensByResolution?: Record<string, number>;
