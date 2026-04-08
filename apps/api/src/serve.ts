@@ -14,6 +14,10 @@ import {
 	startDailyBeacon,
 	stopDailyBeacon,
 } from "./lib/beacon.js";
+import {
+	startModelStatusMonitor,
+	stopModelStatusMonitor,
+} from "./lib/model-status-monitor.js";
 
 import type { NodeSDK } from "@opentelemetry/sdk-node";
 import type { Server } from "node:http";
@@ -61,6 +65,7 @@ async function startServer() {
 
 	// Start daily beacon schedule to track active installations
 	startDailyBeacon();
+	startModelStatusMonitor();
 
 	logger.info("Server listening", { port });
 
@@ -126,6 +131,9 @@ const gracefulShutdown = async (signal: string, server: ServerType) => {
 
 		logger.info("Stopping daily beacon schedule");
 		stopDailyBeacon();
+
+		logger.info("Stopping model status monitor");
+		await stopModelStatusMonitor();
 
 		logger.info("Closing database connection");
 		await closeDatabase();
