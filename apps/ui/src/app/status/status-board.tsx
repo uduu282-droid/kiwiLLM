@@ -86,7 +86,10 @@ function formatPercent(value: number | null): string {
 	return `${value.toFixed(1)}%`;
 }
 
-function formatDateTime(value: string | null): string {
+function formatDateTime(
+	value: string | null,
+	options?: { useLocalTimeZone?: boolean },
+): string {
 	if (!value) {
 		return "No checks yet";
 	}
@@ -97,6 +100,7 @@ function formatDateTime(value: string | null): string {
 		year: "numeric",
 		hour: "numeric",
 		minute: "2-digit",
+		timeZone: options?.useLocalTimeZone ? undefined : "UTC",
 		timeZoneName: "short",
 	}).format(new Date(value));
 }
@@ -200,9 +204,14 @@ export function StatusBoard({
 	initialStatus: PublicStatusResponse;
 }) {
 	const [status, setStatus] = useState(initialStatus);
+	const [hasHydrated, setHasHydrated] = useState(false);
 	const [lastRefreshAttemptAt, setLastRefreshAttemptAt] = useState<
 		string | null
 	>(null);
+
+	useEffect(() => {
+		setHasHydrated(true);
+	}, []);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -265,12 +274,17 @@ export function StatusBoard({
 					</p>
 				</div>
 				<p className="text-sm text-zinc-500 dark:text-zinc-500">
-					Last generated {formatDateTime(status.generatedAt)}
+					Last generated{" "}
+					{formatDateTime(status.generatedAt, {
+						useLocalTimeZone: hasHydrated,
+					})}
 				</p>
 				<p className="text-xs text-zinc-500">
 					Page auto-refreshes every 15 seconds
 					{lastRefreshAttemptAt
-						? ` • last refresh attempt ${formatDateTime(lastRefreshAttemptAt)}`
+						? ` • last refresh attempt ${formatDateTime(lastRefreshAttemptAt, {
+								useLocalTimeZone: hasHydrated,
+							})}`
 						: ""}
 				</p>
 			</div>
@@ -445,10 +459,14 @@ export function StatusBoard({
 													: "Awaiting checks"}
 											</div>
 											<div className="text-sm text-zinc-300">
-												{formatRelativeTime(model.lastCheckedAt)}
+												{hasHydrated
+													? formatRelativeTime(model.lastCheckedAt)
+													: formatDateTime(model.lastCheckedAt)}
 											</div>
 											<div className="text-xs text-zinc-500">
-												{formatDateTime(model.lastCheckedAt)}
+												{formatDateTime(model.lastCheckedAt, {
+													useLocalTimeZone: hasHydrated,
+												})}
 											</div>
 										</div>
 									</div>
