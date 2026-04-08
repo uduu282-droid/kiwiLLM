@@ -1,8 +1,11 @@
 import { join, resolve } from "path";
 
 import { withContentCollections } from "@content-collections/next";
+import { createMDX } from "fumadocs-mdx/next";
 
 import type { NextConfig } from "next";
+
+const withMDX = createMDX();
 
 const nextConfig: NextConfig = {
 	outputFileTracingRoot: join(__dirname, "../../"),
@@ -27,6 +30,7 @@ const nextConfig: NextConfig = {
 				__dirname,
 				"../../packages/shared/src/components/index.tsx",
 			),
+			"@kiwi-docs": resolve(__dirname, "../docs"),
 		};
 
 		return config;
@@ -44,28 +48,23 @@ const nextConfig: NextConfig = {
 				permanent: true,
 			},
 			{
-				source: "/docs",
-				destination: "https://kiwillm.in",
-				permanent: true,
-			},
-			{
 				source: "/discord",
 				destination: "https://discord.gg/3u7jpXf36B",
 				permanent: true,
 			},
 			{
 				source: "/github",
-				destination: "https://github.com/theopenco/llmgateway",
+				destination: "https://github.com/uduu282-droid/kiwiLLM",
 				permanent: true,
 			},
 			{
 				source: "/twitter",
-				destination: "https://twitter.com/llmgateway",
+				destination: "https://www.kiwillm.in",
 				permanent: true,
 			},
 			{
 				source: "/x",
-				destination: "https://x.com/llmgateway",
+				destination: "https://www.kiwillm.in",
 				permanent: true,
 			},
 			{
@@ -96,4 +95,4 @@ const nextConfig: NextConfig = {
 };
 
 // withContentCollections must be the outermost plugin
-export default withContentCollections(nextConfig);
+export default withContentCollections(withMDX(nextConfig));

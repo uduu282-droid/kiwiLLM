@@ -1,0 +1,1 @@
+export const LIVE_DASHBOARD_REFRESH_MS = 15_000;
