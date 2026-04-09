@@ -10,6 +10,8 @@ import {
 	type ToolCall,
 } from "@llmgateway/models";
 
+import { getBillableProviderMapping } from "./provider-pricing.js";
+
 // Define ChatMessage type to match what gpt-tokenizer expects
 interface ChatMessage {
 	role: "user" | "system" | "assistant" | undefined;
@@ -224,9 +226,10 @@ export async function calculateCosts(
 	calculatedCompletionTokens ??= 0;
 
 	// Find the provider-specific pricing
-	const providerInfo = modelInfo.providers.find(
+	const selectedProviderInfo = modelInfo.providers.find(
 		(p) => p.providerId === provider,
 	);
+	const providerInfo = getBillableProviderMapping(modelInfo, selectedProviderInfo);
 
 	if (!providerInfo) {
 		return {

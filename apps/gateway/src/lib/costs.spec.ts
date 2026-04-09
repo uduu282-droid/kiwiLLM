@@ -518,4 +518,20 @@ describe("calculateCosts", () => {
 		expect(result.imageInputCost).toBeGreaterThan(0);
 		expect(result.imageOutputCost).toBeGreaterThan(0);
 	});
+
+	it("should bill internal zero-priced providers using canonical model pricing", async () => {
+		const directResult = await calculateCosts("gpt-5", "openai", 1000, 500, null);
+		const internalResult = await calculateCosts(
+			"gpt-5",
+			"kiwillm-free-ai-hub",
+			1000,
+			500,
+			null,
+		);
+
+		expect(directResult.totalCost).toBeGreaterThan(0);
+		expect(internalResult.totalCost).toBeCloseTo(directResult.totalCost ?? 0);
+		expect(internalResult.inputCost).toBeCloseTo(directResult.inputCost ?? 0);
+		expect(internalResult.outputCost).toBeCloseTo(directResult.outputCost ?? 0);
+	});
 });

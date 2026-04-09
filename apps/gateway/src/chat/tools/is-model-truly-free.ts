@@ -1,5 +1,9 @@
-import type { ModelDefinition } from "@llmgateway/models";
-import type { ProviderModelMapping } from "@llmgateway/models";
+import type { ModelDefinition, ProviderModelMapping } from "@llmgateway/models";
+
+import {
+	getBillableProviderMapping,
+	hasBillablePricing,
+} from "@/lib/provider-pricing.js";
 
 /**
  * Checks if a specific provider mapping is effectively free to use.
@@ -7,21 +11,19 @@ import type { ProviderModelMapping } from "@llmgateway/models";
  * because they don't have any upstream token or per-request cost.
  */
 export function isProviderMappingTrulyFree(
+	modelInfo: ModelDefinition,
 	providerMapping: ProviderModelMapping | undefined,
 ): boolean {
-	if (!providerMapping) {
+	const billedProviderMapping = getBillableProviderMapping(
+		modelInfo,
+		providerMapping,
+	);
+
+	if (!billedProviderMapping) {
 		return false;
 	}
 
-	return (
-		(providerMapping.inputPrice ?? 0) <= 0 &&
-		(providerMapping.outputPrice ?? 0) <= 0 &&
-		(providerMapping.cachedInputPrice ?? 0) <= 0 &&
-		(providerMapping.imageInputPrice ?? 0) <= 0 &&
-		(providerMapping.imageOutputPrice ?? 0) <= 0 &&
-		(providerMapping.requestPrice ?? 0) <= 0 &&
-		(providerMapping.webSearchPrice ?? 0) <= 0
-	);
+	return modelInfo.free === true && !hasBillablePricing(billedProviderMapping);
 }
 
 /**

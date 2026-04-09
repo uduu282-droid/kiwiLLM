@@ -1953,15 +1953,16 @@ chat.openapi(completions, async (c) => {
 	let usedToken: string | undefined;
 	let configIndex = 0; // Index for round-robin environment variables
 	let envVarName: string | undefined; // Environment variable name for health tracking
+	const resolvedModelDefinition = (finalModelInfo ??
+		modelInfo) as ModelDefinition;
 	const billingProviderMapping = (finalModelInfo ?? modelInfo).providers.find(
 		(provider) =>
 			provider.providerId === usedProvider && provider.modelName === usedModel,
 	);
 	const selectedProviderIsZeroCost = isProviderMappingTrulyFree(
+		resolvedModelDefinition,
 		billingProviderMapping as ProviderModelMapping | undefined,
 	);
-	const resolvedModelDefinition = (finalModelInfo ??
-		modelInfo) as ModelDefinition;
 	if (
 		project.mode === "credits" &&
 		(usedProvider === "custom" || usedProvider === "llmgateway")
