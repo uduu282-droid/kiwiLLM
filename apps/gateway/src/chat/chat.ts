@@ -141,6 +141,9 @@ const bareModelProviderAliases: Record<string, string> = {
 	"gemini-2.5-pro": "kiwillm-chatai-proxy/gemini-2.5-pro",
 	"gpt-oss-120b": "kiwillm-freecfmodels/gpt-oss-120b",
 	"kimi-k2.5": "kiwillm-kimi/kimi-k2.5",
+	"claude-haiku-4-5": "kiwillm-free-ai-hub/anthropic/claude-haiku-4.5",
+	"claude-haiku-4-5-20251001": "kiwillm-free-ai-hub/anthropic/claude-haiku-4.5",
+	"claude-haiku-4.5": "kiwillm-free-ai-hub/anthropic/claude-haiku-4.5",
 };
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
