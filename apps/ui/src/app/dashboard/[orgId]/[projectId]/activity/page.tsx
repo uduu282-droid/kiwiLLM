@@ -11,6 +11,7 @@ export default async function ActivityPage({
 	params: Promise<{ orgId: string; projectId: string }>;
 	searchParams?: Promise<{
 		days?: string;
+		page?: string;
 		startDate?: string;
 		endDate?: string;
 		finishReason?: string;
@@ -18,6 +19,8 @@ export default async function ActivityPage({
 		provider?: string;
 		model?: string;
 		limit?: string;
+		customHeaderKey?: string;
+		customHeaderValue?: string;
 	}>;
 }) {
 	const { orgId, projectId } = await params;
@@ -27,7 +30,8 @@ export default async function ActivityPage({
 	const logsQueryParams: Record<string, string> = {
 		orderBy: "createdAt_desc",
 		projectId,
-		limit: "10",
+		limit: "25",
+		page: searchParamsData?.page ?? "1",
 	};
 
 	// Add optional filter parameters if they exist
@@ -54,6 +58,12 @@ export default async function ActivityPage({
 	}
 	if (searchParamsData?.model && searchParamsData.model !== "all") {
 		logsQueryParams.model = searchParamsData.model;
+	}
+	if (searchParamsData?.customHeaderKey) {
+		logsQueryParams.customHeaderKey = searchParamsData.customHeaderKey;
+	}
+	if (searchParamsData?.customHeaderValue) {
+		logsQueryParams.customHeaderValue = searchParamsData.customHeaderValue;
 	}
 
 	if (searchParamsData?.limit) {

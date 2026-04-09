@@ -163,9 +163,13 @@ describe("logs route", () => {
 			expect(json.logs.length).toBe(1);
 			expect(json.logs[0].projectId).toBe("test-project-id");
 			expect(json.pagination).toBeDefined();
+			expect(json.pagination.page).toBe(1);
+			expect(json.pagination.totalCount).toBe(1);
 			expect(json.pagination.hasMore).toBe(false);
 			expect(json.pagination.nextCursor).toBeNull();
 			expect(json.pagination.limit).toBe(50);
+			expect(json.summary.totalRequests).toBe(1);
+			expect(json.summary.errorRequests).toBe(0);
 		});
 
 		test("should filter by second projectId", async () => {
@@ -294,9 +298,13 @@ describe("logs route", () => {
 			const json = await res.json();
 			expect(json.logs.length).toBe(50);
 			expect(json.pagination).toBeDefined();
+			expect(json.pagination.page).toBe(1);
+			expect(json.pagination.totalCount).toBe(60);
+			expect(json.pagination.totalPages).toBe(2);
 			expect(json.pagination.hasMore).toBe(true);
 			expect(json.pagination.nextCursor).toBeDefined();
 			expect(json.pagination.limit).toBe(50);
+			expect(json.summary.totalRequests).toBe(60);
 		});
 
 		test("should respect custom limit parameter", async () => {
@@ -312,9 +320,35 @@ describe("logs route", () => {
 			const json = await res.json();
 			expect(json.logs.length).toBe(10);
 			expect(json.pagination).toBeDefined();
+			expect(json.pagination.page).toBe(1);
+			expect(json.pagination.totalCount).toBe(60);
+			expect(json.pagination.totalPages).toBe(6);
 			expect(json.pagination.hasMore).toBe(true);
 			expect(json.pagination.nextCursor).toBeDefined();
 			expect(json.pagination.limit).toBe(10);
+		});
+
+		test("should paginate using page numbers", async () => {
+			const params = new URLSearchParams({
+				limit: "10",
+				page: "2",
+				projectId: "test-project-id",
+			});
+			const res = await app.request("/logs?" + params, {
+				method: "GET",
+				headers: {
+					Cookie: token,
+				},
+			});
+
+			expect(res.status).toBe(200);
+			const json = await res.json();
+			expect(json.logs.length).toBe(10);
+			expect(json.pagination.page).toBe(2);
+			expect(json.pagination.totalCount).toBe(59);
+			expect(json.pagination.totalPages).toBe(6);
+			expect(json.pagination.hasMore).toBe(true);
+			expect(json.summary.totalRequests).toBe(59);
 		});
 
 		test("should paginate using cursor", async () => {
