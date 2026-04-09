@@ -78,10 +78,24 @@ export type ActivitT =
 
 export interface LogsData {
 	message?: string;
-	logs: Log[];
+	logs: Array<
+		Omit<Log, "createdAt" | "updatedAt"> & {
+			createdAt: string;
+			updatedAt: string;
+		}
+	>;
 	pagination: {
+		page: number;
+		totalPages: number;
+		totalCount: number;
 		nextCursor: string | null;
 		hasMore: boolean;
 		limit: number;
+	};
+	summary: {
+		totalRequests: number;
+		successRequests: number;
+		errorRequests: number;
+		successRate: number;
 	};
 }

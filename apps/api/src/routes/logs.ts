@@ -232,6 +232,16 @@ const querySchema = z.object({
 	cursor: z.string().optional().openapi({
 		description: "Cursor for pagination (log ID to start after)",
 	}),
+	page: z
+		.string()
+		.optional()
+		.transform((val) => (val ? parseInt(val, 10) : undefined))
+		.pipe(z.number().int().min(1).optional())
+		.openapi({
+			description:
+				"Page number for offset pagination. When provided, numeric pagination metadata is returned.",
+			example: "1",
+		}),
 	orderBy: z.enum(["createdAt_asc", "createdAt_desc"]).optional().openapi({
 		description: "Order results by creation date (default: createdAt_desc)",
 		example: "createdAt_desc",
@@ -256,6 +266,13 @@ const querySchema = z.object({
 	}),
 });
 
+const logsSummarySchema = z.object({
+	totalRequests: z.number().int(),
+	successRequests: z.number().int(),
+	errorRequests: z.number().int(),
+	successRate: z.number(),
+});
+
 const get = createRoute({
 	method: "get",
 	path: "/",
@@ -275,6 +292,15 @@ const get = createRoute({
 						}),
 						pagination: z
 							.object({
+								page: z.number().int().openapi({
+									description: "Current page number",
+								}),
+								totalPages: z.number().int().openapi({
+									description: "Total number of pages for the current filters",
+								}),
+								totalCount: z.number().int().openapi({
+									description: "Total number of filtered logs",
+								}),
 								nextCursor: z.string().nullable().openapi({
 									description:
 										"Cursor to use for the next page of results, null if no more results",
@@ -289,6 +315,10 @@ const get = createRoute({
 							.openapi({
 								description: "Pagination metadata",
 							}),
+						summary: logsSummarySchema.openapi({
+							description:
+								"Aggregated metrics for the full filtered result set",
+						}),
 					}),
 				},
 			},
@@ -325,6 +355,7 @@ logs.openapi(get, async (c) => {
 		model,
 		source,
 		cursor,
+		page,
 		orderBy = "createdAt_desc",
 		limit: queryLimit,
 		customHeaderKey,
@@ -357,9 +388,18 @@ logs.openapi(get, async (c) => {
 			logs: [],
 			message: "No organizations found",
 			pagination: {
+				page: 1,
+				totalPages: 0,
+				totalCount: 0,
 				nextCursor: null,
 				hasMore: false,
 				limit,
+			},
+			summary: {
+				totalRequests: 0,
+				successRequests: 0,
+				errorRequests: 0,
+				successRate: 0,
 			},
 		});
 	}
@@ -395,9 +435,18 @@ logs.openapi(get, async (c) => {
 			logs: [],
 			message: "No projects found",
 			pagination: {
+				page: page ?? 1,
+				totalPages: 0,
+				totalCount: 0,
 				nextCursor: null,
 				hasMore: false,
 				limit,
+			},
+			summary: {
+				totalRequests: 0,
+				successRequests: 0,
+				errorRequests: 0,
+				successRate: 0,
 			},
 		});
 	}
@@ -521,8 +570,32 @@ logs.openapi(get, async (c) => {
 		whereConditions.push(eq(tables.log.source, source));
 	}
 
-	// Add cursor-based pagination conditions
-	if (cursor) {
+	const baseWhereClause =
+		whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+	const [summaryRows] = await db
+		.select({
+			totalRequests: sql<number>`count(*)::int`.as("totalRequests"),
+			errorRequests:
+				sql<number>`SUM(CASE WHEN ${tables.log.hasError} = true THEN 1 ELSE 0 END)::int`.as(
+					"errorRequests",
+				),
+		})
+		.from(tables.log)
+		.where(baseWhereClause);
+
+	const totalCount = summaryRows?.totalRequests ?? 0;
+	const errorRequests = summaryRows?.errorRequests ?? 0;
+	const successRequests = Math.max(0, totalCount - errorRequests);
+	const summary = {
+		totalRequests: totalCount,
+		successRequests,
+		errorRequests,
+		successRate: totalCount > 0 ? (successRequests / totalCount) * 100 : 0,
+	};
+
+	// Add cursor-based pagination conditions when numeric page mode is not being used
+	if (cursor && !page) {
 		const cursorLog = await db
 			.select()
 			.from(tables.log)
@@ -574,38 +647,56 @@ logs.openapi(get, async (c) => {
 		dbQuery = dbQuery.where(finalWhereClause);
 	}
 
-	const logs = await dbQuery.orderBy(...orderByClauses).limit(limit + 1); // Fetch one extra for pagination
+	const currentPage = page ?? 1;
+	const totalPages = totalCount > 0 ? Math.ceil(totalCount / limit) : 0;
 
-	// Check if there are more results
-	const hasMore = logs.length > limit;
-	// Remove the extra item if we fetched more than the limit
-	const paginatedLogs = hasMore ? logs.slice(0, limit) : logs;
+	let logs;
+	let hasMore = false;
+	let nextCursor: string | null = null;
 
-	// Determine the next cursor (ID of the last item)
-	const nextCursor =
-		hasMore && paginatedLogs.length > 0
-			? paginatedLogs[paginatedLogs.length - 1].id
-			: null;
+	if (page) {
+		const offset = (page - 1) * limit;
+		logs = await dbQuery
+			.orderBy(...orderByClauses)
+			.limit(limit)
+			.offset(offset);
+		hasMore = currentPage < totalPages;
+	} else {
+		const cursorLogs = await dbQuery
+			.orderBy(...orderByClauses)
+			.limit(limit + 1); // Fetch one extra for pagination
+		hasMore = cursorLogs.length > limit;
+		logs = hasMore ? cursorLogs.slice(0, limit) : cursorLogs;
+		nextCursor = hasMore && logs.length > 0 ? logs[logs.length - 1].id : null;
+	}
 
-	if (!paginatedLogs.length) {
+	if (!logs.length) {
 		return c.json({
 			logs: [],
 			message: "No logs found",
 			pagination: {
+				page: currentPage,
+				totalPages,
+				totalCount,
 				nextCursor: null,
 				hasMore: false,
 				limit,
 			},
+			summary,
 		});
 	}
 
 	return c.json({
-		logs: paginatedLogs.map(sanitizeLogForUser),
+		logs: logs.map(sanitizeLogForUser),
 		pagination: {
+			page: currentPage,
+			totalPages,
+			totalCount,
 			nextCursor,
 			hasMore,
 			limit,
 		},
+		summary,
 	});
 });
 
