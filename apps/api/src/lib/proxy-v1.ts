@@ -92,14 +92,12 @@ export const proxyV1Request = async (c: Context<ServerTypes>) => {
 		});
 	}
 
-	const responseText = await upstreamResponse.text();
-	responseHeaders.set(
-		"content-length",
-		String(Buffer.byteLength(responseText, "utf8")),
-	);
+	const responseBody = await upstreamResponse.arrayBuffer();
+	responseHeaders.delete("content-encoding");
+	responseHeaders.delete("content-length");
 	responseHeaders.set("cache-control", "no-store, no-transform");
 
-	return new Response(responseText, {
+	return new Response(responseBody, {
 		status: upstreamResponse.status,
 		statusText: upstreamResponse.statusText,
 		headers: responseHeaders,
