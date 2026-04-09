@@ -1,12 +1,12 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 
+import { isBackendSupportedProvider } from "@/lib/backend-provider-support.js";
 import {
 	findActiveProviderKeys,
 	findApiKeyByToken,
 	findProjectById,
 } from "@/lib/cached-queries.js";
-import { isBackendSupportedProvider } from "@/lib/backend-provider-support.js";
 import { validateModelAccess } from "@/lib/iam.js";
 
 import { getProviderEndpoint } from "@llmgateway/actions";
@@ -28,6 +28,43 @@ export const modelsApi = new OpenAPIHono<ServerTypes>();
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
 	return !getProviderEnvConfig(providerId)?.required.apiKey;
+}
+
+function getAvailableProvidersForProjectMode(
+	projectMode: string,
+	activeProviderIds: string[] = [],
+): string[] {
+	const supportedProviders = providers
+		.filter((provider) => provider.id !== "llmgateway")
+		.filter((provider) => isBackendSupportedProvider(provider.id))
+		.map((provider) => provider.id);
+
+	const hostedNoKeyProviders = supportedProviders.filter((providerId) =>
+		providerCanUseHostedRouteWithoutKey(providerId as Provider),
+	);
+	const envProviders = supportedProviders.filter((providerId) =>
+		hasProviderEnvironmentToken(providerId as Provider),
+	);
+
+	if (projectMode === "api-keys") {
+		return [...new Set([...activeProviderIds, ...hostedNoKeyProviders])];
+	}
+
+	if (projectMode === "credits") {
+		return [...new Set([...envProviders, ...hostedNoKeyProviders])];
+	}
+
+	if (projectMode === "hybrid") {
+		return [
+			...new Set([
+				...activeProviderIds,
+				...envProviders,
+				...hostedNoKeyProviders,
+			]),
+		];
+	}
+
+	return [];
 }
 
 function canPubliclyRouteProviderMapping(
@@ -99,43 +136,10 @@ async function getAuthenticatedProjectContext(c: Context<ServerTypes>) {
 		project.organizationId,
 	);
 	const databaseProviders = activeProviderKeys.map((key) => key.provider);
-	let availableProviders: string[];
-
-	if (project.mode === "api-keys") {
-		availableProviders = [
-			...new Set([
-				...databaseProviders,
-				...providers
-					.filter((provider) => provider.id !== "llmgateway")
-					.filter((provider) => isBackendSupportedProvider(provider.id))
-					.filter((provider) =>
-						providerCanUseHostedRouteWithoutKey(provider.id as Provider),
-					)
-					.map((provider) => provider.id),
-			]),
-		];
-	} else if (project.mode === "credits") {
-		availableProviders = providers
-			.filter((provider) => provider.id !== "llmgateway")
-			.filter((provider) => isBackendSupportedProvider(provider.id))
-			.filter((provider) =>
-				hasProviderEnvironmentToken(provider.id as Provider),
-			)
-			.map((provider) => provider.id);
-	} else {
-		availableProviders = [
-			...new Set([
-				...databaseProviders,
-				...providers
-					.filter((provider) => provider.id !== "llmgateway")
-					.filter((provider) => isBackendSupportedProvider(provider.id))
-					.filter((provider) =>
-						hasProviderEnvironmentToken(provider.id as Provider),
-					)
-					.map((provider) => provider.id),
-			]),
-		];
-	}
+	const availableProviders = getAvailableProvidersForProjectMode(
+		project.mode,
+		databaseProviders,
+	);
 
 	return {
 		apiKey,
