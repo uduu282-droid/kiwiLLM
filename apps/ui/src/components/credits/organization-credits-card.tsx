@@ -36,6 +36,7 @@ export function OrganizationCreditsCard({
 	const countTo = currentCredits;
 
 	const organizationsQueryKey = [["get", "/orgs", {}]];
+	const personalOrgQueryKey = [["get", "/dev-plans/personal-org", {}]];
 
 	useEffect(() => {
 		previousCreditsRef.current = currentCredits;
@@ -62,6 +63,20 @@ export function OrganizationCreditsCard({
 					organizations: old.organizations.map((org) =>
 						org.id === organization.id ? { ...org, credits: nextCredits } : org,
 					),
+				};
+			},
+		);
+
+		queryClient.setQueryData<BillingAccount | undefined>(
+			personalOrgQueryKey,
+			(old) => {
+				if (!old?.id || old.id !== organization?.id) {
+					return old;
+				}
+
+				return {
+					...old,
+					credits: nextCredits,
 				};
 			},
 		);
@@ -119,6 +134,7 @@ export function OrganizationCreditsCard({
 			setIsRedeemOpen(false);
 
 			void queryClient.invalidateQueries({ queryKey: organizationsQueryKey });
+			void queryClient.invalidateQueries({ queryKey: personalOrgQueryKey });
 
 			toast({
 				title: "Credits added",

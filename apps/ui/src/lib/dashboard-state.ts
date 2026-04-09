@@ -64,7 +64,9 @@ export function useDashboardState({
 			refetchIntervalInBackground: true,
 		},
 	);
-	const personalOrgData = rawPersonalOrgData as PersonalBillingResponse | undefined;
+	const personalOrgData = rawPersonalOrgData as
+		| PersonalBillingResponse
+		| undefined;
 
 	// Derive selected organization from props or default to first
 	const selectedOrganization = useMemo(() => {
@@ -110,7 +112,11 @@ export function useDashboardState({
 	}, [selectedProjectId, projects]);
 
 	const billingAccount = useMemo<BillingAccount | null>(() => {
-		if (personalOrgData) {
+		const shouldUsePersonalOrg =
+			(selectedOrganization?.isPersonal ?? false) ||
+			(!selectedOrganization && personalOrgData?.isPersonal === true);
+
+		if (personalOrgData && shouldUsePersonalOrg) {
 			return {
 				id: personalOrgData.id,
 				name: personalOrgData.name,
