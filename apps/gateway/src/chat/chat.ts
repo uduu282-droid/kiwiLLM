@@ -18,6 +18,7 @@ import {
 import { isCodingModel } from "@/lib/coding-models.js";
 import { calculateCosts, shouldBillCancelledRequests } from "@/lib/costs.js";
 import { throwIamException, validateModelAccess } from "@/lib/iam.js";
+import { assertContextWithinTierLimit } from "@/lib/context-limits.js";
 import { calculateDataStorageCost, insertLog } from "@/lib/logs.js";
 import {
 	createCombinedSignal,
@@ -822,6 +823,46 @@ chat.openapi(completions, async (c) => {
 	let usedModel: string = requestedModel;
 	let routingMetadata: RoutingMetadata | undefined;
 
+	let requiredContextSize = 0;
+
+	if (messages && messages.length > 0) {
+		try {
+			requiredContextSize = encodeChatMessages(messages);
+		} catch {
+			const messageTokens = messages.reduce(
+				(acc, m) => acc + (m.content?.length ?? 0),
+				0,
+			);
+			requiredContextSize = Math.max(1, Math.round(messageTokens / 4));
+		}
+	}
+
+	if (tools && tools.length > 0) {
+		try {
+			const toolsString = JSON.stringify(tools);
+			const toolTokens = Math.round(toolsString.length / 4);
+			requiredContextSize += toolTokens;
+		} catch {
+			requiredContextSize += tools.length * 100;
+		}
+	}
+
+	if (max_tokens) {
+		requiredContextSize += max_tokens;
+	} else {
+		requiredContextSize += 4096;
+	}
+
+	assertContextWithinTierLimit({
+		organization: {
+			plan: organization.plan,
+			devPlan: organization.devPlan,
+			credits: organization.credits,
+		},
+		projectMode: project.mode,
+		requiredContextSize,
+	});
+
 	// Extract retention level for data storage cost calculation
 	const retentionLevel = organization?.retentionLevel ?? "none";
 
@@ -876,43 +917,6 @@ chat.openapi(completions, async (c) => {
 		(usedProvider === "llmgateway" && usedModel === "auto") ||
 		usedModel === "auto"
 	) {
-		// Estimate the context size needed based on the request
-		let requiredContextSize = 0;
-
-		// Estimate prompt tokens from messages
-		if (messages && messages.length > 0) {
-			try {
-				requiredContextSize = encodeChatMessages(messages);
-			} catch {
-				// Fallback to simple estimation if encoding fails
-				const messageTokens = messages.reduce(
-					(acc, m) => acc + (m.content?.length ?? 0),
-					0,
-				);
-				requiredContextSize = Math.max(1, Math.round(messageTokens / 4));
-			}
-		}
-
-		// Add tool definitions to context estimation
-		if (tools && tools.length > 0) {
-			try {
-				const toolsString = JSON.stringify(tools);
-				const toolTokens = Math.round(toolsString.length / 4);
-				requiredContextSize += toolTokens;
-			} catch {
-				// Fallback estimation for tools
-				requiredContextSize += tools.length * 100; // Rough estimate per tool
-			}
-		}
-
-		// Add max_tokens if specified
-		if (max_tokens) {
-			requiredContextSize += max_tokens;
-		} else {
-			// Add a default buffer for completion tokens if not specified
-			requiredContextSize += 4096;
-		}
-
 		// Get available providers based on project mode
 		let availableProviders: string[] = [];
 		let activeProviderKeys: Awaited<ReturnType<typeof findActiveProviderKeys>> =
