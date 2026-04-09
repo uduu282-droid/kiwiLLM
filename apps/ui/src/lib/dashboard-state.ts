@@ -64,7 +64,9 @@ export function useDashboardState({
 			refetchIntervalInBackground: true,
 		},
 	);
-	const personalOrgData = rawPersonalOrgData as PersonalBillingResponse | undefined;
+	const personalOrgData = rawPersonalOrgData as
+		| PersonalBillingResponse
+		| undefined;
 
 	// Derive selected organization from props or default to first
 	const selectedOrganization = useMemo(() => {
@@ -110,6 +112,32 @@ export function useDashboardState({
 	}, [selectedProjectId, projects]);
 
 	const billingAccount = useMemo<BillingAccount | null>(() => {
+		const shouldUsePersonalOrg =
+			(selectedOrganization?.isPersonal ?? false) ||
+			(!selectedOrganization && personalOrgData?.isPersonal === true);
+
+		if (personalOrgData && shouldUsePersonalOrg) {
+			return {
+				id: personalOrgData.id,
+				name: personalOrgData.name,
+				credits: personalOrgData.credits,
+				isPersonal: personalOrgData.isPersonal,
+				plan: personalOrgData.plan,
+				planExpiresAt: personalOrgData.planExpiresAt,
+				billingEmail: personalOrgData.billingEmail,
+				autoTopUpEnabled: personalOrgData.autoTopUpEnabled,
+				autoTopUpThreshold: personalOrgData.autoTopUpThreshold,
+				autoTopUpAmount: personalOrgData.autoTopUpAmount,
+				devPlan: personalOrgData.devPlan,
+				devPlanCreditsUsed: personalOrgData.devPlanCreditsUsed,
+				devPlanCreditsLimit: personalOrgData.devPlanCreditsLimit,
+				devPlanBillingCycleStart: personalOrgData.devPlanBillingCycleStart,
+				devPlanCancelled: personalOrgData.devPlanCancelled,
+				devPlanExpiresAt: personalOrgData.devPlanExpiresAt,
+				devPlanAllowAllModels: personalOrgData.devPlanAllowAllModels,
+			};
+		}
+
 		if (selectedOrganization) {
 			return {
 				id: selectedOrganization.id,
@@ -138,28 +166,6 @@ export function useDashboardState({
 					? new Date(selectedOrganization.devPlanExpiresAt).toISOString()
 					: null,
 				devPlanAllowAllModels: selectedOrganization.devPlanAllowAllModels,
-			};
-		}
-
-		if (personalOrgData) {
-			return {
-				id: personalOrgData.id,
-				name: personalOrgData.name,
-				credits: personalOrgData.credits,
-				isPersonal: personalOrgData.isPersonal,
-				plan: personalOrgData.plan,
-				planExpiresAt: personalOrgData.planExpiresAt,
-				billingEmail: personalOrgData.billingEmail,
-				autoTopUpEnabled: personalOrgData.autoTopUpEnabled,
-				autoTopUpThreshold: personalOrgData.autoTopUpThreshold,
-				autoTopUpAmount: personalOrgData.autoTopUpAmount,
-				devPlan: personalOrgData.devPlan,
-				devPlanCreditsUsed: personalOrgData.devPlanCreditsUsed,
-				devPlanCreditsLimit: personalOrgData.devPlanCreditsLimit,
-				devPlanBillingCycleStart: personalOrgData.devPlanBillingCycleStart,
-				devPlanCancelled: personalOrgData.devPlanCancelled,
-				devPlanExpiresAt: personalOrgData.devPlanExpiresAt,
-				devPlanAllowAllModels: personalOrgData.devPlanAllowAllModels,
 			};
 		}
 

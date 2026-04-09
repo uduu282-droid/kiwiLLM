@@ -14,6 +14,14 @@ import {
 	startDailyBeacon,
 	stopDailyBeacon,
 } from "./lib/beacon.js";
+import {
+	startCreditBalanceProcessor,
+	stopCreditBalanceProcessor,
+} from "./lib/credit-balance-processor.js";
+import {
+	startModelStatusMonitor,
+	stopModelStatusMonitor,
+} from "./lib/model-status-monitor.js";
 
 import type { NodeSDK } from "@opentelemetry/sdk-node";
 import type { Server } from "node:http";
@@ -61,6 +69,8 @@ async function startServer() {
 
 	// Start daily beacon schedule to track active installations
 	startDailyBeacon();
+	startModelStatusMonitor();
+	startCreditBalanceProcessor();
 
 	logger.info("Server listening", { port });
 
@@ -127,6 +137,11 @@ const gracefulShutdown = async (signal: string, server: ServerType) => {
 		logger.info("Stopping daily beacon schedule");
 		stopDailyBeacon();
 
+		logger.info("Stopping model status monitor");
+		await stopModelStatusMonitor();
+
+		logger.info("Stopping credit balance processor");
+		await stopCreditBalanceProcessor();
 		logger.info("Closing database connection");
 		await closeDatabase();
 		logger.info("Database connection closed");
