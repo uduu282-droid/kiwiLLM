@@ -15,6 +15,7 @@ import {
 	eq,
 	inArray,
 	db,
+	db as uncachedDb,
 	apiKey as apiKeyTable,
 	apiKeyIamRule as apiKeyIamRuleTable,
 	organization as organizationTable,
