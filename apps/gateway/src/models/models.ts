@@ -114,38 +114,50 @@ function getRequestToken(c: Context<ServerTypes>): string | undefined {
 }
 
 async function getAuthenticatedProjectContext(c: Context<ServerTypes>) {
-	const token = getRequestToken(c);
-	if (!token) {
+	try {
+		const token = getRequestToken(c);
+		if (!token) {
+			return null;
+		}
+
+		const apiKey = await findApiKeyByToken(token);
+		if (
+			!apiKey ||
+			apiKey.status === "deleted" ||
+			apiKey.status === "inactive"
+		) {
+			return null;
+		}
+
+		const project = await findProjectById(apiKey.projectId);
+		if (
+			!project ||
+			project.status === "deleted" ||
+			project.status === "inactive"
+		) {
+			return null;
+		}
+
+		const activeProviderKeys = await findActiveProviderKeys(
+			project.organizationId,
+		);
+		const databaseProviders = activeProviderKeys.map((key) => key.provider);
+		const availableProviders = getAvailableProvidersForProjectMode(
+			project.mode,
+			databaseProviders,
+		);
+
+		return {
+			apiKey,
+			availableProviders,
+		};
+	} catch (error) {
+		logger.error(
+			"Falling back to public models after auth context lookup failed",
+			error instanceof Error ? error : new Error(String(error)),
+		);
 		return null;
 	}
-
-	const apiKey = await findApiKeyByToken(token);
-	if (!apiKey || apiKey.status === "deleted" || apiKey.status === "inactive") {
-		return null;
-	}
-
-	const project = await findProjectById(apiKey.projectId);
-	if (
-		!project ||
-		project.status === "deleted" ||
-		project.status === "inactive"
-	) {
-		return null;
-	}
-
-	const activeProviderKeys = await findActiveProviderKeys(
-		project.organizationId,
-	);
-	const databaseProviders = activeProviderKeys.map((key) => key.provider);
-	const availableProviders = getAvailableProvidersForProjectMode(
-		project.mode,
-		databaseProviders,
-	);
-
-	return {
-		apiKey,
-		availableProviders,
-	};
 }
 
 const modelSchema = z.object({
@@ -252,7 +264,13 @@ modelsApi.openapi(listModels, async (c) => {
 		const currentDate = new Date();
 		const projectContext = await getAuthenticatedProjectContext(c);
 		const projectIamRules = projectContext
-			? await findActiveIamRules(projectContext.apiKey.id)
+			? await findActiveIamRules(projectContext.apiKey.id).catch((error) => {
+					logger.error(
+						"Falling back to public IAM filtering after rule lookup failed",
+						error instanceof Error ? error : new Error(String(error)),
+					);
+					return [];
+				})
 			: [];
 		const shouldApplyIamRules = projectIamRules.length > 0;
 
