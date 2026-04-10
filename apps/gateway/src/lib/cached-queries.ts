@@ -14,8 +14,7 @@ import {
 	and,
 	eq,
 	inArray,
-	cdb as db,
-	db as uncachedDb,
+	db,
 	apiKey as apiKeyTable,
 	apiKeyIamRule as apiKeyIamRuleTable,
 	organization as organizationTable,
@@ -81,7 +80,7 @@ export async function findProjectById(
 export async function findOrganizationByIdUncached(
 	id: string,
 ): Promise<Organization | undefined> {
-	const results = await uncachedDb
+	const results = await db
 		.select()
 		.from(organizationTable)
 		.where(eq(organizationTable.id, id))
