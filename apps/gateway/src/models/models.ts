@@ -254,66 +254,81 @@ modelsApi.openapi(listModels, async (c) => {
 		const projectIamRules = projectContext
 			? await findActiveIamRules(projectContext.apiKey.id)
 			: [];
+		const shouldApplyIamRules = projectIamRules.length > 0;
 
 		const filteredModels = (
 			await Promise.all(
 				modelsList.map(async (model: ModelDefinition) => {
-					let routeableProviders = model.providers.filter((provider) => {
-						const providerMapping = provider as ProviderModelMapping;
+					try {
+						let routeableProviders = model.providers.filter((provider) => {
+							const providerMapping = provider as ProviderModelMapping;
 
-						if (
-							!includeDeactivated &&
-							providerMapping.deactivatedAt &&
-							currentDate > providerMapping.deactivatedAt
-						) {
-							return false;
+							if (
+								!includeDeactivated &&
+								providerMapping.deactivatedAt &&
+								currentDate > providerMapping.deactivatedAt
+							) {
+								return false;
+							}
+
+							if (
+								excludeDeprecated &&
+								providerMapping.deprecatedAt &&
+								currentDate > providerMapping.deprecatedAt
+							) {
+								return false;
+							}
+
+							return canPubliclyRouteProviderMapping(providerMapping);
+						}) as ProviderModelMapping[];
+
+						if (projectContext) {
+							let iamAllowedProviders: Provider[] | undefined;
+
+							if (shouldApplyIamRules) {
+								const iamValidation = await validateModelAccess(
+									projectContext.apiKey.id,
+									model.id,
+									undefined,
+									{
+										...model,
+										providers: routeableProviders,
+									},
+									projectIamRules,
+								);
+
+								if (!iamValidation.allowed) {
+									return undefined;
+								}
+
+								iamAllowedProviders = iamValidation.allowedProviders;
+							}
+
+							routeableProviders = routeableProviders.filter(
+								(provider) =>
+									projectContext.availableProviders.includes(
+										provider.providerId,
+									) &&
+									(!iamAllowedProviders ||
+										iamAllowedProviders.includes(provider.providerId)),
+							);
 						}
 
-						if (
-							excludeDeprecated &&
-							providerMapping.deprecatedAt &&
-							currentDate > providerMapping.deprecatedAt
-						) {
-							return false;
-						}
-
-						return canPubliclyRouteProviderMapping(providerMapping);
-					}) as ProviderModelMapping[];
-
-					if (projectContext) {
-						const iamValidation = await validateModelAccess(
-							projectContext.apiKey.id,
-							model.id,
-							undefined,
-							{
-								...model,
-								providers: routeableProviders,
-							},
-							projectIamRules,
-						);
-
-						if (!iamValidation.allowed) {
+						if (routeableProviders.length === 0) {
 							return undefined;
 						}
 
-						routeableProviders = routeableProviders.filter(
-							(provider) =>
-								projectContext.availableProviders.includes(
-									provider.providerId,
-								) &&
-								(!iamValidation.allowedProviders ||
-									iamValidation.allowedProviders.includes(provider.providerId)),
+						return {
+							...model,
+							providers: routeableProviders,
+						} satisfies ModelDefinition;
+					} catch (error) {
+						logger.error(
+							`Skipping model ${model.id} in models endpoint`,
+							error instanceof Error ? error : new Error(String(error)),
 						);
-					}
-
-					if (routeableProviders.length === 0) {
 						return undefined;
 					}
-
-					return {
-						...model,
-						providers: routeableProviders,
-					} satisfies ModelDefinition;
 				}),
 			)
 		).filter((model): model is ModelDefinition => model !== undefined);
