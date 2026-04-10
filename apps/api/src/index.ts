@@ -41,6 +41,17 @@ const apiUrl =
 	(isHosted ? "https://api.kiwillm.in" : "http://localhost:4002");
 const docsUrl =
 	process.env.DOCS_URL ?? process.env.SITE_URL ?? "https://kiwillm.in";
+const corsAllowHeaders = [
+	"Content-Type",
+	"Authorization",
+	"Cache-Control",
+	"x-api-key",
+	"apikey",
+	"x-client-info",
+	"x-supabase-api-version",
+	"sentry-trace",
+	"baggage",
+];
 
 export const config = {
 	servers: [
@@ -76,7 +87,7 @@ app.use(
 	"*",
 	cors({
 		origin: allowedOrigins,
-		allowHeaders: ["Content-Type", "Authorization", "Cache-Control"],
+		allowHeaders: corsAllowHeaders,
 		allowMethods: ["POST", "GET", "OPTIONS", "PUT", "PATCH", "DELETE"],
 		exposeHeaders: ["Content-Length"],
 		maxAge: 600,
