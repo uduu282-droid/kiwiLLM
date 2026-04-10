@@ -67,7 +67,7 @@ export async function findApiKeyByToken(
 export async function findProjectById(
 	id: string,
 ): Promise<Project | undefined> {
-	const results = await db
+	const results = await uncachedDb
 		.select()
 		.from(projectTable)
 		.where(eq(projectTable.id, id))
@@ -129,7 +129,7 @@ export async function findCustomProviderKey(
 	organizationId: string,
 	customProviderName: string,
 ): Promise<ProviderKey | undefined> {
-	const results = await db
+	const results = await uncachedDb
 		.select()
 		.from(providerKeyTable)
 		.where(
@@ -151,7 +151,7 @@ export async function findProviderKey(
 	organizationId: string,
 	provider: string,
 ): Promise<ProviderKey | undefined> {
-	const results = await db
+	const results = await uncachedDb
 		.select()
 		.from(providerKeyTable)
 		.where(
@@ -171,7 +171,7 @@ export async function findProviderKey(
 export async function findActiveProviderKeys(
 	organizationId: string,
 ): Promise<ProviderKey[]> {
-	return await db
+	return await uncachedDb
 		.select()
 		.from(providerKeyTable)
 		.where(
@@ -192,7 +192,7 @@ export async function findProviderKeysByProviders(
 	if (providers.length === 0) {
 		return [];
 	}
-	return await db
+	return await uncachedDb
 		.select()
 		.from(providerKeyTable)
 		.where(
@@ -210,7 +210,7 @@ export async function findProviderKeysByProviders(
 export async function findActiveIamRules(
 	apiKeyId: string,
 ): Promise<ApiKeyIamRule[]> {
-	return await db
+	return await uncachedDb
 		.select()
 		.from(apiKeyIamRuleTable)
 		.where(
