@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import { isBackendSupportedProvider } from "@/lib/backend-provider-support.js";
 import {
 	findActiveProviderKeys,
+	findActiveIamRules,
 	findApiKeyByToken,
 	findProjectById,
 } from "@/lib/cached-queries.js";
@@ -250,6 +251,9 @@ modelsApi.openapi(listModels, async (c) => {
 		const excludeDeprecated = query.exclude_deprecated || false;
 		const currentDate = new Date();
 		const projectContext = await getAuthenticatedProjectContext(c);
+		const projectIamRules = projectContext
+			? await findActiveIamRules(projectContext.apiKey.id)
+			: [];
 
 		const filteredModels = (
 			await Promise.all(
@@ -285,6 +289,7 @@ modelsApi.openapi(listModels, async (c) => {
 								...model,
 								providers: routeableProviders,
 							},
+							projectIamRules,
 						);
 
 						if (!iamValidation.allowed) {

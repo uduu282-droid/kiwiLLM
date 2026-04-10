@@ -40,9 +40,10 @@ export async function validateModelAccess(
 	requestedModel: string,
 	requestedProvider?: string,
 	activeModelInfo?: ModelDefinition,
+	iamRulesOverride?: IamRule[],
 ): Promise<IamValidationResult> {
 	// Get all active IAM rules for this API key (using cacheable select builder)
-	const iamRules = await findActiveIamRules(apiKeyId);
+	const iamRules = iamRulesOverride ?? (await findActiveIamRules(apiKeyId));
 
 	// Use the provided active model info (with deactivated providers filtered out)
 	// or fall back to looking up from the global models list
