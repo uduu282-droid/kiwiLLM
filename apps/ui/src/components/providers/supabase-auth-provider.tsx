@@ -48,6 +48,10 @@ async function safeFetch(url: string, init: RequestInit) {
 	}
 }
 
+function isAuthReadyResponseStatus(status: number) {
+	return status === 401 || status === 403 || status === 404;
+}
+
 export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 	const config = useAppConfig();
 	const auth = useMemo(() => getSupabaseBrowserClient(config), [config]);
@@ -62,21 +66,34 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
 	const waitForServerSession = useCallback(async () => {
 		const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000];
+		let sawTerminalAuthResponse = false;
 
 		for (const retryDelayMs of retryDelaysMs) {
 			if (retryDelayMs > 0) {
 				await sleep(retryDelayMs);
 			}
 
-			const response = await fetch(`${config.apiUrl}/user/me`, {
-				method: "GET",
-				credentials: "include",
-				cache: "no-store",
-			});
+			try {
+				const response = await fetch(`${config.apiUrl}/user/me`, {
+					method: "GET",
+					credentials: "include",
+					cache: "no-store",
+				});
 
-			if (response.ok) {
-				return;
+				if (response.ok) {
+					return;
+				}
+
+				if (isAuthReadyResponseStatus(response.status)) {
+					sawTerminalAuthResponse = true;
+				}
+			} catch (error) {
+				console.error("Failed to verify server session readiness", error);
 			}
+		}
+
+		if (sawTerminalAuthResponse) {
+			return;
 		}
 
 		throw new Error("Server session was not ready after sign in.");
@@ -142,8 +159,8 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 							throw new Error("Failed to create Supabase session");
 						}
 
-						await waitForServerSession();
 						lastSyncedTokenRef.current = nextSession.access_token;
+						await waitForServerSession();
 						return;
 					} catch (error) {
 						lastError =
