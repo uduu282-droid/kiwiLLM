@@ -349,14 +349,12 @@ export function LogDetailClient({
 									value={log.requestedModel}
 									mono
 								/>
-								<Field
-									label="Provider"
-									value={log.requestedProvider ?? "-"}
-								/>
-								{log.requestedProvider && (
+								<Field label="Used Model" value={log.usedModel} mono />
+								{log.usedModelMapping && (
 									<Field
-										label="Requested Provider"
-										value={log.requestedProvider}
+										label="Model Mapping"
+										value={log.usedModelMapping}
+										mono
 									/>
 								)}
 								<Field

@@ -109,9 +109,6 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 	const [unifiedFinishReason, setUnifiedFinishReason] = useState<
 		string | undefined
 	>(searchParams.get("unifiedFinishReason") ?? undefined);
-	const [provider, setProvider] = useState<string | undefined>(
-		searchParams.get("provider") ?? undefined,
-	);
 	const [model, setModel] = useState<string | undefined>(
 		searchParams.get("model") ?? undefined,
 	);
@@ -199,9 +196,6 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 		if (unifiedFinishReason && unifiedFinishReason !== "all") {
 			nextQueryParams.unifiedFinishReason = unifiedFinishReason;
 		}
-		if (provider && provider !== "all") {
-			nextQueryParams.provider = provider;
-		}
 		if (model && model !== "all") {
 			nextQueryParams.model = model;
 		}
@@ -224,7 +218,6 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 		model,
 		page,
 		projectId,
-		provider,
 		unifiedFinishReason,
 	]);
 
@@ -233,7 +226,6 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 		!dateRange &&
 		unifiedFinishReason ===
 			(searchParams.get("unifiedFinishReason") ?? undefined) &&
-		provider === (searchParams.get("provider") ?? undefined) &&
 		model === (searchParams.get("model") ?? undefined) &&
 		customHeaderKey === (searchParams.get("customHeaderKey") ?? "") &&
 		customHeaderValue === (searchParams.get("customHeaderValue") ?? "");
@@ -395,23 +387,6 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 				</Select>
 
 				<Select
-					onValueChange={handleFilterChange("provider", setProvider)}
-					value={provider ?? "all"}
-				>
-					<SelectTrigger className="w-[180px]">
-						<SelectValue placeholder="All providers" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="all">All providers</SelectItem>
-						{(uniqueModels?.providers ?? []).map((providerName) => (
-							<SelectItem key={providerName} value={providerName}>
-								{providerName}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-
-				<Select
 					onValueChange={handleFilterChange("model", setModel)}
 					value={model ?? "all"}
 				>
@@ -488,7 +463,6 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 									<TableHead>Time</TableHead>
 									<TableHead>Status</TableHead>
 									<TableHead>Model</TableHead>
-									<TableHead>Provider</TableHead>
 									<TableHead>Source</TableHead>
 									<TableHead>Tokens</TableHead>
 									<TableHead>Duration</TableHead>
@@ -525,7 +499,6 @@ export function RecentLogs({ initialData, projectId, orgId }: RecentLogsProps) {
 											<TableCell className="max-w-[260px] whitespace-normal break-words">
 												{log.usedModel}
 											</TableCell>
-											<TableCell>{log.usedProvider}</TableCell>
 											<TableCell className="max-w-[180px] whitespace-normal break-words">
 												{log.source ?? "-"}
 											</TableCell>
