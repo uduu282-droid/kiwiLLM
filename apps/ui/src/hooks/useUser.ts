@@ -25,6 +25,27 @@ export interface UseUserOptions {
 	checkOnboarding?: boolean;
 }
 
+function getHttpStatus(error: unknown): number | null {
+	if (!error || typeof error !== "object") {
+		return null;
+	}
+
+	const possibleStatus = Reflect.get(error, "status");
+	if (typeof possibleStatus === "number") {
+		return possibleStatus;
+	}
+
+	const possibleResponse = Reflect.get(error, "response");
+	if (possibleResponse && typeof possibleResponse === "object") {
+		const responseStatus = Reflect.get(possibleResponse, "status");
+		if (typeof responseStatus === "number") {
+			return responseStatus;
+		}
+	}
+
+	return null;
+}
+
 export function useUser(options?: UseUserOptions) {
 	const posthog = usePostHog();
 	const router = useRouter();
@@ -94,6 +115,8 @@ export function useUser(options?: UseUserOptions) {
 
 		const { redirectTo, redirectWhen, checkOnboarding } = options;
 		const hasUser = !!data?.user;
+		const errorStatus = getHttpStatus(error);
+		const isUnauthenticatedError = errorStatus === 401 || errorStatus === 403;
 
 		if (redirectWhen === "authenticated" && hasUser && !isLoading && !error) {
 			if (checkOnboarding && !data.user.onboardingCompleted) {
@@ -104,7 +127,7 @@ export function useUser(options?: UseUserOptions) {
 		} else if (
 			redirectWhen === "unauthenticated" &&
 			!isLoading &&
-			(!hasUser || error)
+			(!hasUser || isUnauthenticatedError)
 		) {
 			router.push(redirectTo as Route);
 		}

@@ -84,7 +84,7 @@ export default function AuthCallbackPage() {
 
 				hasHandledCallbackRef.current = true;
 				if (recoveredSession?.user) {
-					window.location.replace(resumeAuthUrl);
+					window.location.replace(next);
 					return;
 				}
 

@@ -34,6 +34,12 @@ const SupabaseAuthContext = createContext<SupabaseAuthContextValue | null>(
 	null,
 );
 
+function sleep(ms: number) {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
 async function safeFetch(url: string, init: RequestInit) {
 	try {
 		return await fetch(url, init);
@@ -41,6 +47,10 @@ async function safeFetch(url: string, init: RequestInit) {
 		console.error("Supabase auth sync failed", error);
 		return null;
 	}
+}
+
+function isAuthReadyResponseStatus(status: number) {
+	return status === 401 || status === 403 || status === 404;
 }
 
 export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
@@ -60,6 +70,41 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 		setCurrentUser(null);
 		setIsReady(true);
 	}, []);
+
+	const waitForServerSession = useCallback(async () => {
+		const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000];
+		let sawTerminalAuthResponse = false;
+
+		for (const retryDelayMs of retryDelaysMs) {
+			if (retryDelayMs > 0) {
+				await sleep(retryDelayMs);
+			}
+
+			try {
+				const response = await fetch(`${config.apiUrl}/user/me`, {
+					method: "GET",
+					credentials: "include",
+					cache: "no-store",
+				});
+
+				if (response.ok) {
+					return;
+				}
+
+				if (isAuthReadyResponseStatus(response.status)) {
+					sawTerminalAuthResponse = true;
+				}
+			} catch (error) {
+				console.error("Failed to verify server session readiness", error);
+			}
+		}
+
+		if (sawTerminalAuthResponse) {
+			return;
+		}
+
+		throw new Error("Server session was not ready after sign in.");
+	}, [config.apiUrl]);
 
 	const clearServerSession = useCallback(async () => {
 		lastSyncedTokenRef.current = null;
@@ -97,26 +142,46 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 			}
 
 			const syncPromise = (async () => {
-				const response = await safeFetch(
-					`${config.apiUrl}/auth/supabase/session`,
-					{
-						method: "POST",
-						credentials: "include",
-						headers: {
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({
-							accessToken: nextSession.access_token,
-							refreshToken: nextSession.refresh_token,
-						}),
-					},
-				);
+				const retryDelaysMs = [0, 250, 500, 1000, 2000];
+				let lastError: Error | null = null;
 
-				if (!response?.ok) {
-					throw new Error("Failed to create Supabase session");
+				for (const retryDelayMs of retryDelaysMs) {
+					if (retryDelayMs > 0) {
+						await sleep(retryDelayMs);
+					}
+
+					try {
+						const response = await fetch(
+							`${config.apiUrl}/auth/supabase/session`,
+							{
+								method: "POST",
+								credentials: "include",
+								headers: {
+									"Content-Type": "application/json",
+								},
+								body: JSON.stringify({
+									accessToken: nextSession.access_token,
+									refreshToken: nextSession.refresh_token,
+								}),
+							},
+						);
+
+						if (!response.ok) {
+							throw new Error("Failed to create Supabase session");
+						}
+
+						lastSyncedTokenRef.current = nextSession.access_token;
+						await waitForServerSession();
+						return;
+					} catch (error) {
+						lastError =
+							error instanceof Error
+								? error
+								: new Error("Failed to create Supabase session");
+					}
 				}
 
-				lastSyncedTokenRef.current = nextSession.access_token;
+				throw lastError ?? new Error("Failed to create Supabase session");
 			})();
 
 			inFlightSyncRef.current = syncPromise;
@@ -131,7 +196,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 				}
 			}
 		},
-		[auth, config.apiUrl],
+		[auth, config.apiUrl, waitForServerSession],
 	);
 
 	useEffect(() => {
