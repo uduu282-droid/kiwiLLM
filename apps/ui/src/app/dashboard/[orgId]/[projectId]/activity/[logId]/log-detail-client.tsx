@@ -357,13 +357,6 @@ export function LogDetailClient({
 										mono
 									/>
 								)}
-								<Field label="Provider" value={log.usedProvider} />
-								{log.requestedProvider && (
-									<Field
-										label="Requested Provider"
-										value={log.requestedProvider}
-									/>
-								)}
 								<Field
 									label="Streamed"
 									value={
@@ -393,105 +386,6 @@ export function LogDetailClient({
 								{log.source && <Field label="Source" value={log.source} />}
 							</div>
 						</Section>
-
-						{log.routingMetadata && (
-							<Section title="Routing">
-								<div className="rounded-lg border bg-card p-4">
-									{log.routingMetadata.selectionReason && (
-										<Field
-											label="Selection"
-											value={log.routingMetadata.selectionReason}
-											mono
-										/>
-									)}
-									{log.routingMetadata.availableProviders &&
-										log.routingMetadata.availableProviders.length > 0 && (
-											<Field
-												label="Available"
-												value={log.routingMetadata.availableProviders.join(
-													", ",
-												)}
-												mono
-											/>
-										)}
-									{log.routingMetadata.providerScores &&
-										log.routingMetadata.providerScores.length > 0 && (
-											<div className="mt-3 pt-3 border-t border-border/50">
-												<p className="text-xs text-muted-foreground mb-2">
-													Provider Scores
-												</p>
-												<div className="space-y-1.5">
-													{log.routingMetadata.providerScores.map((score) => (
-														<div
-															key={score.providerId}
-															className="flex items-center justify-between text-xs font-mono"
-														>
-															<span className="flex items-center gap-1.5">
-																{score.providerId}
-																{score.failed && (
-																	<span className="inline-flex items-center gap-0.5 text-red-500">
-																		<AlertCircle className="h-3 w-3" />
-																		<span>
-																			{score.status_code}
-																			{score.error_type && (
-																				<span className="ml-0.5 text-red-400">
-																					{score.error_type}
-																				</span>
-																			)}
-																		</span>
-																	</span>
-																)}
-															</span>
-															<span className="text-muted-foreground">
-																{score.score.toFixed(2)}
-																{score.uptime !== undefined && (
-																	<span className="ml-2">
-																		{score.uptime?.toFixed(0)}% up
-																	</span>
-																)}
-																{score.latency !== undefined && (
-																	<span className="ml-2">
-																		{score.latency?.toFixed(0)}ms
-																	</span>
-																)}
-															</span>
-														</div>
-													))}
-												</div>
-											</div>
-										)}
-									{log.routingMetadata.routing &&
-										log.routingMetadata.routing.length > 0 && (
-											<div className="mt-3 pt-3 border-t border-border/50">
-												<p className="text-xs text-muted-foreground mb-2">
-													Request Attempts
-												</p>
-												<div className="space-y-1.5">
-													{log.routingMetadata.routing.map((attempt, i) => (
-														<div
-															key={`${attempt.provider}-${i}`}
-															className={`flex items-center justify-between text-xs font-mono ${attempt.succeeded ? "text-green-600" : "text-red-500"}`}
-														>
-															<span className="flex items-center gap-1">
-																{attempt.succeeded ? (
-																	<CheckCircle2 className="h-3 w-3" />
-																) : (
-																	<AlertCircle className="h-3 w-3" />
-																)}
-																{attempt.provider}/{attempt.model}
-															</span>
-															<span>
-																{attempt.status_code}{" "}
-																{attempt.succeeded ? "ok" : attempt.error_type}
-															</span>
-														</div>
-													))}
-												</div>
-											</div>
-										)}
-								</div>
-							</Section>
-						)}
 
 						<Section title="Cost Information">
 							<div className="rounded-lg border bg-card p-4 space-y-4">

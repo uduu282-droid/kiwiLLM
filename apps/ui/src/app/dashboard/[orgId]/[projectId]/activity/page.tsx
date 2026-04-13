@@ -16,7 +16,6 @@ export default async function ActivityPage({
 		endDate?: string;
 		finishReason?: string;
 		unifiedFinishReason?: string;
-		provider?: string;
 		model?: string;
 		limit?: string;
 		customHeaderKey?: string;
@@ -52,9 +51,6 @@ export default async function ActivityPage({
 		searchParamsData.unifiedFinishReason !== "all"
 	) {
 		logsQueryParams.unifiedFinishReason = searchParamsData.unifiedFinishReason;
-	}
-	if (searchParamsData?.provider && searchParamsData.provider !== "all") {
-		logsQueryParams.provider = searchParamsData.provider;
 	}
 	if (searchParamsData?.model && searchParamsData.model !== "all") {
 		logsQueryParams.model = searchParamsData.model;
