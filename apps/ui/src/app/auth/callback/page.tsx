@@ -84,7 +84,18 @@ export default function AuthCallbackPage() {
 
 				hasHandledCallbackRef.current = true;
 				if (recoveredSession?.user) {
-					window.location.replace(next);
+					try {
+						await authClient.syncServerSession(recoveredSession);
+						window.location.replace(next);
+						return;
+					} catch (error) {
+						console.error(
+							"Failed to sync recovered session after OAuth callback",
+							error,
+						);
+					}
+
+					window.location.replace(resumeAuthUrl);
 					return;
 				}
 

@@ -139,32 +139,53 @@ export default function Login() {
 
 		let isCancelled = false;
 		updateRecoveringSession(true);
+		updateResumeAuthTimedOut(false);
 
-		void authClient
-			.syncServerSession(authClient.currentSession)
-			.then(async () => {
+		void (async () => {
+			const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000];
+			let lastError: unknown = null;
+
+			for (const retryDelayMs of retryDelaysMs) {
 				if (isCancelled) {
 					return;
 				}
 
-				if (shouldResumeAuth) {
-					window.location.replace(resumeAuthTarget);
-					return;
+				if (retryDelayMs > 0) {
+					await sleep(retryDelayMs);
 				}
 
-				await queryClient.invalidateQueries();
-			})
-			.catch((error: unknown) => {
-				console.error(
-					"Failed to recover server session from login page",
-					error,
-				);
-			})
-			.finally(() => {
-				if (!isCancelled) {
-					updateRecoveringSession(false);
+				try {
+					await authClient.syncServerSession(authClient.currentSession);
+
+					if (isCancelled) {
+						return;
+					}
+
+					if (shouldResumeAuth) {
+						window.location.replace(resumeAuthTarget);
+						return;
+					}
+
+					await queryClient.invalidateQueries();
+					return;
+				} catch (error: unknown) {
+					lastError = error;
 				}
-			});
+			}
+
+			console.error(
+				"Failed to recover server session from login page",
+				lastError,
+			);
+
+			if (!isCancelled && shouldResumeAuth) {
+				updateResumeAuthTimedOut(true);
+			}
+		})().finally(() => {
+			if (!isCancelled) {
+				updateRecoveringSession(false);
+			}
+		});
 
 		return () => {
 			isCancelled = true;
@@ -179,6 +200,25 @@ export default function Login() {
 		updateRecoveringSession,
 		user,
 	]);
+
+	useEffect(() => {
+		if (!resumeAuthTimedOut) {
+			return;
+		}
+
+		const url = new URL(window.location.href);
+		if (!url.searchParams.has("resumeAuth")) {
+			return;
+		}
+
+		url.searchParams.delete("resumeAuth");
+		const search = url.searchParams.toString();
+		window.history.replaceState(
+			null,
+			"",
+			`${url.pathname}${search ? `?${search}` : ""}`,
+		);
+	}, [resumeAuthTimedOut]);
 
 	useEffect(() => {
 		if (!authClient.auth) {
