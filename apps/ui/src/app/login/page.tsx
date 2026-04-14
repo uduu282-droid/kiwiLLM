@@ -60,7 +60,6 @@ export default function Login() {
 	const { user, isLoading: isUserLoading } = useUser({
 		redirectTo: "/dashboard",
 		redirectWhen: "authenticated",
-		checkOnboarding: true,
 	});
 	const isResumeAuthPending = shouldResumeAuth && !resumeAuthTimedOut;
 	const isBootstrappingAuth =

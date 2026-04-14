@@ -1,6 +1,6 @@
 "use client";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
 import { useEffect } from "react";
 
@@ -22,7 +22,6 @@ export interface PasswordUpdateData {
 export interface UseUserOptions {
 	redirectTo?: string;
 	redirectWhen?: "authenticated" | "unauthenticated";
-	checkOnboarding?: boolean;
 }
 
 function getHttpStatus(error: unknown): number | null {
@@ -50,7 +49,6 @@ export function useUser(options?: UseUserOptions) {
 	const posthog = usePostHog();
 	const router = useRouter();
 	const api = useApi();
-	const pathname = usePathname();
 	const authClient = useAuthClient();
 	const isAuthReady = authClient.isReady;
 
@@ -84,46 +82,19 @@ export function useUser(options?: UseUserOptions) {
 		posthog,
 	]);
 
-	// Check for onboarding completion for all authenticated users
-	useEffect(() => {
-		if (!isAuthReady || !data?.user || isLoading) {
-			return;
-		}
-
-		const currentPath = pathname;
-		const isAuthPage = ["/login", "/signup", "/onboarding"].includes(
-			currentPath,
-		);
-		const isLandingPage = currentPath === "/";
-
-		// Don't redirect if already on auth pages
-		if (isAuthPage || isLandingPage) {
-			return;
-		}
-
-		// Redirect to onboarding if user hasn't completed it
-		if (!data.user.onboardingCompleted) {
-			router.push("/onboarding");
-		}
-	}, [data?.user, isLoading, router, pathname]);
-
 	// Handle existing redirect logic
 	useEffect(() => {
 		if (!isAuthReady || !options?.redirectTo || !options?.redirectWhen) {
 			return;
 		}
 
-		const { redirectTo, redirectWhen, checkOnboarding } = options;
+		const { redirectTo, redirectWhen } = options;
 		const hasUser = !!data?.user;
 		const errorStatus = getHttpStatus(error);
 		const isUnauthenticatedError = errorStatus === 401 || errorStatus === 403;
 
 		if (redirectWhen === "authenticated" && hasUser && !isLoading && !error) {
-			if (checkOnboarding && !data.user.onboardingCompleted) {
-				router.push("/onboarding");
-			} else {
-				router.push(redirectTo as Route);
-			}
+			router.push(redirectTo as Route);
 		} else if (
 			redirectWhen === "unauthenticated" &&
 			!isLoading &&
@@ -138,7 +109,6 @@ export function useUser(options?: UseUserOptions) {
 		router,
 		options?.redirectTo,
 		options?.redirectWhen,
-		options?.checkOnboarding,
 		options,
 		isAuthReady,
 	]);

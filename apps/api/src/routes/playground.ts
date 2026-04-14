@@ -2,9 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getCookie, setCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 
-import { getApiKeyPrefix } from "@/lib/api-key-prefix.js";
-
-import { db, tables, shortid } from "@llmgateway/db";
+import { db } from "@llmgateway/db";
 
 import type { ServerTypes } from "@/vars.js";
 
@@ -76,17 +74,9 @@ playground.openapi(ensureKey, async (c) => {
 	});
 
 	if (!key) {
-		const token = getApiKeyPrefix() + shortid(40);
-		[key] = await db
-			.insert(tables.apiKey)
-			.values({
-				token,
-				projectId,
-				description: "Auto-generated playground key",
-				usageLimit: null,
-				createdBy: user.id,
-			})
-			.returning();
+		throw new HTTPException(404, {
+			message: "No active API key found for this project. Please create one.",
+		});
 	}
 
 	// Set httpOnly cookie for playground API key (API domain)

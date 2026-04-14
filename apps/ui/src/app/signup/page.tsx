@@ -59,7 +59,6 @@ export default function Signup() {
 	const { user, isLoading: isUserLoading } = useUser({
 		redirectTo: "/dashboard",
 		redirectWhen: "authenticated",
-		checkOnboarding: true,
 	});
 	const isBootstrappingAuth =
 		loadingState === null &&
@@ -178,7 +177,7 @@ export default function Signup() {
 							: "Your account is ready.",
 					});
 					window.location.replace(
-						ctx.data.requiresEmailVerification ? "/login" : "/onboarding",
+						ctx.data.requiresEmailVerification ? "/login" : "/dashboard",
 					);
 				},
 				onError: (ctx) => {

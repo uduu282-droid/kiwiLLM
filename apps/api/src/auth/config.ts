@@ -5,12 +5,11 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
 import { Redis } from "ioredis";
 
-import { getApiKeyPrefix } from "@/lib/api-key-prefix.js";
 import { notifyUserSignup } from "@/utils/discord.js";
 import { validateEmail } from "@/utils/email-validation.js";
 import { sendTransactionalEmail } from "@/utils/email.js";
 
-import { and, db, desc, eq, sql, tables, shortid } from "@llmgateway/db";
+import { and, db, desc, eq, sql, tables } from "@llmgateway/db";
 import { logger } from "@llmgateway/logger";
 import { getResendClient } from "@llmgateway/shared/email";
 
@@ -848,17 +847,6 @@ The ${brandName} Team`.trim();
 								mode: "hybrid",
 							})
 							.returning();
-
-						// Auto-create an API key for the playground to use
-						const token = getApiKeyPrefix() + shortid(40);
-
-						await tx.insert(tables.apiKey).values({
-							projectId: project.id,
-							token: token,
-							description: "Auto-generated playground key",
-							usageLimit: null, // No limit for playground key
-							createdBy: userId,
-						});
 
 						// Handle referral if cookie is present
 						const cookieHeader = ctx.request?.headers.get("cookie") ?? "";

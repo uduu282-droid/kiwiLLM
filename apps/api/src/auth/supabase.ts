@@ -1,9 +1,8 @@
 import { createClient, type User as SupabaseUser } from "@supabase/supabase-js";
 
 import { apiAuth } from "@/auth/config.js";
-import { getApiKeyPrefix } from "@/lib/api-key-prefix.js";
 
-import { db, eq, tables, shortid } from "@llmgateway/db";
+import { db, eq, tables } from "@llmgateway/db";
 import { logger } from "@llmgateway/logger";
 
 import type {
@@ -266,23 +265,10 @@ async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
 				organizationId: organization.id,
 			});
 
-			const [project] = await tx
-				.insert(tables.project)
-				.values({
-					name: "Default Project",
-					organizationId: organization.id,
-					mode: "hybrid",
-				})
-				.returning();
-
-			const token = getApiKeyPrefix() + shortid(40);
-
-			await tx.insert(tables.apiKey).values({
-				projectId: project.id,
-				token,
-				description: "Auto-generated playground key",
-				usageLimit: null,
-				createdBy: dbUser.id,
+			await tx.insert(tables.project).values({
+				name: "Default Project",
+				organizationId: organization.id,
+				mode: "hybrid",
 			});
 		});
 	}

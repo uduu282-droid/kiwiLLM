@@ -20,8 +20,7 @@ export default async function DashboardPage() {
 
 	// Check if organizations data is null (API error)
 	if (!initialOrganizationsData) {
-		// Show error page or redirect to onboarding
-		redirect("/onboarding");
+		redirect("/login?next=/dashboard");
 	}
 
 	// Determine default organization and project for redirect
@@ -75,6 +74,6 @@ export default async function DashboardPage() {
 		}
 	}
 
-	// If no organizations found, redirect to onboarding
-	redirect("/onboarding");
+	// If no organizations found, send user to login flow
+	redirect("/login?next=/dashboard");
 }
