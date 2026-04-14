@@ -50,11 +50,12 @@ export default function Login() {
 	const [resumeAuthState, setResumeAuthState] = useState({
 		shouldResumeAuth: false,
 		resumeAuthTarget: "/dashboard",
+		hasNextParam: false,
 	});
 	const { signIn } = useAuth();
 	const authClient = useAuthClient();
 	const { githubAuth, googleAuth } = useAppConfig();
-	const { shouldResumeAuth, resumeAuthTarget } = resumeAuthState;
+	const { shouldResumeAuth, resumeAuthTarget, hasNextParam } = resumeAuthState;
 	const [resumeAuthTimedOut, setResumeAuthTimedOut] = useState(false);
 	const { user, isLoading: isUserLoading } = useUser({
 		redirectTo: "/dashboard",
@@ -81,7 +82,11 @@ export default function Login() {
 				: "Signing you in and preparing your dashboard...";
 
 	const updateResumeAuthState = useCallback(
-		(value: { shouldResumeAuth: boolean; resumeAuthTarget: string }) => {
+		(value: {
+			shouldResumeAuth: boolean;
+			resumeAuthTarget: string;
+			hasNextParam: boolean;
+		}) => {
 			setResumeAuthState(value);
 		},
 		[],
@@ -129,6 +134,7 @@ export default function Login() {
 		updateResumeAuthState({
 			shouldResumeAuth: params.get("resumeAuth") === "true",
 			resumeAuthTarget: params.get("next") ?? "/dashboard",
+			hasNextParam: params.has("next"),
 		});
 	}, [updateResumeAuthState]);
 
@@ -161,7 +167,7 @@ export default function Login() {
 						return;
 					}
 
-					if (shouldResumeAuth) {
+					if (shouldResumeAuth || hasNextParam) {
 						window.location.replace(resumeAuthTarget);
 						return;
 					}
@@ -197,6 +203,7 @@ export default function Login() {
 		queryClient,
 		resumeAuthTarget,
 		shouldResumeAuth,
+		hasNextParam,
 		updateRecoveringSession,
 		user,
 	]);
