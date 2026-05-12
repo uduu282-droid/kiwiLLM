@@ -144,7 +144,7 @@ organization.openapi(getOrganizations, async (c) => {
 		});
 	}
 
-	const userOrganizations = await db.query.userOrganization.findMany({
+	let userOrganizations = await db.query.userOrganization.findMany({
 		where: {
 			userId: user.id,
 		},
@@ -153,11 +153,49 @@ organization.openapi(getOrganizations, async (c) => {
 		},
 	});
 
-	const organizations = userOrganizations
+	let organizations = userOrganizations
 		.map((uo) => uo.organization!)
 		.filter((org) => org.status !== "deleted")
 		// Hide personal orgs from the regular organization UI - they are managed through the dashboard flow
 		.filter((org) => !org.isPersonal);
+
+	if (organizations.length === 0) {
+		await db.transaction(async (tx) => {
+			const [organization] = await tx
+				.insert(tables.organization)
+				.values({
+					name: "Default Organization",
+					billingEmail: user.email,
+				})
+				.returning();
+
+			await tx.insert(tables.userOrganization).values({
+				userId: user.id,
+				organizationId: organization.id,
+				role: "owner",
+			});
+
+			await tx.insert(tables.project).values({
+				name: "Default Project",
+				organizationId: organization.id,
+				mode: "hybrid",
+			});
+		});
+
+		userOrganizations = await db.query.userOrganization.findMany({
+			where: {
+				userId: user.id,
+			},
+			with: {
+				organization: true,
+			},
+		});
+
+		organizations = userOrganizations
+			.map((uo) => uo.organization!)
+			.filter((org) => org.status !== "deleted")
+			.filter((org) => !org.isPersonal);
+	}
 
 	return c.json({
 		organizations,
