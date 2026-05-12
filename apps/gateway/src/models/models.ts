@@ -29,8 +29,7 @@ export const modelsApi = new OpenAPIHono<ServerTypes>();
 const unifiedWorkerBaseUrl =
 	process.env.LLM_KIWILLM_UNIFIED_BASE_URL ??
 	"https://unified-ai-worker.rutv.workers.dev";
-const syncUnifiedModelList =
-	process.env.SYNC_UNIFIED_WORKER_MODELS !== "false";
+const syncUnifiedModelList = process.env.SYNC_UNIFIED_WORKER_MODELS !== "false";
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
 	return !getProviderEnvConfig(providerId)?.required.apiKey;

@@ -27,12 +27,15 @@ videoRoute.post("/generations", async (c) => {
 			upstreamHeaders.set("x-api-key", apiKey);
 		}
 
-		const response = await fetch(`${unifiedWorkerBaseUrl}/v1/video/generations`, {
-			method: "POST",
-			headers: upstreamHeaders,
-			body: JSON.stringify(body),
-			signal: AbortSignal.timeout(90000),
-		});
+		const response = await fetch(
+			`${unifiedWorkerBaseUrl}/v1/video/generations`,
+			{
+				method: "POST",
+				headers: upstreamHeaders,
+				body: JSON.stringify(body),
+				signal: AbortSignal.timeout(90000),
+			},
+		);
 
 		const responseText = await response.text();
 		const contentType =

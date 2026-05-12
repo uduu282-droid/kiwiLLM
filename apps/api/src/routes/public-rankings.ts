@@ -198,14 +198,19 @@ publicRankings.openapi(getPublicRankings, async (c) => {
 			changePercent:
 				previousTokens > 0
 					? Number(
-							(((currentTokens - previousTokens) / previousTokens) * 100).toFixed(1),
+							(
+								((currentTokens - previousTokens) / previousTokens) *
+								100
+							).toFixed(1),
 						)
 					: null,
 			isNew: previousTokens <= 0,
 		};
 	});
 
-	const topChartModels = new Set(leaderboard.slice(0, 8).map((entry) => entry.modelId));
+	const topChartModels = new Set(
+		leaderboard.slice(0, 8).map((entry) => entry.modelId),
+	);
 	const chartMap = new Map<
 		string,
 		{
@@ -216,7 +221,9 @@ publicRankings.openapi(getPublicRankings, async (c) => {
 	>();
 
 	for (let i = 0; i < 12; i++) {
-		const weekStart = addUtcDays(chartStart, i * 7).toISOString().slice(0, 10);
+		const weekStart = addUtcDays(chartStart, i * 7)
+			.toISOString()
+			.slice(0, 10);
 		chartMap.set(weekStart, {
 			weekStart,
 			totalTokens: 0,
@@ -237,7 +244,10 @@ publicRankings.openapi(getPublicRankings, async (c) => {
 		const modelId = row.modelId ?? "unknown";
 		const segmentKey = topChartModels.has(modelId) ? modelId : "Other";
 		point.totalTokens += tokenCount;
-		point.segments.set(segmentKey, (point.segments.get(segmentKey) ?? 0) + tokenCount);
+		point.segments.set(
+			segmentKey,
+			(point.segments.get(segmentKey) ?? 0) + tokenCount,
+		);
 	}
 
 	return c.json({
@@ -256,10 +266,12 @@ publicRankings.openapi(getPublicRankings, async (c) => {
 		chart: Array.from(chartMap.values()).map((point) => ({
 			weekStart: point.weekStart,
 			totalTokens: point.totalTokens,
-			segments: Array.from(point.segments.entries()).map(([modelId, tokens]) => ({
-				modelId,
-				tokens,
-			})),
+			segments: Array.from(point.segments.entries()).map(
+				([modelId, tokens]) => ({
+					modelId,
+					tokens,
+				}),
+			),
 		})),
 	});
 });
