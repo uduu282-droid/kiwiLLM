@@ -16,9 +16,11 @@ export async function GET() {
 		return NextResponse.json({ ready: false }, { status: 401 });
 	}
 
-	const organizationsData = await fetchServerData("GET", "/orgs");
+	const organizationsData = await fetchServerData<{
+		organizations?: Array<{ id: string }>;
+	}>("GET", "/orgs");
 
-	if (!organizationsData) {
+	if (!organizationsData?.organizations?.length) {
 		return NextResponse.json({ ready: false }, { status: 503 });
 	}
 

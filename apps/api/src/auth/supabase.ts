@@ -239,7 +239,7 @@ async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
 	const { email: userEmail } = getSupabaseUserValues(supabaseUser);
 	const dbUser = await upsertSupabaseUser(supabaseUser);
 
-	const activeOrganizations = (
+	const activeRegularOrganizations = (
 		await db.query.userOrganization.findMany({
 			where: {
 				userId: dbUser.id,
@@ -248,9 +248,13 @@ async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
 				organization: true,
 			},
 		})
-	).filter((membership) => membership.organization?.status !== "deleted");
+	).filter(
+		(membership) =>
+			membership.organization?.status !== "deleted" &&
+			!membership.organization?.isPersonal,
+	);
 
-	if (activeOrganizations.length === 0) {
+	if (activeRegularOrganizations.length === 0) {
 		await db.transaction(async (tx) => {
 			const [organization] = await tx
 				.insert(tables.organization)
