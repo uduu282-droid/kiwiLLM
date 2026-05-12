@@ -1,9 +1,8 @@
 import { createClient, type User as SupabaseUser } from "@supabase/supabase-js";
 
 import { apiAuth } from "@/auth/config.js";
-import { getApiKeyPrefix } from "@/lib/api-key-prefix.js";
 
-import { db, eq, tables, shortid } from "@llmgateway/db";
+import { db, eq, tables } from "@llmgateway/db";
 import { logger } from "@llmgateway/logger";
 
 import type {
@@ -20,6 +19,10 @@ const SUPABASE_COOKIE_MAX_AGE_SECONDS =
 	Number(process.env.SUPABASE_COOKIE_MAX_AGE_SECONDS) ||
 	Number(process.env.SESSION_MAX_AGE_SECONDS) ||
 	60 * 60 * 24 * 14;
+const SUPABASE_COOKIE_DOMAIN =
+	process.env.SUPABASE_COOKIE_DOMAIN ??
+	process.env.COOKIE_DOMAIN ??
+	(process.env.HOSTED === "true" ? ".kiwillm.in" : null);
 
 function getSupabaseConfig() {
 	const url =
@@ -240,7 +243,7 @@ async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
 	const { email: userEmail } = getSupabaseUserValues(supabaseUser);
 	const dbUser = await upsertSupabaseUser(supabaseUser);
 
-	const activeOrganizations = (
+	const activeRegularOrganizations = (
 		await db.query.userOrganization.findMany({
 			where: {
 				userId: dbUser.id,
@@ -249,9 +252,13 @@ async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
 				organization: true,
 			},
 		})
-	).filter((membership) => membership.organization?.status !== "deleted");
+	).filter(
+		(membership) =>
+			membership.organization?.status !== "deleted" &&
+			!membership.organization?.isPersonal,
+	);
 
-	if (activeOrganizations.length === 0) {
+	if (activeRegularOrganizations.length === 0) {
 		await db.transaction(async (tx) => {
 			const [organization] = await tx
 				.insert(tables.organization)
@@ -264,25 +271,13 @@ async function ensureSupabaseUserAppData(supabaseUser: SupabaseUser) {
 			await tx.insert(tables.userOrganization).values({
 				userId: dbUser.id,
 				organizationId: organization.id,
+				role: "owner",
 			});
 
-			const [project] = await tx
-				.insert(tables.project)
-				.values({
-					name: "Default Project",
-					organizationId: organization.id,
-					mode: "hybrid",
-				})
-				.returning();
-
-			const token = getApiKeyPrefix() + shortid(40);
-
-			await tx.insert(tables.apiKey).values({
-				projectId: project.id,
-				token,
-				description: "Auto-generated playground key",
-				usageLimit: null,
-				createdBy: dbUser.id,
+			await tx.insert(tables.project).values({
+				name: "Default Project",
+				organizationId: organization.id,
+				mode: "hybrid",
 			});
 		});
 	}
@@ -414,9 +409,9 @@ function getCookieBaseOptions() {
 		sameSite: "lax" as const,
 		secure: process.env.NODE_ENV === "production",
 		maxAge: SUPABASE_COOKIE_MAX_AGE_SECONDS,
-		...(process.env.SUPABASE_COOKIE_DOMAIN
+		...(SUPABASE_COOKIE_DOMAIN && SUPABASE_COOKIE_DOMAIN !== "localhost"
 			? {
-					domain: process.env.SUPABASE_COOKIE_DOMAIN,
+					domain: SUPABASE_COOKIE_DOMAIN,
 				}
 			: {}),
 	};
@@ -428,6 +423,14 @@ export function getSupabaseSessionCookieOptions() {
 
 export function getSupabaseRefreshCookieOptions() {
 	return getCookieBaseOptions();
+}
+
+export function getSupabaseCookieDomain() {
+	if (!SUPABASE_COOKIE_DOMAIN || SUPABASE_COOKIE_DOMAIN === "localhost") {
+		return undefined;
+	}
+
+	return SUPABASE_COOKIE_DOMAIN;
 }
 
 export async function syncSupabaseUserProfile(
