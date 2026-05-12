@@ -26,6 +26,10 @@ import type { ServerTypes } from "@/vars.js";
 import type { Context } from "hono";
 
 export const modelsApi = new OpenAPIHono<ServerTypes>();
+const unifiedWorkerBaseUrl =
+	process.env.LLM_KIWILLM_UNIFIED_BASE_URL ??
+	"https://unified-ai-worker.rutv.workers.dev";
+const syncUnifiedModelList = process.env.SYNC_UNIFIED_WORKER_MODELS !== "false";
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
 	return !getProviderEnvConfig(providerId)?.required.apiKey;
@@ -262,6 +266,55 @@ modelsApi.openapi(listModels, async (c) => {
 		const includeDeactivated = query.include_deactivated || false;
 		const excludeDeprecated = query.exclude_deprecated || false;
 		const currentDate = new Date();
+
+		if (syncUnifiedModelList) {
+			try {
+				const response = await fetch(`${unifiedWorkerBaseUrl}/v1/models`, {
+					headers: { Accept: "application/json" },
+					signal: AbortSignal.timeout(15000),
+				});
+
+				if (response.ok) {
+					const payload = await response.json();
+					const parsedPayload = listModelsResponseSchema.safeParse(payload);
+					if (parsedPayload.success) {
+						const syncedModels = parsedPayload.data.data.filter((model) => {
+							if (includeDeactivated) {
+								return true;
+							}
+							const deactivatedAt =
+								typeof model.deactivated_at === "string"
+									? new Date(model.deactivated_at)
+									: undefined;
+							if (deactivatedAt && currentDate > deactivatedAt) {
+								return false;
+							}
+							if (!excludeDeprecated) {
+								return true;
+							}
+							const deprecatedAt =
+								typeof model.deprecated_at === "string"
+									? new Date(model.deprecated_at)
+									: undefined;
+							return !(deprecatedAt && currentDate > deprecatedAt);
+						});
+
+						return c.json({ data: syncedModels });
+					}
+				} else {
+					logger.warn("Unified worker model sync failed, using local catalog", {
+						status: response.status,
+						baseUrl: unifiedWorkerBaseUrl,
+					});
+				}
+			} catch (error) {
+				logger.warn(
+					"Unified worker model sync errored, using local catalog",
+					error instanceof Error ? error : new Error(String(error)),
+				);
+			}
+		}
+
 		const projectContext = await getAuthenticatedProjectContext(c);
 		const projectIamRules = projectContext
 			? await findActiveIamRules(projectContext.apiKey.id).catch((error) => {
