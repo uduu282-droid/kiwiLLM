@@ -13,6 +13,59 @@ function sleep(ms: number) {
 	});
 }
 
+async function syncSessionWithRetry(
+	authClient: ReturnType<typeof useAuthClient>,
+	session: SupabaseSession,
+) {
+	const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000, 5000];
+	let lastError: unknown = null;
+
+	for (const retryDelayMs of retryDelaysMs) {
+		if (retryDelayMs > 0) {
+			await sleep(retryDelayMs);
+		}
+
+		try {
+			await authClient.syncServerSession(session);
+			return;
+		} catch (error) {
+			lastError = error;
+		}
+	}
+
+	if (lastError instanceof Error) {
+		throw lastError;
+	}
+
+	throw new Error("Failed to sync server session.");
+}
+
+async function waitForAppSession() {
+	const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000, 5000];
+	let lastStatus: number | null = null;
+
+	for (const retryDelayMs of retryDelaysMs) {
+		if (retryDelayMs > 0) {
+			await sleep(retryDelayMs);
+		}
+
+		const response = await fetch("/api/auth/ready", {
+			cache: "no-store",
+			credentials: "include",
+		});
+
+		if (response.ok) {
+			return;
+		}
+
+		lastStatus = response.status;
+	}
+
+	throw new Error(
+		`App session was not ready after sign in${lastStatus ? ` (last status: ${lastStatus})` : ""}.`,
+	);
+}
+
 export default function AuthCallbackPage() {
 	const authClient = useAuthClient();
 	const hasHandledCallbackRef = useRef(false);
@@ -57,12 +110,13 @@ export default function AuthCallbackPage() {
 				}
 
 				hasHandledCallbackRef.current = true;
-				await authClient.syncServerSession(session);
+				await syncSessionWithRetry(authClient, session);
+				await waitForAppSession();
 				window.location.replace(next);
 			} catch {
 				const resumeAuthUrl = `/login?resumeAuth=true&next=${encodeURIComponent(next)}`;
 				let recoveredSession = exchangedSession;
-				const retryDelaysMs = [0, 250, 500, 1000, 2000];
+				const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000, 5000];
 
 				if (!auth) {
 					hasHandledCallbackRef.current = true;
@@ -85,7 +139,8 @@ export default function AuthCallbackPage() {
 				hasHandledCallbackRef.current = true;
 				if (recoveredSession?.user) {
 					try {
-						await authClient.syncServerSession(recoveredSession);
+						await syncSessionWithRetry(authClient, recoveredSession);
+						await waitForAppSession();
 						window.location.replace(next);
 						return;
 					} catch (error) {
