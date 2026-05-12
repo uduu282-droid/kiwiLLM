@@ -38,19 +38,19 @@ const responseSchema = z.object({
 	chart: z.array(chartPointSchema),
 });
 
-type AggregateRow = {
+interface AggregateRow {
 	modelId: string | null;
 	providerId: string | null;
 	requestCount: number | string;
 	totalTokens: number | string;
 	totalCost: number | string;
-};
+}
 
-type WeeklyAggregateRow = {
+interface WeeklyAggregateRow {
 	weekStart: string | Date;
 	modelId: string | null;
 	totalTokens: number | string;
-};
+}
 
 const publicRankings = new OpenAPIHono<ServerTypes>();
 
@@ -173,9 +173,9 @@ publicRankings.openapi(getPublicRankings, async (c) => {
 			`),
 		]);
 
-	const currentRows = currentRowsResult.rows as AggregateRow[];
-	const previousRows = previousRowsResult.rows as AggregateRow[];
-	const chartRows = chartRowsResult.rows as WeeklyAggregateRow[];
+	const currentRows = currentRowsResult.rows as unknown as AggregateRow[];
+	const previousRows = previousRowsResult.rows as unknown as AggregateRow[];
+	const chartRows = chartRowsResult.rows as unknown as WeeklyAggregateRow[];
 
 	const previousMap = new Map(
 		previousRows.map((row) => [

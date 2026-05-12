@@ -26,6 +26,11 @@ import type { ServerTypes } from "@/vars.js";
 import type { Context } from "hono";
 
 export const modelsApi = new OpenAPIHono<ServerTypes>();
+const unifiedWorkerBaseUrl =
+	process.env.LLM_KIWILLM_UNIFIED_BASE_URL ??
+	"https://unified-ai-worker.rutv.workers.dev";
+const syncUnifiedModelList =
+	process.env.SYNC_UNIFIED_WORKER_MODELS !== "false";
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
 	return !getProviderEnvConfig(providerId)?.required.apiKey;
@@ -114,38 +119,50 @@ function getRequestToken(c: Context<ServerTypes>): string | undefined {
 }
 
 async function getAuthenticatedProjectContext(c: Context<ServerTypes>) {
-	const token = getRequestToken(c);
-	if (!token) {
+	try {
+		const token = getRequestToken(c);
+		if (!token) {
+			return null;
+		}
+
+		const apiKey = await findApiKeyByToken(token);
+		if (
+			!apiKey ||
+			apiKey.status === "deleted" ||
+			apiKey.status === "inactive"
+		) {
+			return null;
+		}
+
+		const project = await findProjectById(apiKey.projectId);
+		if (
+			!project ||
+			project.status === "deleted" ||
+			project.status === "inactive"
+		) {
+			return null;
+		}
+
+		const activeProviderKeys = await findActiveProviderKeys(
+			project.organizationId,
+		);
+		const databaseProviders = activeProviderKeys.map((key) => key.provider);
+		const availableProviders = getAvailableProvidersForProjectMode(
+			project.mode,
+			databaseProviders,
+		);
+
+		return {
+			apiKey,
+			availableProviders,
+		};
+	} catch (error) {
+		logger.error(
+			"Falling back to public models after auth context lookup failed",
+			error instanceof Error ? error : new Error(String(error)),
+		);
 		return null;
 	}
-
-	const apiKey = await findApiKeyByToken(token);
-	if (!apiKey || apiKey.status === "deleted" || apiKey.status === "inactive") {
-		return null;
-	}
-
-	const project = await findProjectById(apiKey.projectId);
-	if (
-		!project ||
-		project.status === "deleted" ||
-		project.status === "inactive"
-	) {
-		return null;
-	}
-
-	const activeProviderKeys = await findActiveProviderKeys(
-		project.organizationId,
-	);
-	const databaseProviders = activeProviderKeys.map((key) => key.provider);
-	const availableProviders = getAvailableProvidersForProjectMode(
-		project.mode,
-		databaseProviders,
-	);
-
-	return {
-		apiKey,
-		availableProviders,
-	};
 }
 
 const modelSchema = z.object({
@@ -250,70 +267,142 @@ modelsApi.openapi(listModels, async (c) => {
 		const includeDeactivated = query.include_deactivated || false;
 		const excludeDeprecated = query.exclude_deprecated || false;
 		const currentDate = new Date();
+
+		if (syncUnifiedModelList) {
+			try {
+				const response = await fetch(`${unifiedWorkerBaseUrl}/v1/models`, {
+					headers: {
+						Accept: "application/json",
+					},
+					signal: AbortSignal.timeout(15000),
+				});
+
+				if (response.ok) {
+					const payload = await response.json();
+					const parsedPayload = listModelsResponseSchema.safeParse(payload);
+					if (parsedPayload.success) {
+						const syncedModels = parsedPayload.data.data.filter((model) => {
+							if (includeDeactivated) {
+								return true;
+							}
+							const deactivatedAt =
+								typeof model.deactivated_at === "string"
+									? new Date(model.deactivated_at)
+									: undefined;
+							if (deactivatedAt && currentDate > deactivatedAt) {
+								return false;
+							}
+							if (!excludeDeprecated) {
+								return true;
+							}
+							const deprecatedAt =
+								typeof model.deprecated_at === "string"
+									? new Date(model.deprecated_at)
+									: undefined;
+							return !(deprecatedAt && currentDate > deprecatedAt);
+						});
+
+						return c.json({ data: syncedModels });
+					}
+				} else {
+					logger.warn("Unified worker model sync failed, using local catalog", {
+						status: response.status,
+						baseUrl: unifiedWorkerBaseUrl,
+					});
+				}
+			} catch (error) {
+				logger.warn(
+					"Unified worker model sync errored, using local catalog",
+					error instanceof Error ? error : new Error(String(error)),
+				);
+			}
+		}
+
 		const projectContext = await getAuthenticatedProjectContext(c);
 		const projectIamRules = projectContext
-			? await findActiveIamRules(projectContext.apiKey.id)
+			? await findActiveIamRules(projectContext.apiKey.id).catch((error) => {
+					logger.error(
+						"Falling back to public IAM filtering after rule lookup failed",
+						error instanceof Error ? error : new Error(String(error)),
+					);
+					return [];
+				})
 			: [];
+		const shouldApplyIamRules = projectIamRules.length > 0;
 
 		const filteredModels = (
 			await Promise.all(
 				modelsList.map(async (model: ModelDefinition) => {
-					let routeableProviders = model.providers.filter((provider) => {
-						const providerMapping = provider as ProviderModelMapping;
+					try {
+						let routeableProviders = model.providers.filter((provider) => {
+							const providerMapping = provider as ProviderModelMapping;
 
-						if (
-							!includeDeactivated &&
-							providerMapping.deactivatedAt &&
-							currentDate > providerMapping.deactivatedAt
-						) {
-							return false;
+							if (
+								!includeDeactivated &&
+								providerMapping.deactivatedAt &&
+								currentDate > providerMapping.deactivatedAt
+							) {
+								return false;
+							}
+
+							if (
+								excludeDeprecated &&
+								providerMapping.deprecatedAt &&
+								currentDate > providerMapping.deprecatedAt
+							) {
+								return false;
+							}
+
+							return canPubliclyRouteProviderMapping(providerMapping);
+						}) as ProviderModelMapping[];
+
+						if (projectContext) {
+							let iamAllowedProviders: Provider[] | undefined;
+
+							if (shouldApplyIamRules) {
+								const iamValidation = await validateModelAccess(
+									projectContext.apiKey.id,
+									model.id,
+									undefined,
+									{
+										...model,
+										providers: routeableProviders,
+									},
+									projectIamRules,
+								);
+
+								if (!iamValidation.allowed) {
+									return undefined;
+								}
+
+								iamAllowedProviders = iamValidation.allowedProviders;
+							}
+
+							routeableProviders = routeableProviders.filter(
+								(provider) =>
+									projectContext.availableProviders.includes(
+										provider.providerId,
+									) &&
+									(!iamAllowedProviders ||
+										iamAllowedProviders.includes(provider.providerId)),
+							);
 						}
 
-						if (
-							excludeDeprecated &&
-							providerMapping.deprecatedAt &&
-							currentDate > providerMapping.deprecatedAt
-						) {
-							return false;
-						}
-
-						return canPubliclyRouteProviderMapping(providerMapping);
-					}) as ProviderModelMapping[];
-
-					if (projectContext) {
-						const iamValidation = await validateModelAccess(
-							projectContext.apiKey.id,
-							model.id,
-							undefined,
-							{
-								...model,
-								providers: routeableProviders,
-							},
-							projectIamRules,
-						);
-
-						if (!iamValidation.allowed) {
+						if (routeableProviders.length === 0) {
 							return undefined;
 						}
 
-						routeableProviders = routeableProviders.filter(
-							(provider) =>
-								projectContext.availableProviders.includes(
-									provider.providerId,
-								) &&
-								(!iamValidation.allowedProviders ||
-									iamValidation.allowedProviders.includes(provider.providerId)),
+						return {
+							...model,
+							providers: routeableProviders,
+						} satisfies ModelDefinition;
+					} catch (error) {
+						logger.error(
+							`Skipping model ${model.id} in models endpoint`,
+							error instanceof Error ? error : new Error(String(error)),
 						);
-					}
-
-					if (routeableProviders.length === 0) {
 						return undefined;
 					}
-
-					return {
-						...model,
-						providers: routeableProviders,
-					} satisfies ModelDefinition;
 				}),
 			)
 		).filter((model): model is ModelDefinition => model !== undefined);

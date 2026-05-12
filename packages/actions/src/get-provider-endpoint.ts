@@ -23,6 +23,10 @@ export function getProviderEndpoint(
 	configIndex?: number,
 	imageGenerations?: boolean,
 ): string {
+	const unifiedKiwiBaseUrl =
+		process.env.LLM_KIWILLM_UNIFIED_BASE_URL ??
+		"https://unified-ai-worker.rutv.workers.dev";
+
 	let modelName = model;
 	if (model && model !== "custom") {
 		const modelInfo = models.find((m) => m.id === model);
@@ -40,6 +44,10 @@ export function getProviderEndpoint(
 	if (baseUrl) {
 		url = baseUrl;
 	} else {
+		if (provider.startsWith("kiwillm-")) {
+			url = unifiedKiwiBaseUrl;
+		}
+
 		switch (provider) {
 			case "llmgateway":
 				if (model === "custom" || model === "auto") {
@@ -53,202 +61,28 @@ export function getProviderEndpoint(
 				url = "https://api.openai.com";
 				break;
 			case "kiwillm-qwen":
-				url =
-					getProviderEnvValue(
-						"kiwillm-qwen",
-						"baseUrl",
-						configIndex,
-						"https://qwen-worker-proxy.ronitshrimankar1.workers.dev",
-					) ?? "https://qwen-worker-proxy.ronitshrimankar1.workers.dev";
-				break;
 			case "kiwillm-chatai-proxy":
-				url =
-					getProviderEnvValue(
-						"kiwillm-chatai-proxy",
-						"baseUrl",
-						configIndex,
-						"https://chatai-proxy.revai.workers.dev",
-					) ?? "https://chatai-proxy.revai.workers.dev";
-				break;
 			case "kiwillm-ish-chat-proxy":
-				url =
-					getProviderEnvValue(
-						"kiwillm-ish-chat-proxy",
-						"baseUrl",
-						configIndex,
-						"https://ish-chat-proxy-test.revai.workers.dev",
-					) ?? "https://ish-chat-proxy-test.revai.workers.dev";
-				break;
 			case "kiwillm-freecfmodels":
-				url =
-					getProviderEnvValue(
-						"kiwillm-freecfmodels",
-						"baseUrl",
-						configIndex,
-						"https://freecfmodels.bgmipro285.workers.dev",
-					) ?? "https://freecfmodels.bgmipro285.workers.dev";
-				break;
 			case "kiwillm-literouter-proxy":
-				url =
-					getProviderEnvValue(
-						"kiwillm-literouter-proxy",
-						"baseUrl",
-						configIndex,
-						"https://literouter-proxy.revai.workers.dev",
-					) ?? "https://literouter-proxy.revai.workers.dev";
-				break;
 			case "kiwillm-kimi":
-				url =
-					getProviderEnvValue(
-						"kiwillm-kimi",
-						"baseUrl",
-						configIndex,
-						"https://kimi-k2.qwen4346.workers.dev",
-					) ?? "https://kimi-k2.qwen4346.workers.dev";
-				break;
 			case "kiwillm-deepseek":
-				url =
-					getProviderEnvValue(
-						"kiwillm-deepseek",
-						"baseUrl",
-						configIndex,
-						"https://deepseek-chat-proxy.deepseekrev1.workers.dev",
-					) ?? "https://deepseek-chat-proxy.deepseekrev1.workers.dev";
-				break;
 			case "kiwillm-minimax":
-				url =
-					getProviderEnvValue(
-						"kiwillm-minimax",
-						"baseUrl",
-						configIndex,
-						"https://minimax-ai-proxy.revai.workers.dev",
-					) ?? "https://minimax-ai-proxy.revai.workers.dev";
-				break;
 			case "kiwillm-free-ai-hub":
-				url =
-					getProviderEnvValue(
-						"kiwillm-free-ai-hub",
-						"baseUrl",
-						configIndex,
-						"https://free-ai-hub.revai.workers.dev",
-					) ?? "https://free-ai-hub.revai.workers.dev";
-				break;
 			case "kiwillm-n33-ai":
-				url =
-					getProviderEnvValue(
-						"kiwillm-n33-ai",
-						"baseUrl",
-						configIndex,
-						"https://n33-ai.qwen4346.workers.dev",
-					) ?? "https://n33-ai.qwen4346.workers.dev";
-				break;
 			case "kiwillm-svelte-ai-enhanced":
-				url =
-					getProviderEnvValue(
-						"kiwillm-svelte-ai-enhanced",
-						"baseUrl",
-						configIndex,
-						"https://svelte-ai-enhanced.revai.workers.dev",
-					) ?? "https://svelte-ai-enhanced.revai.workers.dev";
-				break;
 			case "kiwillm-openrouter-ai-hub":
-				url =
-					getProviderEnvValue(
-						"kiwillm-openrouter-ai-hub",
-						"baseUrl",
-						configIndex,
-						"https://openrouter-ai-hub.revai.workers.dev",
-					) ?? "https://openrouter-ai-hub.revai.workers.dev";
-				break;
 			case "kiwillm-botnation-worker":
-				url =
-					getProviderEnvValue(
-						"kiwillm-botnation-worker",
-						"baseUrl",
-						configIndex,
-						"https://botnation-worker.revai.workers.dev",
-					) ?? "https://botnation-worker.revai.workers.dev";
-				break;
 			case "kiwillm-groq-worker":
-				url =
-					getProviderEnvValue(
-						"kiwillm-groq-worker",
-						"baseUrl",
-						configIndex,
-						"https://groq-worker.revai.workers.dev",
-					) ?? "https://groq-worker.revai.workers.dev";
-				break;
 			case "kiwillm-nvidia-worker":
-				url =
-					getProviderEnvValue(
-						"kiwillm-nvidia-worker",
-						"baseUrl",
-						configIndex,
-						"https://nvidia-worker.revai.workers.dev",
-					) ?? "https://nvidia-worker.revai.workers.dev";
-				break;
 			case "kiwillm-swift-sora-video":
-				url =
-					getProviderEnvValue(
-						"kiwillm-swift-sora-video",
-						"baseUrl",
-						configIndex,
-						"https://swift-sora-video.revai.workers.dev",
-					) ?? "https://swift-sora-video.revai.workers.dev";
-				break;
 			case "kiwillm-claude-talkai":
-				url =
-					getProviderEnvValue(
-						"kiwillm-claude-talkai",
-						"baseUrl",
-						configIndex,
-						"https://claude-talkai.ronitshrimankar1.workers.dev",
-					) ?? "https://claude-talkai.ronitshrimankar1.workers.dev";
-				break;
 			case "kiwillm-chatbot-ai":
-				url =
-					getProviderEnvValue(
-						"kiwillm-chatbot-ai",
-						"baseUrl",
-						configIndex,
-						"https://chatbot-ai.qwen4346.workers.dev",
-					) ?? "https://chatbot-ai.qwen4346.workers.dev";
-				break;
 			case "kiwillm-cerebras-ai":
-				url =
-					getProviderEnvValue(
-						"kiwillm-cerebras-ai",
-						"baseUrl",
-						configIndex,
-						"https://cerebras-ai.qwen4346.workers.dev",
-					) ?? "https://cerebras-ai.qwen4346.workers.dev";
-				break;
 			case "kiwillm-grok-proxy":
-				url =
-					getProviderEnvValue(
-						"kiwillm-grok-proxy",
-						"baseUrl",
-						configIndex,
-						"https://grok-proxy.qwen4346.workers.dev",
-					) ?? "https://grok-proxy.qwen4346.workers.dev";
-				break;
 			case "kiwillm-gpt-oss-worker":
-				url =
-					getProviderEnvValue(
-						"kiwillm-gpt-oss-worker",
-						"baseUrl",
-						configIndex,
-						"https://gpt-oss-worker.llamai.workers.dev",
-					) ?? "https://gpt-oss-worker.llamai.workers.dev";
-				break;
 			case "kiwillm-claude-v3xg":
-				url =
-					getProviderEnvValue(
-						"kiwillm-claude-v3xg",
-						"baseUrl",
-						configIndex,
-						"https://claude-v3xg.onrender.com",
-					) ?? "https://claude-v3xg.onrender.com";
+				url = unifiedKiwiBaseUrl;
 				break;
 			case "anthropic":
 				url = "https://api.anthropic.com";
