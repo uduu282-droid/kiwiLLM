@@ -29,7 +29,7 @@ export const modelsApi = new OpenAPIHono<ServerTypes>();
 const unifiedWorkerBaseUrl =
 	process.env.LLM_KIWILLM_UNIFIED_BASE_URL ??
 	"https://unified-ai-worker.rutv.workers.dev";
-const syncUnifiedModelList = process.env.SYNC_UNIFIED_WORKER_MODELS !== "false";
+const forceUnifiedModels = process.env.KIWILLM_FORCE_UNIFIED_MODELS !== "false";
 
 function providerCanUseHostedRouteWithoutKey(providerId: Provider): boolean {
 	return !getProviderEnvConfig(providerId)?.required.apiKey;
@@ -267,51 +267,71 @@ modelsApi.openapi(listModels, async (c) => {
 		const excludeDeprecated = query.exclude_deprecated || false;
 		const currentDate = new Date();
 
-		if (syncUnifiedModelList) {
+		if (forceUnifiedModels) {
 			try {
 				const response = await fetch(`${unifiedWorkerBaseUrl}/v1/models`, {
 					headers: { Accept: "application/json" },
 					signal: AbortSignal.timeout(15000),
 				});
 
-				if (response.ok) {
-					const payload = await response.json();
-					const parsedPayload = listModelsResponseSchema.safeParse(payload);
-					if (parsedPayload.success) {
-						const syncedModels = parsedPayload.data.data.filter((model) => {
-							if (includeDeactivated) {
-								return true;
-							}
-							const deactivatedAt =
-								typeof model.deactivated_at === "string"
-									? new Date(model.deactivated_at)
-									: undefined;
-							if (deactivatedAt && currentDate > deactivatedAt) {
-								return false;
-							}
-							if (!excludeDeprecated) {
-								return true;
-							}
-							const deprecatedAt =
-								typeof model.deprecated_at === "string"
-									? new Date(model.deprecated_at)
-									: undefined;
-							return !(deprecatedAt && currentDate > deprecatedAt);
-						});
-
-						return c.json({ data: syncedModels });
-					}
-				} else {
-					logger.warn("Unified worker model sync failed, using local catalog", {
+				if (!response.ok) {
+					logger.error("Unified worker model sync failed", {
 						status: response.status,
 						baseUrl: unifiedWorkerBaseUrl,
 					});
+					throw new HTTPException(503, {
+						message:
+							"Unable to fetch model list from unified worker. Please try again shortly.",
+					});
 				}
+
+				const payload = await response.json();
+				const parsedPayload = listModelsResponseSchema.safeParse(payload);
+				if (!parsedPayload.success) {
+					logger.error("Unified worker returned invalid model payload", {
+						baseUrl: unifiedWorkerBaseUrl,
+						error: parsedPayload.error.message,
+					});
+					throw new HTTPException(503, {
+						message:
+							"Unified worker returned an invalid model list payload. Please try again shortly.",
+					});
+				}
+
+				const syncedModels = parsedPayload.data.data.filter((model) => {
+					if (includeDeactivated) {
+						return true;
+					}
+					const deactivatedAt =
+						typeof model.deactivated_at === "string"
+							? new Date(model.deactivated_at)
+							: undefined;
+					if (deactivatedAt && currentDate > deactivatedAt) {
+						return false;
+					}
+					if (!excludeDeprecated) {
+						return true;
+					}
+					const deprecatedAt =
+						typeof model.deprecated_at === "string"
+							? new Date(model.deprecated_at)
+							: undefined;
+					return !(deprecatedAt && currentDate > deprecatedAt);
+				});
+
+				return c.json({ data: syncedModels });
 			} catch (error) {
-				logger.warn(
-					"Unified worker model sync errored, using local catalog",
+				if (error instanceof HTTPException) {
+					throw error;
+				}
+				logger.error(
+					"Unified worker model sync errored",
 					error instanceof Error ? error : new Error(String(error)),
 				);
+				throw new HTTPException(503, {
+					message:
+						"Unable to fetch model list from unified worker. Please try again shortly.",
+				});
 			}
 		}
 
