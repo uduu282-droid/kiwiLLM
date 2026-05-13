@@ -34,6 +34,7 @@ test("OPTIONS /auth/supabase/session includes frontend auth headers in CORS", as
 
 	expect(res.status).toBe(204);
 	expect(res.headers.get("access-control-allow-origin")).toBe(origin);
+	expect(res.headers.get("access-control-allow-origin")).not.toBe("*");
 
 	const allowHeaders = res.headers.get("access-control-allow-headers") ?? "";
 	expect(allowHeaders).toContain("Content-Type");
@@ -41,4 +42,18 @@ test("OPTIONS /auth/supabase/session includes frontend auth headers in CORS", as
 	expect(allowHeaders).toContain("sentry-trace");
 	expect(allowHeaders).toContain("x-client-info");
 	expect(allowHeaders).toContain("apikey");
+});
+
+test("OPTIONS /auth/supabase/session does not allow unknown credentialed origins", async () => {
+	const res = await app.request("/auth/supabase/session", {
+		method: "OPTIONS",
+		headers: {
+			Origin: "https://malicious.example",
+			"Access-Control-Request-Method": "POST",
+			"Access-Control-Request-Headers": "content-type",
+		},
+	});
+
+	expect(res.status).toBe(204);
+	expect(res.headers.get("access-control-allow-origin")).toBeNull();
 });

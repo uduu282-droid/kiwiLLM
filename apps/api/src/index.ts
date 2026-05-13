@@ -53,6 +53,9 @@ const corsAllowHeaders = [
 	"baggage",
 ];
 
+const resolveCorsOrigin = (origin: string) =>
+	allowedOrigins.includes(origin) ? origin : undefined;
+
 export const config = {
 	servers: [
 		{
@@ -86,7 +89,7 @@ app.use("*", honoRequestLogger);
 app.use(
 	"*",
 	cors({
-		origin: allowedOrigins,
+		origin: resolveCorsOrigin,
 		allowHeaders: corsAllowHeaders,
 		allowMethods: ["POST", "GET", "OPTIONS", "PUT", "PATCH", "DELETE"],
 		exposeHeaders: ["Content-Length"],

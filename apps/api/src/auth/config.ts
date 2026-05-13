@@ -49,6 +49,19 @@ function splitOrigins(value: string | undefined) {
 		.filter(Boolean);
 }
 
+function normalizeAllowedOrigin(origin: string): string | null {
+	const trimmedOrigin = origin.trim().replace(/\/+$/, "");
+	if (!trimmedOrigin || trimmedOrigin === "*") {
+		return null;
+	}
+
+	try {
+		return new URL(trimmedOrigin).origin;
+	} catch {
+		return trimmedOrigin;
+	}
+}
+
 function extractClientIp(headers: Headers | null | undefined): string | null {
 	if (!headers) {
 		return null;
@@ -136,7 +149,9 @@ export const allowedOrigins = Array.from(
 		...splitOrigins(process.env.CHAT_URL),
 		...splitOrigins(process.env.ADMIN_URL),
 		...splitOrigins(process.env.API_URL),
-	]),
+	]
+		.map(normalizeAllowedOrigin)
+		.filter((origin): origin is string => Boolean(origin))),
 );
 
 export const redisClient = new Redis({
