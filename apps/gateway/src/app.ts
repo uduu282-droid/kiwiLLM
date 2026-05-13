@@ -103,18 +103,20 @@ function normalizeAllowedOrigin(origin: string): string | null {
 }
 
 const allowedOrigins = Array.from(
-	new Set([
-		...(isHosted ? defaultHostedOrigins : defaultLocalOrigins),
-		...splitOrigins(process.env.ORIGIN_URLS),
-		...splitOrigins(process.env.UI_URL),
-		...splitOrigins(process.env.APP_URL),
-		...splitOrigins(process.env.PLAYGROUND_URL),
-		...splitOrigins(process.env.CHAT_URL),
-		...splitOrigins(process.env.ADMIN_URL),
-		...splitOrigins(process.env.API_URL),
-	])
-		.map(normalizeAllowedOrigin)
-		.filter((origin): origin is string => Boolean(origin)),
+	new Set(
+		[
+			...(isHosted ? defaultHostedOrigins : defaultLocalOrigins),
+			...splitOrigins(process.env.ORIGIN_URLS),
+			...splitOrigins(process.env.UI_URL),
+			...splitOrigins(process.env.APP_URL),
+			...splitOrigins(process.env.PLAYGROUND_URL),
+			...splitOrigins(process.env.CHAT_URL),
+			...splitOrigins(process.env.ADMIN_URL),
+			...splitOrigins(process.env.API_URL),
+		]
+			.map(normalizeAllowedOrigin)
+			.filter((origin): origin is string => Boolean(origin)),
+	),
 );
 const allowAnyOrigin = splitOrigins(process.env.ORIGIN_URLS).includes("*");
 
