@@ -226,6 +226,149 @@ const listModelsResponseSchema = z.object({
 	data: z.array(modelSchema),
 });
 
+function toRecord(value: unknown): Record<string, unknown> | undefined {
+	if (typeof value === "object" && value !== null) {
+		return value as Record<string, unknown>;
+	}
+	return undefined;
+}
+
+function toStringOrUndefined(value: unknown): string | undefined {
+	return typeof value === "string" ? value : undefined;
+}
+
+function toBooleanOrDefault(value: unknown, fallback: boolean): boolean {
+	return typeof value === "boolean" ? value : fallback;
+}
+
+function toNumberOrDefault(value: unknown, fallback: number): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeUnifiedWorkerModel(model: unknown): Record<string, unknown> {
+	const modelRecord = toRecord(model) ?? {};
+	const id =
+		toStringOrUndefined(modelRecord.id) ??
+		toStringOrUndefined(modelRecord.model) ??
+		"unknown-model";
+	const family =
+		toStringOrUndefined(modelRecord.family) ??
+		id.split(/[/:.-]/)[0] ??
+		"unknown";
+	const created = toNumberOrDefault(
+		modelRecord.created,
+		Math.floor(Date.now() / 1000),
+	);
+
+	const architecture = toRecord(modelRecord.architecture) ?? {
+		input_modalities: ["text"],
+		output_modalities: ["text"],
+		tokenizer: "GPT",
+	};
+	const topProvider = toRecord(modelRecord.top_provider) ?? {
+		is_moderated: true,
+	};
+	const pricing = toRecord(modelRecord.pricing) ?? {
+		prompt: "0",
+		completion: "0",
+		image: "0",
+		request: "0",
+		input_cache_read: "0",
+		input_cache_write: "0",
+		web_search: "0",
+		internal_reasoning: "0",
+	};
+
+	const rawProviders =
+		Array.isArray(modelRecord.providers) && modelRecord.providers.length > 0
+			? modelRecord.providers
+			: [
+					{
+						providerId: "unified-worker",
+						modelName: id,
+						streaming: true,
+						vision: false,
+						cancellation: true,
+						tools: false,
+						parallelToolCalls: false,
+						reasoning: false,
+						pricing,
+					},
+				];
+
+	const providersNormalized = rawProviders.map((provider) => {
+		const providerRecord = toRecord(provider) ?? {};
+		return {
+			providerId:
+				toStringOrUndefined(providerRecord.providerId) ??
+				toStringOrUndefined(providerRecord.provider) ??
+				"unified-worker",
+			modelName:
+				toStringOrUndefined(providerRecord.modelName) ??
+				toStringOrUndefined(providerRecord.model) ??
+				id,
+			pricing: toRecord(providerRecord.pricing) ?? pricing,
+			streaming: toBooleanOrDefault(providerRecord.streaming, true),
+			vision: toBooleanOrDefault(providerRecord.vision, false),
+			cancellation: toBooleanOrDefault(providerRecord.cancellation, true),
+			tools: toBooleanOrDefault(providerRecord.tools, false),
+			parallelToolCalls: toBooleanOrDefault(
+				providerRecord.parallelToolCalls,
+				false,
+			),
+			reasoning: toBooleanOrDefault(providerRecord.reasoning, false),
+			stability: toStringOrUndefined(providerRecord.stability),
+		};
+	});
+
+	return {
+		...modelRecord,
+		id,
+		name: toStringOrUndefined(modelRecord.name) ?? id,
+		created,
+		description:
+			toStringOrUndefined(modelRecord.description) ??
+			`${id} provided by unified worker`,
+		family,
+		architecture,
+		top_provider: {
+			is_moderated: toBooleanOrDefault(topProvider.is_moderated, true),
+		},
+		providers: providersNormalized,
+		pricing: {
+			prompt: toStringOrUndefined(pricing.prompt) ?? "0",
+			completion: toStringOrUndefined(pricing.completion) ?? "0",
+			image: toStringOrUndefined(pricing.image) ?? "0",
+			request: toStringOrUndefined(pricing.request) ?? "0",
+			input_cache_read: toStringOrUndefined(pricing.input_cache_read) ?? "0",
+			input_cache_write: toStringOrUndefined(pricing.input_cache_write) ?? "0",
+			web_search: toStringOrUndefined(pricing.web_search) ?? "0",
+			internal_reasoning:
+				toStringOrUndefined(pricing.internal_reasoning) ?? "0",
+		},
+		json_output: toBooleanOrDefault(modelRecord.json_output, false),
+		structured_outputs: toBooleanOrDefault(
+			modelRecord.structured_outputs,
+			false,
+		),
+	};
+}
+
+function normalizeUnifiedWorkerPayload(payload: unknown): unknown {
+	const payloadRecord = toRecord(payload);
+	if (!payloadRecord) {
+		return payload;
+	}
+	if (!Array.isArray(payloadRecord.data)) {
+		return payload;
+	}
+
+	return {
+		...payloadRecord,
+		data: payloadRecord.data.map((model) => normalizeUnifiedWorkerModel(model)),
+	};
+}
+
 const listModels = createRoute({
 	operationId: "v1_models",
 	summary: "Models",
@@ -288,7 +431,9 @@ modelsApi.openapi(listModels, async (c) => {
 				}
 
 				const payload = await response.json();
-				const parsedPayload = listModelsResponseSchema.safeParse(payload);
+				const normalizedPayload = normalizeUnifiedWorkerPayload(payload);
+				const parsedPayload =
+					listModelsResponseSchema.safeParse(normalizedPayload);
 				if (!parsedPayload.success) {
 					logger.error("Unified worker returned invalid model payload", {
 						baseUrl: unifiedWorkerBaseUrl,
@@ -547,6 +692,9 @@ modelsApi.openapi(listModels, async (c) => {
 
 		return c.json({ data: modelData });
 	} catch (error) {
+		if (error instanceof HTTPException) {
+			throw error;
+		}
 		logger.error(
 			"Error in models endpoint",
 			error instanceof Error ? error : new Error(String(error)),
