@@ -51,12 +51,18 @@ authHandler.post("/auth/supabase/session", async (c) => {
 		return c.json({ message: "Invalid Supabase session payload" }, 400);
 	}
 
-	const body = z
+	const sessionPayloadValidation = z
 		.object({
 			accessToken: z.string().min(1),
 			refreshToken: z.string().nullable().optional(),
 		})
-		.parse(parsedBody);
+		.safeParse(parsedBody);
+
+	if (!sessionPayloadValidation.success) {
+		return c.json({ message: "Invalid Supabase session payload" }, 400);
+	}
+
+	const body = sessionPayloadValidation.data;
 
 	const session = await createSupabaseSession(body);
 	setCookie(
