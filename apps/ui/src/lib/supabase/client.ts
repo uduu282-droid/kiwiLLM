@@ -21,7 +21,9 @@ export function getSupabaseBrowserClient(config: AppConfig) {
 		{
 			auth: {
 				autoRefreshToken: true,
-				detectSessionInUrl: true,
+				// The callback page performs an explicit exchangeCodeForSession(code).
+				// Keep URL session detection off to avoid duplicate/racy PKCE exchanges.
+				detectSessionInUrl: false,
 				flowType: "pkce",
 				persistSession: true,
 			},
