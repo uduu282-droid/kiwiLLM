@@ -28,6 +28,7 @@ import { models } from "./models/route.js";
 import { responses } from "./responses/responses.js";
 import { videosRoute } from "./videos/route.js";
 
+import type { Context } from "hono";
 import type { ServerTypes } from "./vars.js";
 
 const isHosted = process.env.HOSTED === "true";
@@ -42,6 +43,187 @@ const gatewayUrl =
 	process.env.GATEWAY_URL ??
 	process.env.PUBLIC_GATEWAY_URL ??
 	(isHosted ? "https://api.kiwillm.in" : "http://localhost:4001");
+const apiBackendUrl =
+	process.env.API_BACKEND_URL ??
+	process.env.INTERNAL_API_URL ??
+	process.env.BACKEND_API_URL;
+const defaultHostedOrigins = [
+	"https://kiwillm.in",
+	"https://www.kiwillm.in",
+	"https://app.kiwillm.in",
+	"https://chat.kiwillm.in",
+	"https://api.kiwillm.in",
+];
+const defaultLocalOrigins = [
+	"http://localhost:3002",
+	"http://localhost:3003",
+	"http://localhost:3004",
+	"http://localhost:4001",
+	"http://localhost:4002",
+	"http://localhost:3006",
+];
+const hopByHopHeaders = new Set([
+	"connection",
+	"keep-alive",
+	"proxy-authenticate",
+	"proxy-authorization",
+	"te",
+	"trailer",
+	"transfer-encoding",
+	"upgrade",
+	"host",
+]);
+const upstreamCorsHeaders = new Set([
+	"access-control-allow-credentials",
+	"access-control-allow-headers",
+	"access-control-allow-methods",
+	"access-control-allow-origin",
+	"access-control-expose-headers",
+	"access-control-max-age",
+]);
+
+function splitOrigins(value: string | undefined) {
+	return (value ?? "")
+		.split(",")
+		.map((origin) => origin.trim())
+		.filter(Boolean);
+}
+
+function normalizeAllowedOrigin(origin: string): string | null {
+	const trimmedOrigin = origin.trim().replace(/\/+$/, "");
+	if (!trimmedOrigin || trimmedOrigin === "*") {
+		return null;
+	}
+
+	try {
+		return new URL(trimmedOrigin).origin;
+	} catch {
+		return trimmedOrigin;
+	}
+}
+
+const allowedOrigins = Array.from(
+	new Set([
+		...(isHosted ? defaultHostedOrigins : defaultLocalOrigins),
+		...splitOrigins(process.env.ORIGIN_URLS),
+		...splitOrigins(process.env.UI_URL),
+		...splitOrigins(process.env.APP_URL),
+		...splitOrigins(process.env.PLAYGROUND_URL),
+		...splitOrigins(process.env.CHAT_URL),
+		...splitOrigins(process.env.ADMIN_URL),
+		...splitOrigins(process.env.API_URL),
+	])
+		.map(normalizeAllowedOrigin)
+		.filter((origin): origin is string => Boolean(origin)),
+);
+const allowAnyOrigin = splitOrigins(process.env.ORIGIN_URLS).includes("*");
+
+const resolveCorsOrigin = (origin: string) => {
+	if (!origin) {
+		return "*";
+	}
+
+	if (allowedOrigins.includes(origin) || allowAnyOrigin) {
+		return origin;
+	}
+
+	return "*";
+};
+
+function getOrigin(value: string | undefined): string | null {
+	if (!value) {
+		return null;
+	}
+
+	try {
+		return new URL(value).origin;
+	} catch {
+		return null;
+	}
+}
+
+const apiProxyPrefixes = [
+	"/activity",
+	"/admin",
+	"/auth",
+	"/audit-logs",
+	"/chat",
+	"/chats",
+	"/dev-plans",
+	"/guardrails",
+	"/internal",
+	"/keys",
+	"/logs",
+	"/orgs",
+	"/payments",
+	"/playground",
+	"/projects",
+	"/public",
+	"/referral",
+	"/subscriptions",
+	"/team",
+	"/user",
+];
+
+function shouldProxyToApi(path: string) {
+	return apiProxyPrefixes.some(
+		(prefix) => path === prefix || path.startsWith(`${prefix}/`),
+	);
+}
+
+async function proxyApiRequest(c: Context<ServerTypes>) {
+	const gatewayOrigin = getOrigin(gatewayUrl);
+	const apiOrigin = getOrigin(apiBackendUrl);
+
+	if (!apiBackendUrl || !apiOrigin || apiOrigin === gatewayOrigin) {
+		return jsonResponse(
+			{
+				message:
+					"API backend upstream is not configured. Set API_BACKEND_URL on the gateway service to the API service URL.",
+			},
+			503,
+		);
+	}
+
+	const requestUrl = new URL(c.req.url);
+	const upstreamUrl = new URL(c.req.path, apiBackendUrl);
+	upstreamUrl.search = requestUrl.search;
+
+	const upstreamHeaders = new Headers();
+	for (const [key, value] of c.req.raw.headers.entries()) {
+		const normalizedKey = key.toLowerCase();
+		if (
+			!hopByHopHeaders.has(normalizedKey) &&
+			!upstreamCorsHeaders.has(normalizedKey)
+		) {
+			upstreamHeaders.set(key, value);
+		}
+	}
+
+	const method = c.req.method.toUpperCase();
+	const hasBody = method !== "GET" && method !== "HEAD";
+	const body = hasBody ? await c.req.raw.arrayBuffer() : undefined;
+	const upstreamResponse = await fetch(upstreamUrl, {
+		method,
+		headers: upstreamHeaders,
+		body,
+		redirect: "manual",
+	});
+
+	const responseHeaders = new Headers(upstreamResponse.headers);
+	for (const header of [...hopByHopHeaders, ...upstreamCorsHeaders]) {
+		responseHeaders.delete(header);
+	}
+	responseHeaders.delete("content-encoding");
+	responseHeaders.delete("content-length");
+
+	const responseBody = await upstreamResponse.arrayBuffer();
+	return new Response(responseBody, {
+		status: upstreamResponse.status,
+		statusText: upstreamResponse.statusText,
+		headers: responseHeaders,
+	});
+}
 
 function jsonResponse(
 	data: unknown,
@@ -111,19 +293,33 @@ app.use("*", honoRequestLogger);
 app.use(
 	"*",
 	cors({
-		origin: "*",
+		origin: resolveCorsOrigin,
 		allowHeaders: [
 			"Content-Type",
 			"Authorization",
 			"Cache-Control",
 			"x-api-key",
+			"apikey",
+			"x-client-info",
+			"x-supabase-api-version",
+			"sentry-trace",
+			"baggage",
 			"mcp-session-id",
 		],
 		allowMethods: ["POST", "GET", "OPTIONS", "PUT", "PATCH", "DELETE"],
 		exposeHeaders: ["Content-Length", "mcp-session-id"],
 		maxAge: 600,
+		credentials: true,
 	}),
 );
+
+app.use("*", async (c, next) => {
+	if (shouldProxyToApi(c.req.path)) {
+		return await proxyApiRequest(c);
+	}
+
+	return await next();
+});
 
 // Middleware to check for application/json content type on POST requests
 // Excludes /mcp endpoint which handles its own content type validation
