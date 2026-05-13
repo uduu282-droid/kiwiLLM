@@ -105,8 +105,8 @@ export function getSupabaseBrowserClient(config: AppConfig) {
 		{
 			auth: {
 				autoRefreshToken: true,
-				detectSessionInUrl: false,
-				flowType: "pkce",
+				detectSessionInUrl: true,
+				flowType: "implicit",
 				persistSession: true,
 				storage: createBrowserAuthStorage(),
 			},

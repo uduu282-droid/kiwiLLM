@@ -127,6 +127,7 @@ export default function AuthCallbackPage() {
 		if (hasHandledCallbackRef.current) {
 			return;
 		}
+		hasHandledCallbackRef.current = true;
 
 		const params = new URLSearchParams(window.location.search);
 		const next = params.get("next") ?? "/dashboard";
@@ -155,14 +156,23 @@ export default function AuthCallbackPage() {
 					const { data, error } = await auth.auth.exchangeCodeForSession(code);
 
 					if (error) {
-						throw error;
+						const message = getErrorMessage(error);
+						// When implicit flow is active there is no PKCE verifier, so
+						// continue with session discovery instead of failing hard.
+						if (
+							message.toLowerCase().includes("code verifier not found in storage")
+						) {
+							debug("exchange_code_for_session_skipped", { reason: message });
+						} else {
+							throw error;
+						}
+					} else {
+						exchangedSession = data.session;
+						debug("exchange_code_for_session_ready", {
+							hasSession: !!exchangedSession,
+							userId: exchangedSession?.user.id,
+						});
 					}
-
-					exchangedSession = data.session;
-					debug("exchange_code_for_session_ready", {
-						hasSession: !!exchangedSession,
-						userId: exchangedSession?.user.id,
-					});
 				}
 
 				const session =
@@ -180,7 +190,6 @@ export default function AuthCallbackPage() {
 					);
 				}
 
-				hasHandledCallbackRef.current = true;
 				await syncSessionWithRetry(authClient, session, debug);
 				await waitForAppSession(debug);
 				debug("redirecting_to_dashboard", { next });
@@ -193,7 +202,6 @@ export default function AuthCallbackPage() {
 				const retryDelaysMs = [0, 250, 500, 1000, 2000, 3000, 5000];
 
 				if (!auth) {
-					hasHandledCallbackRef.current = true;
 					setFailureMessage("Authentication is not configured.");
 					return;
 				}
@@ -221,7 +229,6 @@ export default function AuthCallbackPage() {
 					});
 				}
 
-				hasHandledCallbackRef.current = true;
 				if (recoveredSession?.user) {
 					try {
 						await syncSessionWithRetry(authClient, recoveredSession, debug);
